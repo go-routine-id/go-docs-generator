@@ -934,8 +934,9 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
     </script>
 
     <script>
-        // Quick Tests Data
-        const quickTests = {{.APITesterDefaults.QuickTests | json}};
+        // Quick Tests Data - ensure it's an array
+        const quickTestsData = {{.APITesterDefaults.QuickTests | json}};
+        const quickTests = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
 
         // Load saved token
         document.addEventListener('DOMContentLoaded', function() {
