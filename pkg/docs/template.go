@@ -871,16 +871,14 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
 
     <!-- ReactFlow Component -->
     <script type="text/babel">
-        const ReactFlow = window.ReactFlow.default;
-        const ReactFlowBackground = window.ReactFlow.Background;
-        const ReactFlowControls = window.ReactFlow.Controls;
-        const ReactFlowMiniMap = window.ReactFlow.MiniMap;
+        // ReactFlow v11 UMD exports - komponen ada di window.ReactFlow.ReactFlow
+        const ReactFlow = window.ReactFlow.ReactFlow || window.ReactFlow.default;
 
         const nodes = [
             {{range .FlowDiagramNodes}}
             {
                 id: '{{.ID}}',
-                data: { label: '{{.Label}}' },
+                data: { label: '{{.Label | js}}' },
                 position: { x: {{.Position.X}}, y: {{.Position.Y}} },
                 style: {
                     background: '{{.Color}}',
@@ -901,7 +899,7 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
                 id: '{{.Source}}-{{.Target}}',
                 source: '{{.Source}}',
                 target: '{{.Target}}',
-                label: '{{.Label}}',
+                label: '{{.Label | js}}',
                 animated: {{.Animated}},
                 style: { stroke: '{{.Color}}' }
                 {{if .Style}},type: 'dashed'{{end}}
@@ -917,15 +915,7 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
                     fitView: true,
                     nodesDraggable: true,
                     nodesConnectable: false
-                },
-                    React.createElement(ReactFlowBackground, { color: '#334155', gap: 16 }),
-                    React.createElement(ReactFlowControls),
-                    React.createElement(ReactFlowMiniMap, {
-                        nodeStrokeColor: '#4f46e5',
-                        nodeColor: '#1e293b',
-                        maskColor: 'rgba(15, 23, 42, 0.7)'
-                    })
-                )
+                })
             );
         }
 
@@ -934,9 +924,11 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
     </script>
 
     <script>
-        // Quick Tests Data - ensure it's an array
-        const quickTestsData = {{.APITesterDefaults.QuickTests | json}};
-        const quickTests = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
+        // Quick Tests Data - convert to object map for easy lookup
+        const quickTestsData = JSON.parse({{.APITesterDefaults.QuickTests | json}});
+        const quickTestsArray = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
+        const quickTests = {};
+        quickTestsArray.forEach(t => { if (t && t.id) quickTests[t.id] = t; });
 
         // Load saved token
         document.addEventListener('DOMContentLoaded', function() {
@@ -1084,7 +1076,7 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
         }
 
         function loadTest(testId) {
-            const test = quickTests.find(t => t.id === testId);
+            const test = quickTests[testId];
             if (!test) return;
 
             document.getElementById('tester-method').value = test.method;

@@ -44,6 +44,14 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			b, _ := json.Marshal(v)
 			return string(b)
 		},
+		"js": func(s string) string {
+			// Escape string for JavaScript - replace newlines and quotes
+			s = strings.ReplaceAll(s, "\\", "\\\\")
+			s = strings.ReplaceAll(s, "'", "\\'")
+			s = strings.ReplaceAll(s, "\n", " ")
+			s = strings.ReplaceAll(s, "\r", "")
+			return s
+		},
 		"groupTests": groupTestsByCategory,
 	}
 
