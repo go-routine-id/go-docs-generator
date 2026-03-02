@@ -1,0 +1,18 @@
+[Unit]
+Description=Museum Docs Generator
+Documentation=https://museumdigi.id/docs
+After=network.target
+
+[Service]
+Type=simple
+User=dev
+WorkingDirectory=/home/dev/museum/docs-generator
+ExecStart=/home/dev/museum/docs-generator/docs-generator -spec ./api-spec.yaml -port 8080
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=museum-docs
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,482 @@
+# Museum Service API Specification
+# Single source of truth untuk dokumentasi
+
+info:
+  title: Museum Service API
+  version: "1.0.0"
+  description: API untuk Museum Digital Indonesia - Single Museum Pattern
+  base_url: https://museumdigi.id
+
+authentication:
+  type: Bearer JWT
+  header: Authorization
+  source: Account Service
+  token_contains:
+    - account_id
+    - organization_id
+    - permissions
+
+flow_overview:
+  steps:
+    - Login ke Account Service → dapat JWT token
+    - Simpan token di localStorage/browser
+    - Kirim token di setiap request
+    - Museum di-identifikasi dari org_id dalam JWT (bukan URL path)
+
+sections:
+  - id: museum
+    title: My Museum (Single Museum Pattern)
+    description: Setiap organization hanya memiliki satu museum
+    endpoints:
+      - name: Get My Museum
+        method: GET
+        path: /api/v1/museum
+        auth: required
+        description: Ambil museum milik organization dari JWT org_id
+        response: Museum object
+        example_response: |
+          {
+            "id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "organization_id": "d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a",
+            "name": "Museum Gangelang",
+            "location": "Bali",
+            "description": "Museum untuk organisasi ini",
+            "image_url": "https://media.museumdigi.id/media/abc123/photo.jpg",
+            "contact_info": "",
+            "artifact_count": 0,
+            "created_at": "2026-03-02T16:09:02+07:00",
+            "updated_at": "2026-03-02T16:09:02+07:00"
+          }
+
+      - name: Update My Museum
+        method: PATCH
+        path: /api/v1/museum
+        auth: required
+        permission: museum:write
+        description: Update data museum milik organization
+        body:
+          - name: name
+            type: string
+            required: false
+            example: "Museum Gangelang Updated"
+          - name: location
+            type: string
+            required: false
+            example: "Jakarta Pusat"
+          - name: description
+            type: string
+            required: false
+            example: "Deskripsi museum yang diupdate"
+          - name: image_url
+            type: string
+            required: false
+            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+          - name: contact_info
+            type: string
+            required: false
+            example: "+62 812-3456-7890"
+        example_body: |
+          {
+            "name": "Museum Gangelang Updated",
+            "location": "Bali",
+            "description": "Updated description"
+          }
+
+      - name: Delete My Museum
+        method: DELETE
+        path: /api/v1/museum
+        auth: required
+        permission: museum:delete
+        description: Hapus museum milik organization
+
+      - name: Update Museum Image
+        method: POST
+        path: /api/v1/museum/image
+        auth: required
+        permission: museum:write
+        description: Update image URL museum (URL dari Media Service)
+        body:
+          - name: image_url
+            type: string
+            required: true
+            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+        example_body: |
+          {
+            "image_url": "https://media.museumdigi.id/media/xyz789/updated.jpg"
+          }
+
+  - id: artifacts
+    title: Artifacts
+    description: Kelola koleksi artifact museum
+    endpoints:
+      - name: List Artifacts
+        method: GET
+        path: /api/v1/artifacts
+        auth: optional
+        description: List semua artifact (public) atau filter by org (authenticated)
+        query_params:
+          - name: page
+            type: integer
+            required: false
+            default: 1
+            description: Halaman ke-
+          - name: page_size
+            type: integer
+            required: false
+            default: 9
+            description: Jumlah item per halaman
+          - name: search
+            type: string
+            required: false
+            description: Cari berdasarkan nama/description
+
+      - name: Create Artifact
+        method: POST
+        path: /api/v1/artifacts
+        auth: required
+        permission: artifact:write
+        description: Buat artifact baru
+        body:
+          - name: museum_id
+            type: string (uuid)
+            required: true
+            description: ID museum pemilik
+          - name: name
+            type: string
+            required: true
+            description: Nama artifact
+          - name: description
+            type: string
+            required: false
+          - name: category
+            type: string
+            required: false
+            example: "historical"
+          - name: era
+            type: string
+            required: false
+            example: "ancient"
+          - name: origin
+            type: string
+            required: false
+            example: "Indonesia"
+          - name: status
+            type: string
+            required: false
+            example: "active"
+          - name: image_url
+            type: string
+            required: false
+            description: URL dari Media Service
+          - name: model3d_url
+            type: string
+            required: false
+            description: URL 3D model dari Media Service
+        example_body: |
+          {
+            "museum_id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "name": "Candi Borobudur Miniature",
+            "description": "Miniatur candi skala 1:100",
+            "category": "historical",
+            "era": "Modern",
+            "origin": "Indonesia",
+            "status": "active",
+            "image_url": "https://media.museumdigi.id/media/art123/photo.jpg",
+            "model3d_url": "https://media.museumdigi.id/media/3d123/model.glb"
+          }
+
+      - name: Get Artifact
+        method: GET
+        path: /api/v1/artifacts/{id}
+        auth: optional
+        description: Ambil detail artifact by ID
+
+      - name: Update Artifact
+        method: PATCH
+        path: /api/v1/artifacts/{id}
+        auth: required
+        permission: artifact:write
+        description: Update data artifact
+        body:
+          - name: name
+            type: string
+            required: false
+          - name: description
+            type: string
+            required: false
+          - name: image_url
+            type: string
+            required: false
+          - name: model3d_url
+            type: string
+            required: false
+        example_body: |
+          {
+            "name": "Artifact Updated",
+            "description": "Updated description",
+            "image_url": "https://media.museumdigi.id/media/art456/new-photo.jpg"
+          }
+
+      - name: Delete Artifact
+        method: DELETE
+        path: /api/v1/artifacts/{id}
+        auth: required
+        permission: artifact:delete
+        description: Hapus artifact
+
+      - name: Update Artifact Image
+        method: POST
+        path: /api/v1/artifacts/{id}/image
+        auth: required
+        permission: artifact:write
+        description: Update image URL artifact
+        body:
+          - name: image_url
+            type: string
+            required: true
+        example_body: |
+          {
+            "image_url": "https://media.museumdigi.id/media/art789/image.jpg"
+          }
+
+  - id: file_upload
+    title: File Upload Flow
+    description: Museum Service tidak handle upload file langsung
+    flow:
+      - step: 1
+        title: Upload ke Media Service
+        endpoint:
+          method: POST
+          path: /api/v1/media/upload
+          service: Media Service (bukan Museum Service)
+          content_type: multipart/form-data
+          auth: required
+          permission: media:upload
+          fields:
+            - name: file
+              type: binary
+              required: true
+              description: File yang mau diupload (image, 3D model, document)
+            - name: folder_id
+              type: string
+              required: false
+              description: ID folder (optional)
+        curl_example: |
+          curl -X POST https://museumdigi.id/api/v1/media/upload \
+            -H "Authorization: Bearer TOKEN" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@photo.jpg" \
+            -F "folder_id=optional-folder-id"
+        response_example: |
+          {
+            "success": true,
+            "data": {
+              "media_id": "abc123...",
+              "url": "https://media.museumdigi.id/media/abc123/photo.jpg",
+              "thumbnail_url": "https://media.museumdigi.id/media/abc123/thumb.jpg"
+            }
+          }
+
+      - step: 2
+        title: Simpan URL ke Museum/Artifact
+        description: Gunakan URL dari response Media Service
+        actions:
+          - type: update_museum_image
+            description: Update museum image
+            endpoint: POST /api/v1/museum/image
+          - type: update_artifact_image
+            description: Update artifact image
+            endpoint: POST /api/v1/artifacts/{id}/image
+        tip: Simpan juga media_id di database jika perlu reference untuk delete/update
+
+permissions:
+  - name: museum:read
+    description: Baca museum
+  - name: museum:write
+    description: Create/update museum
+  - name: museum:delete
+    description: Delete museum
+  - name: artifact:read
+    description: Baca artifact
+  - name: artifact:write
+    description: Create/update artifact
+  - name: artifact:delete
+    description: Delete artifact
+  - name: media:upload
+    description: Upload file ke Media Service
+  - name: media:download
+    description: Download file dari Media Service
+
+constraints:
+  - One Organization = One Museum (satu org hanya bisa punya satu museum)
+  - JWT token wajib ada organization_id
+  - File upload harus melalui Media Service
+
+flow_diagram_nodes:
+  - id: account
+    label: "👤 Account Service\n(Organization)"
+    type: service
+    color: "#4f46e5"
+    position: { x: 350, y: 20 }
+  - id: museum
+    label: "🏛️ Museum\n(One per Org)"
+    type: museum
+    color: "#06b6d4"
+    position: { x: 350, y: 130 }
+  - id: artifact1
+    label: "🏺 Artifact 1"
+    type: artifact
+    color: "#8b5cf6"
+    position: { x: 150, y: 260 }
+  - id: artifact2
+    label: "🏺 Artifact 2"
+    type: artifact
+    color: "#8b5cf6"
+    position: { x: 370, y: 260 }
+  - id: artifact3
+    label: "🏺 Artifact N..."
+    type: artifact
+    color: "#8b5cf6"
+    position: { x: 590, y: 260 }
+  - id: media
+    label: "📸 Media Service\n(Upload/Get URL)"
+    type: service
+    color: "#10b981"
+    position: { x: 650, y: 400 }
+  - id: org_data
+    label: "org_id"
+    type: data
+    color: "#f59e0b"
+    position: { x: 550, y: 25 }
+  - id: museum_data
+    label: "museum_id\norg_id"
+    type: data
+    color: "#f59e0b"
+    position: { x: 550, y: 135 }
+  - id: media_id
+    label: "media_id"
+    type: data
+    color: "#f59e0b"
+    position: { x: 450, y: 400 }
+
+flow_diagram_edges:
+  - source: account
+    target: museum
+    label: "1:1"
+    animated: true
+    color: "#4f46e5"
+  - source: museum
+    target: artifact1
+    label: "1:N"
+    animated: false
+    color: "#06b6d4"
+  - source: museum
+    target: artifact2
+    animated: false
+    color: "#06b6d4"
+  - source: museum
+    target: artifact3
+    animated: false
+    color: "#06b6d4"
+  - source: artifact2
+    target: media
+    label: "upload file"
+    animated: true
+    color: "#f59e0b"
+  - source: media
+    target: media_id
+    label: "return"
+    animated: true
+    color: "#10b981"
+  - source: media_id
+    target: artifact2
+    label: "attach to artifact"
+    animated: true
+    style: dashed
+    color: "#f59e0b"
+  - source: account
+    target: org_data
+    label: "has"
+    color: "#64748b"
+  - source: museum
+    target: museum_data
+    label: "belongs to"
+    color: "#64748b"
+
+api_tester_defaults:
+  default_url: /api/v1/museum
+  quick_tests:
+    - id: get-museum
+      label: Get My Museum
+      method: GET
+      url: /api/v1/museum
+      body: ""
+
+    - id: update-museum
+      label: Update My Museum
+      method: PATCH
+      url: /api/v1/museum
+      body:
+        name: Museum Updated
+        location: Bandung
+
+    - id: list-artifacts
+      label: List Artifacts
+      method: GET
+      url: /api/v1/artifacts
+      body: ""
+
+    - id: create-artifact
+      label: Create Artifact
+      method: POST
+      url: /api/v1/artifacts
+      body:
+        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
+        name: Artifact Test
+        description: Artifact untuk testing
+        category: historical
+        era: ancient
+        origin: Indonesia
+        status: active
+
+    - id: get-artifact
+      label: Get Artifact
+      method: GET
+      url: /api/v1/artifacts/artifact-id-here
+      body: ""
+
+    - id: update-artifact
+      label: Update Artifact
+      method: PATCH
+      url: /api/v1/artifacts/artifact-id-here
+      body:
+        name: Artifact Updated
+        description: Updated description
+        image_url: https://media.museumdigi.id/media/art123/updated.jpg
+
+    - id: delete-artifact
+      label: Delete Artifact
+      method: DELETE
+      url: /api/v1/artifacts/artifact-id-here
+      body: ""
+
+    - id: upload-media
+      label: Upload to Media Service
+      method: POST
+      url: /api/v1/media/upload
+      body: ""
+      isFormData: true
+
+    - id: update-museum-image
+      label: Update Museum Image
+      method: POST
+      url: /api/v1/museum/image
+      body:
+        image_url: https://media.museumdigi.id/media/abc123/photo.jpg
+
+    - id: update-artifact-image
+      label: Update Artifact Image
+      method: POST
+      url: /api/v1/artifacts/artifact-id-here/image
+      body:
+        image_url: https://media.museumdigi.id/media/xyz789/artifact.jpg
