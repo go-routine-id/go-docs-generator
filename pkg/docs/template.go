@@ -206,6 +206,81 @@ const docsTemplate = `<!DOCTYPE html>
             margin: 0;
         }
 
+        /* Auth Method */
+        .auth-method {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .auth-method h4 {
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .auth-method p {
+            margin: 0.5rem 0;
+        }
+
+        .text-muted {
+            color: var(--text-muted);
+        }
+
+        /* Auth Selector - Modern Tabs */
+        .auth-selector {
+            display: flex;
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .auth-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .auth-option input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .auth-option label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-muted);
+            background: transparent;
+        }
+
+        .auth-option label:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .auth-option input:checked + label {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+        }
+
+        .auth-option svg {
+            width: 18px;
+            height: 18px;
+        }
+
         /* Code blocks */
         pre {
             background: var(--bg);
@@ -622,19 +697,52 @@ const docsTemplate = `<!DOCTYPE html>
             <pre><code>{{.Info.BaseURL}}</code></pre>
 
             <h3>Authentication</h3>
-            <p>Type: <strong>{{.Authentication.Type}}</strong></p>
-            <p>Header: <code>{{.Authentication.Header}}: Bearer &lt;token&gt;</code></p>
-            <p>Token source: {{.Authentication.Source}}</p>
-            <div class="alert alert-info">
-                <strong>Token contains:</strong> {{join .Authentication.TokenContains ", "}}
-            </div>
+            {{if .Authentication.Methods}}
+                {{range .Authentication.Methods}}
+                <div class="auth-method">
+                    <h4>{{.Type}}</h4>
+                    <p><strong>Header:</strong> <code>{{.Header}}: {{.Format}}</code></p>
+                    <p><strong>Source:</strong> {{.Source}}</p>
+                    <p>{{.Description}}</p>
+                    {{if .Note}}<p class="text-muted"><em>Note: {{.Note}}</em></p>{{end}}
+                    {{if .TokenContains}}
+                    <div class="alert alert-info">
+                        <strong>Token contains:</strong> {{join .TokenContains ", "}}
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+            {{else}}
+                <p>Type: <strong>{{.Authentication.Type}}</strong></p>
+                <p>Header: <code>{{.Authentication.Header}}: Bearer &lt;token&gt;</code></p>
+                <p>Token source: {{.Authentication.Source}}</p>
+                <div class="alert alert-info">
+                    <strong>Token contains:</strong> {{join .Authentication.TokenContains ", "}}
+                </div>
+            {{end}}
 
             <h3>Flow Overview</h3>
+            {{if .FlowOverview.StepsJWT}}
+            <h4>JWT Flow</h4>
+            <ol>
+                {{range .FlowOverview.StepsJWT}}
+                <li>{{.}}</li>
+                {{end}}
+            </ol>
+            <h4>API Key Flow</h4>
+            <ol>
+                {{range .FlowOverview.StepsAPIKey}}
+                <li>{{.}}</li>
+                {{end}}
+            </ol>
+            {{if .FlowOverview.Note}}<p class="text-muted"><em>{{.FlowOverview.Note}}</em></p>{{end}}
+            {{else}}
             <ol>
                 {{range .FlowOverview.Steps}}
                 <li>{{.}}</li>
                 {{end}}
             </ol>
+            {{end}}
 
             <h3>Constraints</h3>
             <ul>
@@ -751,13 +859,40 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
         <!-- API Tester Section -->
         <section class="section" id="api-tester">
             <h2>🧪 API Tester</h2>
-            <p>Test API endpoints directly from this documentation. Masukkan JWT token (optional) dan parameters, lalu klik "Send Request".</p>
+            <p>Test API endpoints directly from this documentation. Pilih metode autentikasi (JWT atau API Key), masukkan token/key, dan klik "Send Request".</p>
 
             <div class="api-tester">
                 <div class="tester-config">
                     <div class="form-group">
+                        <label>Authentication Method</label>
+                        <div class="auth-selector">
+                            <div class="auth-option">
+                                <input type="radio" name="auth-method" value="jwt" id="auth-jwt" checked onchange="toggleAuthMethod()">
+                                <label for="auth-jwt">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    JWT Token
+                                </label>
+                            </div>
+                            <div class="auth-option">
+                                <input type="radio" name="auth-method" value="apikey" id="auth-apikey" onchange="toggleAuthMethod()">
+                                <label for="auth-apikey">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                                    API Key
+                                </label>
+                            </div>
+                            <div class="auth-option">
+                                <input type="radio" name="auth-method" value="none" id="auth-none" onchange="toggleAuthMethod()">
+                                <label for="auth-none">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+                                    Public
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="jwt-token-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <label>JWT Token (Optional)</label>
+                            <label>JWT Token</label>
                             <div style="display: flex; align-items: center; gap: 1rem;">
                                 <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
                                     <input type="checkbox" id="save-token" checked>
@@ -767,7 +902,22 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
                             </div>
                         </div>
                         <input type="text" id="tester-token" placeholder="Bearer eyJhbGciOiJSUzI1NiIs...">
-                        <small>Token tersimpan di browser (localStorage). Leave empty for public endpoints.</small>
+                        <small>Token tersimpan di browser (localStorage). Format: Bearer &lt;token&gt;</small>
+                    </div>
+
+                    <div class="form-group" id="api-key-group" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <label>API Key</label>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
+                                    <input type="checkbox" id="save-apikey" checked>
+                                    <span>Remember API Key</span>
+                                </label>
+                                <button onclick="clearApiKey()" style="background: none; border: none; color: var(--danger); font-size: 0.85rem; cursor: pointer; text-decoration: underline;">Clear</button>
+                            </div>
+                        </div>
+                        <input type="text" id="tester-apikey" placeholder="your-api-key-here">
+                        <small>API Key tersimpan di browser (localStorage). Backend akan exchange ke JWT.</small>
                     </div>
                 </div>
 
@@ -930,13 +1080,40 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
         const quickTests = {};
         quickTestsArray.forEach(t => { if (t && t.id) quickTests[t.id] = t; });
 
-        // Load saved token
+        // Load saved token and API Key
         document.addEventListener('DOMContentLoaded', function() {
             const savedToken = localStorage.getItem('museum_api_token');
             if (savedToken) {
                 document.getElementById('tester-token').value = savedToken;
             }
+            const savedApiKey = localStorage.getItem('museum_api_key');
+            if (savedApiKey) {
+                document.getElementById('tester-apikey').value = savedApiKey;
+            }
+            const savedAuthMethod = localStorage.getItem('museum_auth_method');
+            if (savedAuthMethod) {
+                document.getElementById('auth-' + savedAuthMethod).checked = true;
+                toggleAuthMethod();
+            }
         });
+
+        function toggleAuthMethod() {
+            const method = document.querySelector('input[name="auth-method"]:checked').value;
+            const jwtGroup = document.getElementById('jwt-token-group');
+            const apiKeyGroup = document.getElementById('api-key-group');
+
+            if (method === 'jwt') {
+                jwtGroup.style.display = 'block';
+                apiKeyGroup.style.display = 'none';
+            } else if (method === 'apikey') {
+                jwtGroup.style.display = 'none';
+                apiKeyGroup.style.display = 'block';
+            } else {
+                jwtGroup.style.display = 'none';
+                apiKeyGroup.style.display = 'none';
+            }
+            localStorage.setItem('museum_auth_method', method);
+        }
 
         function saveToken() {
             const token = document.getElementById('tester-token').value;
@@ -948,6 +1125,18 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
         function clearToken() {
             document.getElementById('tester-token').value = '';
             localStorage.removeItem('museum_api_token');
+        }
+
+        function saveApiKey() {
+            const apiKey = document.getElementById('tester-apikey').value;
+            if (document.getElementById('save-apikey').checked && apiKey) {
+                localStorage.setItem('museum_api_key', apiKey);
+            }
+        }
+
+        function clearApiKey() {
+            document.getElementById('tester-apikey').value = '';
+            localStorage.removeItem('museum_api_key');
         }
 
         function switchTab(tabName) {
@@ -994,7 +1183,9 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
         async function sendRequest() {
             const method = document.getElementById('tester-method').value;
             let url = document.getElementById('tester-url').value;
+            const authMethod = document.querySelector('input[name="auth-method"]:checked').value;
             const token = document.getElementById('tester-token').value;
+            const apiKey = document.getElementById('tester-apikey').value;
             const responseBody = document.getElementById('response-body');
             const statusBadge = document.getElementById('response-status');
 
@@ -1002,8 +1193,12 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
                 url = '{{.Info.BaseURL}}' + url;
             }
 
-            // Save token if checked
-            saveToken();
+            // Save auth data if checked
+            if (authMethod === 'jwt') {
+                saveToken();
+            } else if (authMethod === 'apikey') {
+                saveApiKey();
+            }
 
             // Build query params
             const params = new URLSearchParams();
@@ -1014,9 +1209,17 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
             });
             if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
 
-            // Build headers
+            // Build headers based on auth method
             const headers = {};
-            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
+            if (authMethod === 'jwt' && token) {
+                headers['Authorization'] = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
+                console.log('Set Authorization header:', headers['Authorization'].substring(0, 20) + '...');
+            } else if (authMethod === 'apikey' && apiKey) {
+                headers['X-API-Key'] = apiKey;
+                console.log('Set X-API-Key header:', apiKey.substring(0, 10) + '...');
+            } else {
+                console.log('No auth header set');
+            }
 
             const options = {
                 method: method,

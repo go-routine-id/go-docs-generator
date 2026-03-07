@@ -27,16 +27,16 @@ authentication:
 
 flow_overview:
   steps_jwt:
-    - Login ke Account Service → dapat JWT token
-    - Simpan token di localStorage/browser
-    - Kirim token di setiap request dengan header Authorization: Bearer <token>
-    - Museum di-identifikasi dari org_id dalam JWT (bukan URL path)
+    - "Login ke Account Service → dapat JWT token"
+    - "Simpan token di localStorage/browser"
+    - "Kirim token di setiap request dengan header Authorization: Bearer <token>"
+    - "Museum di-identifikasi dari org_id dalam JWT (bukan URL path)"
   steps_api_key:
-    - Dapatkan API Key dari Account Service (untuk service/client)
-    - Kirim API Key di setiap request dengan header X-API-Key: <api_key>
-    - Backend akan exchange API Key ke JWT (dengan caching 1 jam)
-    - JWT hasil exchange digunakan untuk autentikasi dan otorisasi
-  note: Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)
+    - "Dapatkan API Key dari Account Service (untuk service/client)"
+    - "Kirim API Key di setiap request dengan header X-API-Key: <api_key>"
+    - "Backend akan exchange API Key ke JWT (dengan caching 1 jam)"
+    - "JWT hasil exchange digunakan untuk autentikasi dan otorisasi"
+  note: "Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)"
 
 sections:
   - id: museum
@@ -780,6 +780,13 @@ api_tester_defaults:
       label: Restore Article
       method: POST
       url: /api/v1/articles/article-id-here/restore
+      body: ""
+
+    # Debug/Testing
+    - id: test-auth-headers
+      label: Test Auth Headers (Debug)
+      method: GET
+      url: /api/docs/echo
       body: ""
 
     # Quick tests using X-API-Key

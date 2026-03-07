@@ -133,6 +133,25 @@ func (h *Handler) RegisterRoutes(router *gin.Engine) {
 	router.GET("/docs", h.ServeHTML)
 	router.GET("/api/docs/spec", h.ServeSpec)
 	router.GET("/api/docs/yaml", h.ServeYAML)
+	router.GET("/api/docs/echo", h.ServeEcho)
+	router.POST("/api/docs/echo", h.ServeEcho)
+}
+
+// ServeEcho echoes back the received headers and request info for debugging
+func (h *Handler) ServeEcho(c *gin.Context) {
+	headers := make(map[string]string)
+	for name, values := range c.Request.Header {
+		if len(values) > 0 {
+			headers[name] = values[0]
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"method":  c.Request.Method,
+		"url":     c.Request.URL.String(),
+		"headers": headers,
+		"message": "Echo of received request headers",
+	})
 }
 
 // groupTestsByCategory groups quick tests by their category

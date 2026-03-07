@@ -20,15 +20,30 @@ type InfoInfo struct {
 	BaseURL     string `yaml:"base_url" json:"base_url"`
 }
 
-type AuthenticationInfo struct {
+// AuthMethod represents a single authentication method
+type AuthMethod struct {
 	Type          string   `yaml:"type" json:"type"`
 	Header        string   `yaml:"header" json:"header"`
+	Format        string   `yaml:"format" json:"format"`
 	Source        string   `yaml:"source" json:"source"`
-	TokenContains []string `yaml:"token_contains" json:"token_contains"`
+	Description   string   `yaml:"description" json:"description"`
+	Note          string   `yaml:"note,omitempty" json:"note,omitempty"`
+	TokenContains []string `yaml:"token_contains,omitempty" json:"token_contains,omitempty"`
+}
+
+type AuthenticationInfo struct {
+	Type          string       `yaml:"type" json:"type"` // Deprecated: legacy single type
+	Header        string       `yaml:"header" json:"header"` // Deprecated: legacy single header
+	Source        string       `yaml:"source" json:"source"` // Deprecated: legacy single source
+	TokenContains []string     `yaml:"token_contains" json:"token_contains"` // Deprecated: legacy
+	Methods       []AuthMethod `yaml:"methods" json:"methods"`
 }
 
 type FlowOverviewInfo struct {
-	Steps []string `yaml:"steps" json:"steps"`
+	Steps        []string `yaml:"steps" json:"steps"` // Deprecated: legacy
+	StepsJWT     []string `yaml:"steps_jwt" json:"steps_jwt"`
+	StepsAPIKey  []string `yaml:"steps_api_key" json:"steps_api_key"`
+	Note         string   `yaml:"note,omitempty" json:"note,omitempty"`
 }
 
 type SectionInfo struct {
