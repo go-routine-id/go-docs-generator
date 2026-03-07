@@ -8,20 +8,35 @@ info:
   base_url: https://museumdigi.id
 
 authentication:
-  type: Bearer JWT
-  header: Authorization
-  source: Account Service
-  token_contains:
-    - account_id
-    - organization_id
-    - permissions
+  methods:
+    - type: Bearer JWT
+      header: Authorization
+      format: "Bearer <token>"
+      source: Account Service
+      description: Untuk user login yang sudah autentikasi
+      token_contains:
+        - account_id
+        - organization_id
+        - permissions
+    - type: API Key
+      header: X-API-Key
+      format: "<api_key>"
+      source: Account Service (via token exchange)
+      description: Untuk service-to-service, CLI, atau background jobs
+      note: Backend akan otomatis exchange API Key menjadi JWT dan cache hasilnya
 
 flow_overview:
-  steps:
+  steps_jwt:
     - Login ke Account Service → dapat JWT token
     - Simpan token di localStorage/browser
-    - Kirim token di setiap request
+    - Kirim token di setiap request dengan header Authorization: Bearer <token>
     - Museum di-identifikasi dari org_id dalam JWT (bukan URL path)
+  steps_api_key:
+    - Dapatkan API Key dari Account Service (untuk service/client)
+    - Kirim API Key di setiap request dengan header X-API-Key: <api_key>
+    - Backend akan exchange API Key ke JWT (dengan caching 1 jam)
+    - JWT hasil exchange digunakan untuk autentikasi dan otorisasi
+  note: Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)
 
 sections:
   - id: museum
@@ -239,6 +254,187 @@ sections:
             "image_url": "https://media.museumdigi.id/media/art789/image.jpg"
           }
 
+  - id: articles
+    title: Articles (CMS)
+    description: Kelola artikel/berita museum dan konten artifact
+    endpoints:
+      - name: List Articles
+        method: GET
+        path: /api/v1/articles
+        auth: optional
+        description: List semua artikel dengan filter dan pagination
+        query_params:
+          - name: page
+            type: integer
+            required: false
+            default: 1
+            description: Halaman ke-
+          - name: page_size
+            type: integer
+            required: false
+            default: 12
+            description: Jumlah item per halaman
+          - name: museum_id
+            type: string (uuid)
+            required: false
+            description: Filter berdasarkan museum
+          - name: type
+            type: string
+            required: false
+            description: Filter berdasarkan tipe (news, artifact_detail)
+          - name: search
+            type: string
+            required: false
+            description: Cari berdasarkan judul/konten
+          - name: is_published
+            type: boolean
+            required: false
+            description: Filter berdasarkan status publish
+          - name: include_deleted
+            type: boolean
+            required: false
+            default: false
+            description: Sertakan artikel yang sudah dihapus (admin only)
+        example_response: |
+          {
+            "data": [
+              {
+                "id": "art-123",
+                "museum_id": "museum-456",
+                "user_id": "user-789",
+                "type": "news",
+                "title": "Pameran Baru Dibuka",
+                "slug": "pameran-baru-dibuka-1709523456",
+                "excerpt": "Kami dengan bangga mengumumkan...",
+                "content_html": "<h1>Pameran Baru</h1><p>Kami dengan bangga...</p>",
+                "cover_image": "https://media.museumdigi.id/media/art123/cover.jpg",
+                "is_published": true,
+                "published_at": "2024-03-15T10:00:00Z",
+                "created_at": "2024-03-10T08:00:00Z",
+                "updated_at": "2024-03-15T09:00:00Z"
+              }
+            ],
+            "meta": {
+              "page": 1,
+              "page_size": 12,
+              "total": 1,
+              "total_pages": 1
+            }
+          }
+
+      - name: Get Article by Slug (Public)
+        method: GET
+        path: /api/v1/articles/slug/{slug}
+        auth: optional
+        description: Ambil artikel by slug (untuk akses publik)
+        note: Hanya mengembalikan artikel yang sudah dipublish
+
+      - name: Get Article by ID
+        method: GET
+        path: /api/v1/articles/{id}
+        auth: optional
+        description: Ambil detail artikel by ID
+
+      - name: Create Article
+        method: POST
+        path: /api/v1/articles
+        auth: required
+        permission: article:write
+        description: Buat artikel baru
+        body:
+          - name: museum_id
+            type: string (uuid)
+            required: true
+            description: ID museum pemilik
+          - name: type
+            type: string
+            required: true
+            enum: [news, artifact_detail]
+            description: Tipe artikel
+          - name: artifact_id
+            type: string (uuid)
+            required: false
+            description: Wajib jika type = artifact_detail
+          - name: title
+            type: string
+            required: true
+            max_length: 255
+            description: Judul artikel
+          - name: slug
+            type: string
+            required: false
+            max_length: 255
+            description: URL slug (auto-generate jika kosong)
+          - name: content
+            type: string (markdown)
+            required: true
+            description: Konten artikel dalam format Markdown
+          - name: cover_image
+            type: string
+            required: false
+            description: URL cover image dari Media Service
+          - name: is_published
+            type: boolean
+            required: false
+            default: false
+            description: Status publish
+        example_body: |
+          {
+            "museum_id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "type": "news",
+            "title": "Pameran Sejarah Indonesia 2024",
+            "content": "# Pameran Sejarah Indonesia\n\nKami dengan **bangga** mengumumkan...",
+            "cover_image": "https://media.museumdigi.id/media/art123/cover.jpg",
+            "is_published": true
+          }
+
+      - name: Update Article
+        method: PATCH
+        path: /api/v1/articles/{id}
+        auth: required
+        permission: article:write
+        description: Update data artikel
+        body:
+          - name: type
+            type: string
+            required: false
+            enum: [news, artifact_detail]
+          - name: artifact_id
+            type: string (uuid)
+            required: false
+          - name: title
+            type: string
+            required: false
+            max_length: 255
+          - name: slug
+            type: string
+            required: false
+            max_length: 255
+          - name: content
+            type: string (markdown)
+            required: false
+          - name: cover_image
+            type: string
+            required: false
+          - name: is_published
+            type: boolean
+            required: false
+        note: Field yang tidak diisi tidak akan diupdate
+
+      - name: Delete Article
+        method: DELETE
+        path: /api/v1/articles/{id}
+        auth: required
+        permission: article:delete
+        description: Soft-delete artikel
+
+      - name: Restore Article
+        method: POST
+        path: /api/v1/articles/{id}/restore
+        auth: required
+        permission: article:write
+        description: Restore artikel yang sudah dihapus
+
   - id: file_upload
     title: File Upload Flow
     description: Museum Service tidak handle upload file langsung
@@ -247,10 +443,11 @@ sections:
         title: Upload ke Media Service
         endpoint:
           method: POST
-          path: /api/v1/media/upload
+          path: /api/v1/upload
           service: Media Service (bukan Museum Service)
           content_type: multipart/form-data
           auth: required
+          auth_methods: [Bearer JWT, X-API-Key]
           permission: media:upload
           fields:
             - name: file
@@ -261,9 +458,15 @@ sections:
               type: string
               required: false
               description: ID folder (optional)
-        curl_example: |
-          curl -X POST https://museumdigi.id/api/v1/media/upload \
+        curl_example_jwt: |
+          curl -X POST https://museumdigi.id/api/v1/upload \
             -H "Authorization: Bearer TOKEN" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@photo.jpg" \
+            -F "folder_id=optional-folder-id"
+        curl_example_api_key: |
+          curl -X POST https://museumdigi.id/api/v1/upload \
+            -H "X-API-Key: YOUR_API_KEY" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@photo.jpg" \
             -F "folder_id=optional-folder-id"
@@ -309,8 +512,10 @@ permissions:
 
 constraints:
   - One Organization = One Museum (satu org hanya bisa punya satu museum)
-  - JWT token wajib ada organization_id
+  - JWT token (dari Bearer atau X-API-Key exchange) wajib ada organization_id
   - File upload harus melalui Media Service
+  - X-API-Key akan di-exchange menjadi JWT dengan expiry 1 jam (3600 detik)
+  - JWT hasil exchange di-cache di backend untuk mengurangi pemanggilan ke Account Service
 
 flow_diagram_nodes:
   - id: account
@@ -357,7 +562,17 @@ flow_diagram_nodes:
     label: "media_id"
     type: data
     color: "#f59e0b"
-    position: { x: 450, y: 400 }
+    position: { x: 750, y: 300 }
+  - id: article_news
+    label: "📰 Article\n(News)"
+    type: article
+    color: "#ec4899"
+    position: { x: 100, y: 400 }
+  - id: article_detail
+    label: "📄 Article\n(Artifact Detail)"
+    type: article
+    color: "#ec4899"
+    position: { x: 300, y: 400 }
 
 flow_diagram_edges:
   - source: account
@@ -402,9 +617,34 @@ flow_diagram_edges:
     target: museum_data
     label: "belongs to"
     color: "#64748b"
+  - source: museum
+    target: article_news
+    label: "has many"
+    animated: false
+    color: "#ec4899"
+  - source: museum
+    target: article_detail
+    label: "has many"
+    animated: false
+    color: "#ec4899"
+  - source: artifact2
+    target: article_detail
+    label: "referenced by"
+    animated: true
+    style: dashed
+    color: "#ec4899"
 
 api_tester_defaults:
   default_url: /api/v1/museum
+  auth_modes:
+    - name: JWT Bearer
+      header: Authorization
+      prefix: "Bearer "
+      placeholder: YOUR_JWT_TOKEN_HERE
+    - name: API Key
+      header: X-API-Key
+      prefix: ""
+      placeholder: YOUR_API_KEY_HERE
   quick_tests:
     - id: get-museum
       label: Get My Museum
@@ -463,7 +703,7 @@ api_tester_defaults:
     - id: upload-media
       label: Upload to Media Service
       method: POST
-      url: /api/v1/media/upload
+      url: /api/v1/upload
       body: ""
       isFormData: true
 
@@ -480,3 +720,86 @@ api_tester_defaults:
       url: /api/v1/artifacts/artifact-id-here/image
       body:
         image_url: https://media.museumdigi.id/media/xyz789/artifact.jpg
+
+    - id: list-articles
+      label: List Articles
+      method: GET
+      url: /api/v1/articles
+      body: ""
+
+    - id: create-article
+      label: Create Article (News)
+      method: POST
+      url: /api/v1/articles
+      body:
+        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
+        type: news
+        title: Berita Museum Baru
+        content: "# Berita Penting\n\nKami dengan bangga mengumumkan..."
+        is_published: true
+
+    - id: create-article-artifact
+      label: Create Article (Artifact Detail)
+      method: POST
+      url: /api/v1/articles
+      body:
+        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
+        type: artifact_detail
+        artifact_id: artifact-id-here
+        title: Sejarah Artifact Borobudur
+        content: "# Sejarah Borobudur\n\nCandi Borobudur adalah..."
+        is_published: true
+
+    - id: get-article
+      label: Get Article by ID
+      method: GET
+      url: /api/v1/articles/article-id-here
+      body: ""
+
+    - id: get-article-slug
+      label: Get Article by Slug
+      method: GET
+      url: /api/v1/articles/slug/berita-museum-baru-1709523456
+      body: ""
+
+    - id: update-article
+      label: Update Article
+      method: PATCH
+      url: /api/v1/articles/article-id-here
+      body:
+        title: Berita Museum Updated
+        is_published: true
+
+    - id: delete-article
+      label: Delete Article
+      method: DELETE
+      url: /api/v1/articles/article-id-here
+      body: ""
+
+    - id: restore-article
+      label: Restore Article
+      method: POST
+      url: /api/v1/articles/article-id-here/restore
+      body: ""
+
+    # Quick tests using X-API-Key
+    - id: get-museum-apikey
+      label: Get My Museum (X-API-Key)
+      method: GET
+      url: /api/v1/museum
+      body: ""
+      auth_mode: API Key
+
+    - id: create-artifact-apikey
+      label: Create Artifact (X-API-Key)
+      method: POST
+      url: /api/v1/artifacts
+      body:
+        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
+        name: Artifact via API Key
+        description: Testing X-API-Key auth
+        category: historical
+        era: ancient
+        origin: Indonesia
+        status: active
+      auth_mode: API Key
