@@ -1,0 +1,129 @@
+# Screen definitions for Museum Service
+screens:
+  - id: login
+    title: "Login Screen"
+    icon: "🔑"
+    description: "Halaman login untuk user masuk ke sistem"
+    image: "https://willnorris.com/api/imageproxy/150x300/https://judahnorris.com/images/judah-sheets.jpg"
+    platform: [web, mobile]
+    calls:
+      - method: POST
+        path: /api/v1/auth/login
+        purpose: "Authenticate user dan dapatkan JWT token"
+        trigger: "User tap Login button"
+        auth: none
+        notes: "Returns JWT token. Disimpan di localStorage untuk request selanjutnya."
+
+  - id: museum_dashboard
+    title: "Museum Dashboard"
+    icon: "🏛️"
+    description: "Halaman utama museum setelah login, menampilkan info museum dan daftar artifact"
+    image: "http://placekitten.com/400/300"
+    platform: [web, mobile]
+    calls:
+      - method: GET
+        path: /api/v1/museum
+        purpose: "Load info museum milik organization"
+        trigger: "On page load"
+        auth: required
+      - method: GET
+        path: /api/v1/artifacts
+        purpose: "List artifacts dengan pagination"
+        trigger: "On page load"
+        auth: optional
+        notes: "Public = semua artifact, authenticated = filtered by org"
+      - method: GET
+        path: /api/v1/articles
+        purpose: "List artikel terbaru"
+        trigger: "On page load / scroll"
+        auth: optional
+
+  - id: museum_edit
+    title: "Edit Museum"
+    icon: "✏️"
+    description: "Form edit data museum (nama, lokasi, deskripsi, image)"
+    platform: [web]
+    calls:
+      - method: GET
+        path: /api/v1/museum
+        purpose: "Load current museum data"
+        trigger: "On page load"
+        auth: required
+      - method: PATCH
+        path: /api/v1/museum
+        purpose: "Update museum data"
+        trigger: "Submit form"
+        auth: required
+      - method: POST
+        path: /api/v1/museum/image
+        purpose: "Update museum image"
+        trigger: "User uploads new image"
+        auth: required
+        notes: "Image URL dari Media Service"
+
+  - id: artifact_detail
+    title: "Artifact Detail"
+    icon: "🏺"
+    description: "Halaman detail artifact dengan gambar dan informasi lengkap"
+    platform: [web, mobile]
+    calls:
+      - method: GET
+        path: /api/v1/artifacts/{id}
+        purpose: "Load artifact detail"
+        trigger: "On page load"
+        auth: optional
+
+  - id: artifact_form
+    title: "Create/Edit Artifact"
+    icon: "✏️"
+    description: "Form buat atau edit artifact termasuk upload image"
+    platform: [web]
+    calls:
+      - method: POST
+        path: /api/v1/upload
+        purpose: "Upload artifact image ke Media Service"
+        trigger: "User selects image file"
+        auth: required
+        notes: "Via Media Service, returns image URL"
+      - method: POST
+        path: /api/v1/artifacts
+        purpose: "Create new artifact"
+        trigger: "Submit form (create mode)"
+        auth: required
+      - method: PATCH
+        path: /api/v1/artifacts/{id}
+        purpose: "Update existing artifact"
+        trigger: "Submit form (edit mode)"
+        auth: required
+
+  - id: articles_cms
+    title: "Articles CMS"
+    icon: "📰"
+    description: "Kelola artikel dan berita museum (list, create, edit, delete)"
+    platform: [web]
+    calls:
+      - method: GET
+        path: /api/v1/articles
+        purpose: "List articles dengan filter dan pagination"
+        trigger: "On page load"
+        auth: optional
+      - method: POST
+        path: /api/v1/articles
+        purpose: "Create new article"
+        trigger: "Submit create form"
+        auth: required
+      - method: PATCH
+        path: /api/v1/articles/{id}
+        purpose: "Update article"
+        trigger: "Submit edit form"
+        auth: required
+      - method: DELETE
+        path: /api/v1/articles/{id}
+        purpose: "Soft-delete article"
+        trigger: "Click delete button"
+        auth: required
+      - method: POST
+        path: /api/v1/articles/{id}/restore
+        purpose: "Restore deleted article"
+        trigger: "Click restore button"
+        auth: required

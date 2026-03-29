@@ -106,6 +106,7 @@ func mergeSpec(base, overlay *APISpec) {
 	base.Constraints = append(base.Constraints, overlay.Constraints...)
 	base.FlowDiagramNodes = append(base.FlowDiagramNodes, overlay.FlowDiagramNodes...)
 	base.FlowDiagramEdges = append(base.FlowDiagramEdges, overlay.FlowDiagramEdges...)
+	base.Screens = append(base.Screens, overlay.Screens...)
 
 	// Append nested arrays from Info
 	if len(overlay.Info.OverviewCards) > 0 {

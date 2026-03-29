@@ -554,6 +554,56 @@ const docsTemplate = `<!DOCTYPE html>
             border: 1px solid var(--border);
         }
 
+        /* Screen styles */
+        .screen-layout {
+            display: flex;
+            gap: 2rem;
+            align-items: flex-start;
+        }
+
+        .screen-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .screen-preview {
+            flex-shrink: 0;
+            max-width: 280px;
+            position: sticky;
+            top: 2rem;
+        }
+
+        .screen-image {
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            box-shadow: var(--card-shadow);
+        }
+
+        .screen-platforms {
+            display: inline-flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .platform-badge {
+            padding: 0.25rem 0.625rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .screen-call-row {
+            cursor: pointer;
+        }
+
+        .screen-call-row:hover td {
+            background: var(--primary-light);
+        }
+
         /* Endpoint Detail */
         .endpoint-detail {
             margin-bottom: 2rem;
@@ -1127,6 +1177,14 @@ const docsTemplate = `<!DOCTYPE html>
             .tester-row {
                 flex-direction: column;
             }
+
+            .screen-layout {
+                flex-direction: column;
+            }
+
+            .screen-preview {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
@@ -1198,6 +1256,22 @@ const docsTemplate = `<!DOCTYPE html>
             <div class="nav-item">
                 <div class="nav-item-header" data-target="panel-guide-{{$gi}}">
                     <span class="nav-item-header-content">{{$guide.Icon}} {{$guide.Title}}</span>
+                </div>
+            </div>
+            {{end}}
+
+            <!-- Screens -->
+            {{if .Screens}}
+            <div class="nav-item has-children">
+                <div class="nav-item-header" onclick="toggleCollapse(this)">
+                    <span class="nav-item-header-content">📱 Screens</span>
+                </div>
+                <div class="nav-children">
+                    {{range $si, $screen := .Screens}}
+                    <a class="nav-child-item" data-target="panel-screen-{{$si}}">
+                        {{$screen.Icon}} {{$screen.Title}}
+                    </a>
+                    {{end}}
                 </div>
             </div>
             {{end}}
@@ -1516,6 +1590,54 @@ const docsTemplate = `<!DOCTYPE html>
                 {{end}}
                 {{end}}
                 {{end}}
+            </div>
+            {{end}}
+
+            <!-- Screen Panels -->
+            {{range $si, $screen := .Screens}}
+            <div class="content-panel" id="panel-screen-{{$si}}">
+                <div class="content-header">
+                    <h1>{{$screen.Icon}} {{$screen.Title}}</h1>
+                    <p>{{$screen.Description}}</p>
+                </div>
+
+                <div class="screen-layout">
+                    <div class="screen-content">
+                        {{if $screen.Platform}}
+                        <div class="screen-platforms">
+                            {{range $screen.Platform}}
+                            <span class="platform-badge">{{.}}</span>
+                            {{end}}
+                        </div>
+                        {{end}}
+
+                        <h3 class="section-title">API Calls</h3>
+                        <table>
+                            <tr><th>Method</th><th>Endpoint</th><th>Purpose</th><th>Trigger</th><th>Auth</th></tr>
+                            {{range $screen.Calls}}
+                            <tr class="screen-call-row">
+                                <td><span class="method {{lower .Method}}">{{.Method}}</span></td>
+                                <td><code>{{.Path}}</code></td>
+                                <td>{{.Purpose}}</td>
+                                <td style="color:var(--text-muted); font-size:0.8125rem;">{{.Trigger}}</td>
+                                <td>{{if eq .Auth "required"}}<span class="badge required">required</span>{{else if eq .Auth "optional"}}<span class="badge optional">optional</span>{{else}}<span class="badge optional">none</span>{{end}}</td>
+                            </tr>
+                            {{if .Notes}}
+                            <tr class="screen-call-row">
+                                <td colspan="5" style="padding:0 1rem 0.75rem 1rem; font-size:0.8125rem; color:var(--text-muted); border-bottom: 1px solid var(--border);">
+                                    💡 {{.Notes}}
+                                </td>
+                            </tr>
+                            {{end}}
+                            {{end}}
+                        </table>
+                    </div>
+                    {{if $screen.Image}}
+                    <div class="screen-preview">
+                        <img class="screen-image" src="{{$screen.Image}}" alt="{{$screen.Title}}" loading="lazy">
+                    </div>
+                    {{end}}
+                </div>
             </div>
             {{end}}
 

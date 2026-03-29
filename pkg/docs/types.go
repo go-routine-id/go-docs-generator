@@ -7,6 +7,7 @@ type APISpec struct {
 	FlowOverview      FlowOverviewInfo      `yaml:"flow_overview" json:"flow_overview"`
 	Sections          []SectionInfo         `yaml:"sections" json:"sections"`
 	Guides            []Guide               `yaml:"guides" json:"guides"`
+	Screens           []Screen              `yaml:"screens" json:"screens"`
 	Permissions       []PermissionInfo      `yaml:"permissions" json:"permissions"`
 	Constraints       []string              `yaml:"constraints" json:"constraints"`
 	FlowDiagramNodes  []FlowNodeInfo        `yaml:"flow_diagram_nodes" json:"flow_diagram_nodes"`
@@ -88,6 +89,27 @@ type Guide struct {
 	Title       string     `yaml:"title" json:"title"`
 	Description string     `yaml:"description" json:"description"`
 	Flow        []FlowStep `yaml:"flow" json:"flow"`
+}
+
+// Screen represents a frontend/mobile screen and its API calls
+type Screen struct {
+	ID          string       `yaml:"id" json:"id"`
+	Icon        string       `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Title       string       `yaml:"title" json:"title"`
+	Description string       `yaml:"description" json:"description"`
+	Image       string       `yaml:"image,omitempty" json:"image,omitempty"`
+	Platform    []string     `yaml:"platform,omitempty" json:"platform,omitempty"`
+	Calls       []ScreenCall `yaml:"calls" json:"calls"`
+}
+
+// ScreenCall represents a single API call made from a screen
+type ScreenCall struct {
+	Method  string `yaml:"method" json:"method"`
+	Path    string `yaml:"path" json:"path"`
+	Purpose string `yaml:"purpose" json:"purpose"`
+	Trigger string `yaml:"trigger,omitempty" json:"trigger,omitempty"`
+	Auth    string `yaml:"auth,omitempty" json:"auth,omitempty"`
+	Notes   string `yaml:"notes,omitempty" json:"notes,omitempty"`
 }
 
 type Endpoint struct {
