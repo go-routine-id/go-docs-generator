@@ -13,11 +13,19 @@ type APISpec struct {
 	APITesterDefaults APITesterDefaultsInfo `yaml:"api_tester_defaults" json:"api_tester_defaults"`
 }
 
-type InfoInfo struct {
+// OverviewCard represents a feature card on the overview page
+type OverviewCard struct {
+	Icon        string `yaml:"icon" json:"icon"`
 	Title       string `yaml:"title" json:"title"`
-	Version     string `yaml:"version" json:"version"`
 	Description string `yaml:"description" json:"description"`
-	BaseURL     string `yaml:"base_url" json:"base_url"`
+}
+
+type InfoInfo struct {
+	Title         string         `yaml:"title" json:"title"`
+	Version       string         `yaml:"version" json:"version"`
+	Description   string         `yaml:"description" json:"description"`
+	BaseURL       string         `yaml:"base_url" json:"base_url"`
+	OverviewCards []OverviewCard `yaml:"overview_cards" json:"overview_cards"`
 }
 
 // AuthMethod represents a single authentication method
@@ -39,11 +47,15 @@ type AuthenticationInfo struct {
 	Methods       []AuthMethod `yaml:"methods" json:"methods"`
 }
 
+// FlowMethodSteps groups steps for a specific auth method
+type FlowMethodSteps struct {
+	Type  string   `yaml:"type" json:"type"`
+	Steps []string `yaml:"steps" json:"steps"`
+}
+
 type FlowOverviewInfo struct {
-	Steps        []string `yaml:"steps" json:"steps"` // Deprecated: legacy
-	StepsJWT     []string `yaml:"steps_jwt" json:"steps_jwt"`
-	StepsAPIKey  []string `yaml:"steps_api_key" json:"steps_api_key"`
-	Note         string   `yaml:"note,omitempty" json:"note,omitempty"`
+	Methods []FlowMethodSteps `yaml:"methods" json:"methods"`
+	Note    string            `yaml:"note,omitempty" json:"note,omitempty"`
 }
 
 type SectionInfo struct {
@@ -136,8 +148,18 @@ type FlowEdgeInfo struct {
 	Style    string `yaml:"style,omitempty" json:"style,omitempty"`
 }
 
+// AuthMode represents an auth mode for the API tester
+type AuthMode struct {
+	Name        string `yaml:"name" json:"name"`
+	Header      string `yaml:"header" json:"header"`
+	Prefix      string `yaml:"prefix" json:"prefix"`
+	Placeholder string `yaml:"placeholder" json:"placeholder"`
+}
+
 type APITesterDefaultsInfo struct {
 	DefaultURL string      `yaml:"default_url" json:"default_url"`
+	Methods    []string    `yaml:"methods" json:"methods"`
+	AuthModes  []AuthMode  `yaml:"auth_modes" json:"auth_modes"`
 	QuickTests []QuickTest `yaml:"quick_tests" json:"quick_tests"`
 }
 
@@ -148,4 +170,6 @@ type QuickTest struct {
 	URL        string      `yaml:"url" json:"url"`
 	Body       interface{} `yaml:"body" json:"body"`
 	IsFormData bool        `yaml:"isFormData,omitempty" json:"isFormData,omitempty"`
+	Category   string      `yaml:"category,omitempty" json:"category,omitempty"`
+	AuthMode   string      `yaml:"auth_mode,omitempty" json:"auth_mode,omitempty"`
 }

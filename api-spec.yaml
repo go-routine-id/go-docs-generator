@@ -6,6 +6,19 @@ info:
   version: "1.0.0"
   description: API untuk Museum Digital Indonesia - Single Museum Pattern
   base_url: https://museumdigi.id
+  overview_cards:
+    - icon: "🚀"
+      title: "REST API"
+      description: "API untuk Museum Digital Indonesia - Single Museum Pattern"
+    - icon: "📚"
+      title: "Multiple Endpoints"
+      description: "Comprehensive API endpoints for all your needs"
+    - icon: "📖"
+      title: "Interactive Docs"
+      description: "Test API directly from this documentation"
+    - icon: "🔐"
+      title: "Secure Auth"
+      description: "Bearer JWT, API Key authentication support"
 
 authentication:
   methods:
@@ -26,16 +39,19 @@ authentication:
       note: Backend akan otomatis exchange API Key menjadi JWT dan cache hasilnya
 
 flow_overview:
-  steps_jwt:
-    - "Login ke Account Service → dapat JWT token"
-    - "Simpan token di localStorage/browser"
-    - "Kirim token di setiap request dengan header Authorization: Bearer <token>"
-    - "Museum di-identifikasi dari org_id dalam JWT (bukan URL path)"
-  steps_api_key:
-    - "Dapatkan API Key dari Account Service (untuk service/client)"
-    - "Kirim API Key di setiap request dengan header X-API-Key: <api_key>"
-    - "Backend akan exchange API Key ke JWT (dengan caching 1 jam)"
-    - "JWT hasil exchange digunakan untuk autentikasi dan otorisasi"
+  methods:
+    - type: Bearer JWT
+      steps:
+        - "Login ke Account Service → dapat JWT token"
+        - "Simpan token di localStorage/browser"
+        - "Kirim token di setiap request dengan header Authorization: Bearer <token>"
+        - "Museum di-identifikasi dari org_id dalam JWT (bukan URL path)"
+    - type: API Key
+      steps:
+        - "Dapatkan API Key dari Account Service (untuk service/client)"
+        - "Kirim API Key di setiap request dengan header X-API-Key: <api_key>"
+        - "Backend akan exchange API Key ke JWT (dengan caching 1 jam)"
+        - "JWT hasil exchange digunakan untuk autentikasi dan otorisasi"
   note: "Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)"
 
 sections:
@@ -636,6 +652,11 @@ flow_diagram_edges:
 
 api_tester_defaults:
   default_url: /api/v1/museum
+  methods:
+    - GET
+    - POST
+    - PATCH
+    - DELETE
   auth_modes:
     - name: JWT Bearer
       header: Authorization
@@ -651,6 +672,7 @@ api_tester_defaults:
       method: GET
       url: /api/v1/museum
       body: ""
+      category: Museum
 
     - id: update-museum
       label: Update My Museum
@@ -659,12 +681,14 @@ api_tester_defaults:
       body:
         name: Museum Updated
         location: Bandung
+      category: Museum
 
     - id: list-artifacts
       label: List Artifacts
       method: GET
       url: /api/v1/artifacts
       body: ""
+      category: Artifacts
 
     - id: create-artifact
       label: Create Artifact
@@ -678,12 +702,14 @@ api_tester_defaults:
         era: ancient
         origin: Indonesia
         status: active
+      category: Artifacts
 
     - id: get-artifact
       label: Get Artifact
       method: GET
       url: /api/v1/artifacts/artifact-id-here
       body: ""
+      category: Artifacts
 
     - id: update-artifact
       label: Update Artifact
@@ -693,12 +719,14 @@ api_tester_defaults:
         name: Artifact Updated
         description: Updated description
         image_url: https://media.museumdigi.id/media/art123/updated.jpg
+      category: Artifacts
 
     - id: delete-artifact
       label: Delete Artifact
       method: DELETE
       url: /api/v1/artifacts/artifact-id-here
       body: ""
+      category: Artifacts
 
     - id: upload-media
       label: Upload to Media Service
@@ -706,6 +734,7 @@ api_tester_defaults:
       url: /api/v1/upload
       body: ""
       isFormData: true
+      category: Images
 
     - id: update-museum-image
       label: Update Museum Image
@@ -713,6 +742,7 @@ api_tester_defaults:
       url: /api/v1/museum/image
       body:
         image_url: https://media.museumdigi.id/media/abc123/photo.jpg
+      category: Images
 
     - id: update-artifact-image
       label: Update Artifact Image
@@ -720,12 +750,14 @@ api_tester_defaults:
       url: /api/v1/artifacts/artifact-id-here/image
       body:
         image_url: https://media.museumdigi.id/media/xyz789/artifact.jpg
+      category: Images
 
     - id: list-articles
       label: List Articles
       method: GET
       url: /api/v1/articles
       body: ""
+      category: Articles
 
     - id: create-article
       label: Create Article (News)
@@ -737,6 +769,7 @@ api_tester_defaults:
         title: Berita Museum Baru
         content: "# Berita Penting\n\nKami dengan bangga mengumumkan..."
         is_published: true
+      category: Articles
 
     - id: create-article-artifact
       label: Create Article (Artifact Detail)
@@ -749,18 +782,21 @@ api_tester_defaults:
         title: Sejarah Artifact Borobudur
         content: "# Sejarah Borobudur\n\nCandi Borobudur adalah..."
         is_published: true
+      category: Articles
 
     - id: get-article
       label: Get Article by ID
       method: GET
       url: /api/v1/articles/article-id-here
       body: ""
+      category: Articles
 
     - id: get-article-slug
       label: Get Article by Slug
       method: GET
       url: /api/v1/articles/slug/berita-museum-baru-1709523456
       body: ""
+      category: Articles
 
     - id: update-article
       label: Update Article
@@ -769,18 +805,21 @@ api_tester_defaults:
       body:
         title: Berita Museum Updated
         is_published: true
+      category: Articles
 
     - id: delete-article
       label: Delete Article
       method: DELETE
       url: /api/v1/articles/article-id-here
       body: ""
+      category: Articles
 
     - id: restore-article
       label: Restore Article
       method: POST
       url: /api/v1/articles/article-id-here/restore
       body: ""
+      category: Articles
 
     # Debug/Testing
     - id: test-auth-headers
@@ -788,6 +827,7 @@ api_tester_defaults:
       method: GET
       url: /api/docs/echo
       body: ""
+      category: Debug
 
     # Quick tests using X-API-Key
     - id: get-museum-apikey
@@ -796,6 +836,22 @@ api_tester_defaults:
       url: /api/v1/museum
       body: ""
       auth_mode: API Key
+      category: Museum
+
+    - id: create-artifact-apikey
+      label: Create Artifact (X-API-Key)
+      method: POST
+      url: /api/v1/artifacts
+      body:
+        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
+        name: Artifact via API Key
+        description: Testing X-API-Key auth
+        category: historical
+        era: ancient
+        origin: Indonesia
+        status: active
+      auth_mode: API Key
+      category: Artifacts
 
     - id: create-artifact-apikey
       label: Create Artifact (X-API-Key)

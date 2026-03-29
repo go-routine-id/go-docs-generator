@@ -1111,8 +1111,9 @@ const docsTemplate = `<!DOCTYPE html>
                     <span class="nav-item-header-content">🔄 Example Flow</span>
                 </div>
                 <div class="nav-children">
-                    <a class="nav-child-item" data-target="panel-flow-jwt">JWT Authentication</a>
-                    <a class="nav-child-item" data-target="panel-flow-apikey">API Key Authentication</a>
+                    {{range $fi, $flow := .FlowOverview.Methods}}
+                    <a class="nav-child-item" data-target="panel-flow-{{$fi}}">{{$flow.Type}} Flow</a>
+                    {{end}}
                     <a class="nav-child-item" data-target="panel-flow-diagram">Service Flow Diagram</a>
                 </div>
             </div>
@@ -1182,22 +1183,12 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
 
                 <div class="cards">
+                    {{range .Info.OverviewCards}}
                     <div class="card">
-                        <h4>🚀 REST API</h4>
-                        <p>{{.Info.Description}}</p>
+                        <h4>{{.Icon}} {{.Title}}</h4>
+                        <p>{{.Description}}</p>
                     </div>
-                    <div class="card">
-                        <h4>📚 Multiple Endpoints</h4>
-                        <p>Comprehensive API endpoints for all your needs</p>
-                    </div>
-                    <div class="card">
-                        <h4>📖 Interactive Docs</h4>
-                        <p>Test API directly from this documentation</p>
-                    </div>
-                    <div class="card">
-                        <h4>🔐 Secure Auth</h4>
-                        <p>JWT and API Key authentication support</p>
-                    </div>
+                    {{end}}
                 </div>
 
                 <h3 class="section-title">Base URL</h3>
@@ -1211,15 +1202,16 @@ const docsTemplate = `<!DOCTYPE html>
                 </ul>
             </div>
 
-            <!-- JWT Flow Panel -->
-            <div class="content-panel" id="panel-flow-jwt">
+            <!-- Dynamic Auth Flow Panels -->
+            {{range $fi, $flow := .FlowOverview.Methods}}
+            <div class="content-panel" id="panel-flow-{{$fi}}">
                 <div class="content-header">
-                    <h1>🔄 JWT Authentication Flow</h1>
-                    <p>Step-by-step authentication menggunakan JWT Bearer token</p>
+                    <h1>🔄 {{$flow.Type}} Authentication Flow</h1>
+                    <p>Step-by-step authentication menggunakan {{$flow.Type}}</p>
                 </div>
 
                 <div class="flow-steps">
-                    {{range $i, $step := .FlowOverview.StepsJWT}}
+                    {{range $i, $step := $flow.Steps}}
                     <div class="flow-step">
                         <div class="step-number">{{add $i 1}}</div>
                         <div class="step-content">{{.}}</div>
@@ -1227,31 +1219,11 @@ const docsTemplate = `<!DOCTYPE html>
                     {{end}}
                 </div>
 
-                {{if .FlowOverview.Note}}
-                <div class="alert alert-info">{{.FlowOverview.Note}}</div>
+                {{if $.FlowOverview.Note}}
+                <div class="alert alert-info">{{$.FlowOverview.Note}}</div>
                 {{end}}
             </div>
-
-            <!-- API Key Flow Panel -->
-            <div class="content-panel" id="panel-flow-apikey">
-                <div class="content-header">
-                    <h1>🔑 API Key Authentication Flow</h1>
-                    <p>Step-by-step authentication menggunakan API Key</p>
-                </div>
-
-                <div class="flow-steps">
-                    {{range $i, $step := .FlowOverview.StepsAPIKey}}
-                    <div class="flow-step">
-                        <div class="step-number">{{add $i 1}}</div>
-                        <div class="step-content">{{.}}</div>
-                    </div>
-                    {{end}}
-                </div>
-
-                {{if .FlowOverview.Note}}
-                <div class="alert alert-info">{{.FlowOverview.Note}}</div>
-                {{end}}
-            </div>
+            {{end}}
 
             <!-- Flow Diagram Panel -->
             <div class="content-panel" id="panel-flow-diagram">
@@ -1342,14 +1314,12 @@ const docsTemplate = `<!DOCTYPE html>
                                 <div class="form-group">
                                     <label>Authentication Method</label>
                                     <div class="auth-selector">
+                                        {{range $ai, $mode := $.APITesterDefaults.AuthModes}}
                                         <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="jwt" id="auth-jwt-{{$si}}-{{$ei}}" checked onchange="updateAuthDisplay({{$si}}, {{$ei}})">
-                                            <label for="auth-jwt-{{$si}}-{{$ei}}">JWT</label>
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="{{$mode.Name}}" id="auth-{{$si}}-{{$ei}}-{{$ai}}" {{if eq $ai 0}}checked{{end}} onchange="updateAuthDisplay({{$si}}, {{$ei}})">
+                                            <label for="auth-{{$si}}-{{$ei}}-{{$ai}}">{{$mode.Name}}</label>
                                         </div>
-                                        <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="apikey" id="auth-apikey-{{$si}}-{{$ei}}" onchange="updateAuthDisplay({{$si}}, {{$ei}})">
-                                            <label for="auth-apikey-{{$si}}-{{$ei}}">API Key</label>
-                                        </div>
+                                        {{end}}
                                         <div class="auth-option">
                                             <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" onchange="updateAuthDisplay({{$si}}, {{$ei}})">
                                             <label for="auth-none-{{$si}}-{{$ei}}">Public</label>
@@ -1358,16 +1328,14 @@ const docsTemplate = `<!DOCTYPE html>
                                 </div>
                                 <!-- Display only, not input -->
                                 <div class="form-group" id="auth-display-{{$si}}-{{$ei}}" style="display:none">
-                                    <label>Using <span class="auth-type-label">JWT</span> from Credentials</label>
+                                    <label>Using <span class="auth-type-label"></span> from Credentials</label>
                                     <input type="text" class="inline-auth-preview" readonly style="background:var(--bg-secondary); color:var(--text-secondary);">
                                 </div>
                             </div>
                             <div class="tester-row">
                                 <select class="method-select inline-method" data-section="{{$si}}" data-endpoint="{{$ei}}">
-                                    <option value="GET"{{if eq $ep.Method "GET"}} selected{{end}}>GET</option>
-                                    <option value="POST"{{if eq $ep.Method "POST"}} selected{{end}}>POST</option>
-                                    <option value="PATCH"{{if eq $ep.Method "PATCH"}} selected{{end}}>PATCH</option>
-                                    <option value="DELETE"{{if eq $ep.Method "DELETE"}} selected{{end}}>DELETE</option>
+                                    {{range $mi, $m := $.APITesterDefaults.Methods}}<option value="{{$m}}"{{if eq $ep.Method $m}} selected{{end}}>{{$m}}</option>
+                                    {{end}}
                                 </select>
                                 <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{$.Info.BaseURL}}{{$ep.Path}}">
                                 <button class="send-btn" onclick="sendInlineRequest({{$si}}, {{$ei}})">Send</button>
@@ -1401,15 +1369,14 @@ const docsTemplate = `<!DOCTYPE html>
             {{end}}
 
             <!-- File Upload Panel -->
+            {{range .Sections}}{{if eq .ID "file_upload"}}
             <div class="content-panel" id="panel-file-upload">
                 <div class="content-header">
-                    <h1>📤 File Upload Flow</h1>
-                    <p>File upload integration with external Media Service</p>
+                    <h1>📤 {{.Title}}</h1>
+                    <p>{{.Description}}</p>
                 </div>
 
-                <p>This service handles file uploads via external Media Service. Upload files to Media Service first, then use the returned URL in this API.</p>
-
-                {{range .Sections}}{{if eq .ID "file_upload"}}{{range .Flow}}
+                {{range .Flow}}
                 <h3 class="section-title">Step {{.Step}}: {{.Title}}</h3>
                 {{if .Endpoint}}
                 <div class="endpoint-detail">
@@ -1439,38 +1406,32 @@ const docsTemplate = `<!DOCTYPE html>
   -H "Content-Type: application/json" \
   -d '{"image_url": "https://cdn.example.com/media/abc123/photo.jpg"}'</code></pre>
                 {{end}}
-                {{end}}{{end}}{{end}}
+                {{end}}
 
                 <div class="alert alert-info">
                     <strong>Tip:</strong> Store the <code>media_id</code> for future reference if you need to manage the file later.
                 </div>
             </div>
+            {{end}}{{end}}
 
             <!-- Credentials Panel -->
             <div class="content-panel" id="panel-credentials">
                 <div class="content-header">
                     <h1>🔐 Credentials</h1>
-                    <p>Konfigurasi JWT Token dan API Key untuk testing API</p>
+                    <p>Konfigurasi credentials untuk testing API</p>
                 </div>
 
                 <div class="endpoint-detail" style="background:var(--card-bg); padding:2rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--card-shadow);">
+                    {{range $ai, $mode := .APITesterDefaults.AuthModes}}
                     <div class="cred-row" style="margin-bottom:1.5rem;">
-                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">JWT Token</label>
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">{{$mode.Name}}</label>
                         <div class="cred-input-wrapper" style="position:relative;">
-                            <input type="password" id="cred-jwt" placeholder="Bearer eyJhbGciOiJSUzI1NiIs..." onchange="saveCredential('jwt', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
-                            <button class="cred-toggle" onclick="toggleVisibility('cred-jwt')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
+                            <input type="password" id="cred-{{$ai}}" placeholder="{{$mode.Placeholder}}" onchange="saveCredential('{{$mode.Name}}', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
+                            <button class="cred-toggle" onclick="toggleVisibility('cred-{{$ai}}')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
                         </div>
-                        <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">Token JWT dari Account Service. Format: Bearer &lt;token&gt;</small>
+                        <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">{{$mode.Header}}: {{$mode.Prefix}}&lt;value&gt;</small>
                     </div>
-
-                    <div class="cred-row" style="margin-bottom:1.5rem;">
-                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">API Key</label>
-                        <div class="cred-input-wrapper" style="position:relative;">
-                            <input type="password" id="cred-apikey" placeholder="your-api-key-here" onchange="saveCredential('apikey', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
-                            <button class="cred-toggle" onclick="toggleVisibility('cred-apikey')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
-                        </div>
-                        <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">API Key untuk service-to-service authentication</small>
-                    </div>
+                    {{end}}
 
                     <div class="alert alert-info" style="margin-top:1.5rem;">
                         <strong>💡 Info:</strong> Credentials tersimpan di browser Anda (localStorage) dan tidak dikirim ke server.
@@ -1481,7 +1442,7 @@ const docsTemplate = `<!DOCTYPE html>
                 <div class="flow-steps">
                     <div class="flow-step">
                         <div class="step-number">1</div>
-                        <div class="step-content">Isi JWT Token atau API Key di atas</div>
+                        <div class="step-content">Isi credentials di atas</div>
                     </div>
                     <div class="flow-step">
                         <div class="step-number">2</div>
@@ -1493,7 +1454,7 @@ const docsTemplate = `<!DOCTYPE html>
                     </div>
                     <div class="flow-step">
                         <div class="step-number">4</div>
-                        <div class="step-content">Pilih metode autentikasi (JWT/API Key/Public) dan klik Send</div>
+                        <div class="step-content">Pilih metode autentikasi dan klik Send</div>
                     </div>
                 </div>
             </div>
@@ -1602,23 +1563,28 @@ const docsTemplate = `<!DOCTYPE html>
 
     <script>
         // Credentials Management
-        const CREDENTIALS_KEY = 'museum_api_credentials_v2';
+        const CREDENTIALS_KEY = 'api_credentials_v3';
+
+        // Auth modes config from YAML
+        const authModesConfig = JSON.parse({{.APITesterDefaults.AuthModes | json}});
 
         // Load credentials saat page load
         function loadCredentials() {
             const stored = localStorage.getItem(CREDENTIALS_KEY);
             if (stored) {
                 const creds = JSON.parse(stored);
-                document.getElementById('cred-jwt').value = creds.jwt || '';
-                document.getElementById('cred-apikey').value = creds.apikey || '';
+                authModesConfig.forEach((mode, idx) => {
+                    const input = document.getElementById('cred-' + idx);
+                    if (input && creds[mode.name]) input.value = creds[mode.name];
+                });
             }
         }
 
         // Save credential ke localStorage
-        function saveCredential(type, value) {
+        function saveCredential(modeName, value) {
             const stored = localStorage.getItem(CREDENTIALS_KEY);
             const creds = stored ? JSON.parse(stored) : {};
-            creds[type] = value;
+            creds[modeName] = value;
             localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(creds));
         }
 
@@ -1713,11 +1679,12 @@ const docsTemplate = `<!DOCTYPE html>
             }
 
             displayDiv.style.display = 'block';
-            const credValue = authMethod === 'jwt'
-                ? document.getElementById('cred-jwt').value
-                : document.getElementById('cred-apikey').value;
+            const modeConfig = authModesConfig.find(m => m.name === authMethod);
+            const modeIdx = modeConfig ? authModesConfig.indexOf(modeConfig) : -1;
+            const credInput = modeIdx >= 0 ? document.getElementById('cred-' + modeIdx) : null;
+            const credValue = credInput ? credInput.value : '';
 
-            labelSpan.textContent = authMethod === 'jwt' ? 'JWT Token' : 'API Key';
+            labelSpan.textContent = modeConfig ? modeConfig.name : authMethod;
             previewInput.value = credValue ? maskToken(credValue) : '(not set - configure in Credentials panel)';
         }
 
@@ -1755,15 +1722,15 @@ const docsTemplate = `<!DOCTYPE html>
             // Build headers from global credentials
             const headers = {};
 
-            if (authMethod === 'jwt') {
-                const jwt = document.getElementById('cred-jwt').value;
-                if (jwt) {
-                    headers['Authorization'] = jwt.startsWith('Bearer ') ? jwt : 'Bearer ' + jwt;
-                }
-            } else if (authMethod === 'apikey') {
-                const apikey = document.getElementById('cred-apikey').value;
-                if (apikey) {
-                    headers['X-API-Key'] = apikey;
+            if (authMethod !== 'none') {
+                const modeConfig = authModesConfig.find(m => m.name === authMethod);
+                if (modeConfig) {
+                    const modeIdx = authModesConfig.indexOf(modeConfig);
+                    const credInput = document.getElementById('cred-' + modeIdx);
+                    const credValue = credInput ? credInput.value : '';
+                    if (credValue) {
+                        headers[modeConfig.header] = modeConfig.prefix + credValue;
+                    }
                 }
             }
 

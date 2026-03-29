@@ -53,7 +53,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			return s
 		},
 		"groupTests": groupTestsByCategory,
-		"add":      func(a, b int) int { return a + b },
+		"add":           func(a, b int) int { return a + b },
 	}
 
 	tmpl, err := template.New("docs").Funcs(funcMap).Parse(docsTemplate)
@@ -155,36 +155,16 @@ func (h *Handler) ServeEcho(c *gin.Context) {
 	})
 }
 
-// groupTestsByCategory groups quick tests by their category
+// groupTestsByCategory groups quick tests by their category field
 func groupTestsByCategory(tests []QuickTest) map[string][]QuickTest {
-	groups := map[string][]QuickTest{
-		"Museum":    {},
-		"Artifacts": {},
-		"Images":    {},
-	}
+	groups := make(map[string][]QuickTest)
 
 	for _, test := range tests {
-		switch {
-		case strings.Contains(test.ID, "museum") && !strings.Contains(test.ID, "artifact"):
-			groups["Museum"] = append(groups["Museum"], test)
-		case strings.Contains(test.ID, "artifact"):
-			groups["Artifacts"] = append(groups["Artifacts"], test)
-		case strings.Contains(test.ID, "image") || strings.Contains(test.ID, "media"):
-			groups["Images"] = append(groups["Images"], test)
-		default:
-			// Add to a default group if doesn't match
-			if _, ok := groups["Other"]; !ok {
-				groups["Other"] = []QuickTest{}
-			}
-			groups["Other"] = append(groups["Other"], test)
+		cat := test.Category
+		if cat == "" {
+			cat = "Other"
 		}
-	}
-
-	// Remove empty groups
-	for k, v := range groups {
-		if len(v) == 0 {
-			delete(groups, k)
-		}
+		groups[cat] = append(groups[cat], test)
 	}
 
 	return groups
