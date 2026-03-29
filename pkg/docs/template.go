@@ -440,6 +440,13 @@ const docsTemplate = `<!DOCTYPE html>
             color: var(--text);
         }
 
+        /* JSON Syntax Highlighting */
+        .json-key { color: #7c3aed; }
+        .json-string { color: #16a34a; }
+        .json-number { color: #2563eb; }
+        .json-boolean { color: #d97706; }
+        .json-null { color: #9ca3af; font-style: italic; }
+
         /* Alert - Google style */
         .alert {
             padding: 1rem 1.25rem;
@@ -1694,6 +1701,27 @@ const docsTemplate = `<!DOCTYPE html>
             return token.substring(0, 12) + '...' + token.substring(token.length - 4);
         }
 
+        // JSON syntax highlighting
+        function syntaxHighlightJSON(json) {
+            if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
         // Toggle inline auth method (deprecated, keeping for compatibility)
         function toggleInlineAuthMethod(sectionIdx, endpointIdx) {
             updateAuthDisplay(sectionIdx, endpointIdx);
@@ -1759,9 +1787,15 @@ const docsTemplate = `<!DOCTYPE html>
                 statusEl.className = 'status-badge inline-status ' + (response.ok ? 'status-success' : 'status-error');
 
                 if (typeof data === 'object') {
-                    responseEl.innerHTML = '<code>' + JSON.stringify(data, null, 2) + '</code>';
+                    responseEl.innerHTML = '<code>' + syntaxHighlightJSON(data) + '</code>';
                 } else {
-                    responseEl.innerHTML = '<code>' + data + '</code>';
+                    // Try to parse and highlight if it looks like JSON
+                    try {
+                        var parsed = JSON.parse(data);
+                        responseEl.innerHTML = '<code>' + syntaxHighlightJSON(parsed) + '</code>';
+                    } catch(e) {
+                        responseEl.innerHTML = '<code>' + data + '</code>';
+                    }
                 }
             } catch (error) {
                 statusEl.textContent = 'Error';
