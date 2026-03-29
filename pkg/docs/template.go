@@ -15,25 +15,52 @@ const docsTemplate = `<!DOCTYPE html>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #4f46e5;
-            --primary-dark: #4338ca;
-            --secondary: #06b6d4;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --dark: #1f2937;
-            --gray-100: #f3f4f6;
-            --gray-200: #e5e7eb;
-            --gray-300: #d1d5db;
-            --gray-600: #4b5563;
-            --gray-700: #374151;
-            --gray-800: #1f2937;
-            --gray-900: #111827;
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --text: #f1f5f9;
-            --text-muted: #94a3b8;
-            --border: #334155;
+            /* Google Colors */
+            --google-blue: #1a73e8;
+            --google-blue-dark: #1557b0;
+            --google-blue-light: #e8f0fe;
+            --google-red: #ea4335;
+            --google-yellow: #fbbc05;
+            --google-green: #34a853;
+            --google-gray: #5f6368;
+            --google-gray-light: #dadce0;
+
+            /* Theme - Google Light */
+            --primary: var(--google-blue);
+            --primary-dark: var(--google-blue-dark);
+            --primary-light: var(--google-blue-light);
+            --secondary: #00acc1;
+            --success: var(--google-green);
+            --warning: var(--google-yellow);
+            --danger: var(--google-red);
+
+            /* Light Theme Backgrounds */
+            --bg: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-tertiary: #f1f3f4;
+
+            /* Card & Container */
+            --card-bg: #ffffff;
+            --card-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+            --card-shadow-hover: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+
+            /* Text Colors */
+            --text: #202124;
+            --text-secondary: #5f6368;
+            --text-muted: #80868b;
+
+            /* Borders */
+            --border: #dadce0;
+            --border-light: #e8eaed;
+
+            /* Sidebar */
+            --sidebar-width: 280px;
+            --sidebar-bg: #ffffff;
+            --sidebar-hover: var(--bg-tertiary);
+            --sidebar-active: var(--primary-light);
+            --sidebar-text: var(--text-secondary);
+            --sidebar-text-active: var(--primary);
+            --sidebar-border: var(--border);
         }
 
         * {
@@ -49,275 +76,424 @@ const docsTemplate = `<!DOCTYPE html>
             line-height: 1.6;
         }
 
-        /* Header */
-        .header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            padding: 3rem 2rem;
-            text-align: center;
-            position: relative;
+        /* Mobile Header */
+        .mobile-header {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1rem;
+            align-items: center;
+            gap: 1rem;
+            z-index: 300;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.1);
+        }
+
+        .hamburger {
+            width: 48px;
+            height: 48px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .hamburger:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .hamburger span {
+            width: 18px;
+            height: 2px;
+            background: var(--text);
+            transition: all 0.3s;
+        }
+
+        .mobile-title {
+            font-weight: 500;
+            font-size: 1.25rem;
+            color: var(--text);
+        }
+
+        /* Sidebar Overlay */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(32,33,36,0.6);
+            z-index: 250;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .sidebar-overlay.visible {
+            opacity: 1;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 200;
             overflow: hidden;
         }
 
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
-            background-size: 20px 20px;
-            opacity: 0.3;
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
         }
 
-        .header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            position: relative;
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-            position: relative;
-        }
-
-        .header-actions {
-            margin-top: 1.5rem;
-            position: relative;
-        }
-
-        .btn {
-            display: inline-flex;
+        .sidebar-title {
+            font-size: 1.25rem;
+            font-weight: 400;
+            margin-bottom: 0.25rem;
+            display: flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            font-weight: 500;
-            text-decoration: none;
-            transition: all 0.2s;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-secondary {
-            background: var(--card-bg);
             color: var(--text);
-            border: 1px solid var(--border);
         }
 
-        .btn-secondary:hover {
-            background: var(--bg);
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-
-        /* Navigation */
-        .nav {
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            gap: 2rem;
-            overflow-x: auto;
-        }
-
-        .nav a {
+        .sidebar-version {
+            font-size: 0.875rem;
             color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .sidebar-download {
+            font-size: 0.875rem;
+            color: var(--primary);
             text-decoration: none;
             font-weight: 500;
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            transition: all 0.2s;
-            white-space: nowrap;
         }
 
-        .nav a:hover, .nav a.active {
+        .sidebar-download:hover {
+            text-decoration: underline;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem 0;
+        }
+
+        /* Nav Item */
+        .nav-item {
+            border-bottom: none;
+        }
+
+        .nav-item-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            color: var(--sidebar-text);
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.15s;
+            user-select: none;
+            border-radius: 0 24px 24px 0;
+            margin-right: 0.5rem;
+        }
+
+        .nav-item-header:hover {
+            background: var(--sidebar-hover);
+            color: var(--text);
+        }
+
+        .nav-item-header.active {
+            background: var(--sidebar-active);
             color: var(--primary);
-            background: rgba(79, 70, 229, 0.1);
+            font-weight: 600;
         }
 
-        /* Container */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
+        .nav-item-header-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        /* Sections */
-        .section {
-            background: var(--card-bg);
-            border-radius: 12px;
+        .nav-item.has-children .nav-item-header::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(-45deg);
+            transition: transform 0.2s;
+            margin-right: 0.5rem;
+        }
+
+        .nav-item.open .nav-item-header::after {
+            transform: rotate(45deg);
+        }
+
+        /* Nav Children */
+        .nav-children {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .nav-item.open .nav-children {
+            max-height: 2000px;
+        }
+
+        .nav-child-item {
+            display: block;
+            padding: 0.5rem 1.5rem 0.5rem 3rem;
+            color: var(--sidebar-text);
+            font-size: 0.8125rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 0 24px 24px 0;
+            margin-right: 0.5rem;
+        }
+
+        .nav-child-item:hover {
+            background: var(--sidebar-hover);
+            color: var(--text);
+        }
+
+        .nav-child-item.active {
+            background: var(--sidebar-active);
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .nav-group-label {
+            padding: 0.5rem 1.5rem 0.25rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Method badge in sidebar */
+        .nav-method {
+            display: inline-block;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-size: 0.625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
+            letter-spacing: 0.025em;
+        }
+
+        .nav-method.get { background: #e8f0fe; color: #1a73e8; }
+        .nav-method.post { background: #e6f4ea; color: #137333; }
+        .nav-method.patch { background: #fef3e8; color: #b06000; }
+        .nav-method.delete { background: #fce8e8; color: #c5221f; }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+
+        .content-panels {
+            flex: 1;
             padding: 2rem;
+            max-width: 960px;
+        }
+
+        .content-panel {
+            display: none;
+        }
+
+        .content-panel.active {
+            display: block;
+        }
+
+        /* Content Header */
+        .content-header {
             margin-bottom: 2rem;
-            border: 1px solid var(--border);
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
         }
 
-        .section h2 {
-            color: var(--primary);
-            font-size: 1.8rem;
-            margin-bottom: 1rem;
+        .content-header h1 {
+            font-size: 1.75rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            letter-spacing: -0.25px;
         }
 
-        .section h3 {
-            color: var(--secondary);
-            font-size: 1.3rem;
-            margin: 1.5rem 0 0.75rem 0;
+        .content-header p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.5;
         }
 
-        .section p {
+        /* Breadcrumb */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
             margin-bottom: 1rem;
         }
 
-        /* Cards */
+        .breadcrumb span:not(:last-child)::after {
+            content: '/';
+            margin-left: 0.5rem;
+            color: var(--border);
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            color: var(--text);
+            letter-spacing: -0.25px;
+        }
+
+        /* Cards - Google style */
         .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 1.5rem;
             margin: 1.5rem 0;
         }
 
         .card {
-            background: var(--bg);
+            background: var(--card-bg);
             padding: 1.5rem;
-            border-radius: 12px;
+            border-radius: 8px;
             border: 1px solid var(--border);
-            transition: all 0.2s;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            box-shadow: var(--card-shadow);
         }
 
         .card:hover {
             border-color: var(--primary);
-            transform: translateY(-2px);
+            box-shadow: var(--card-shadow-hover);
         }
 
         .card h4 {
             color: var(--text);
             margin-bottom: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
         }
 
         .card p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
             margin: 0;
+            line-height: 1.5;
         }
 
-        /* Auth Method */
-        .auth-method {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-        }
-
-        .auth-method h4 {
-            color: var(--primary);
-            margin-bottom: 1rem;
-            font-size: 1.1rem;
-        }
-
-        .auth-method p {
-            margin: 0.5rem 0;
-        }
-
-        .text-muted {
-            color: var(--text-muted);
-        }
-
-        /* Auth Selector - Modern Tabs */
-        .auth-selector {
-            display: flex;
-            background: var(--bg);
-            border-radius: 12px;
-            padding: 4px;
-            gap: 4px;
-            margin-bottom: 1rem;
-        }
-
-        .auth-option {
-            flex: 1;
-            position: relative;
-        }
-
-        .auth-option input {
-            position: absolute;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .auth-option label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: var(--text-muted);
-            background: transparent;
-        }
-
-        .auth-option label:hover {
-            color: var(--text);
-            background: rgba(255,255,255,0.05);
-        }
-
-        .auth-option input:checked + label {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
-        }
-
-        .auth-option svg {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Code blocks */
+        /* Code blocks - Google style */
         pre {
-            background: var(--bg);
+            background: var(--bg-secondary);
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 1rem;
             overflow-x: auto;
-            font-family: 'Fira Code', monospace;
-            font-size: 0.9rem;
+            font-family: 'Google Sans Mono', 'Fira Code', 'Roboto Mono', monospace;
+            font-size: 0.8125rem;
             color: var(--text);
             margin: 1rem 0;
+            line-height: 1.6;
         }
 
         code {
-            font-family: 'Fira Code', monospace;
-            background: var(--bg);
-            padding: 0.2rem 0.4rem;
+            font-family: 'Google Sans Mono', 'Fira Code', 'Roboto Mono', monospace;
+            background: var(--bg-tertiary);
+            padding: 0.125rem 0.375rem;
             border-radius: 4px;
-            font-size: 0.9rem;
-            color: var(--secondary);
+            font-size: 0.8125rem;
+            color: var(--google-red);
         }
 
         pre code {
             padding: 0;
             background: none;
+            color: var(--text);
         }
 
-        /* Alert */
+        /* Alert - Google style */
         .alert {
-            padding: 1rem;
+            padding: 1rem 1.25rem;
             border-radius: 8px;
             margin: 1rem 0;
+            font-size: 0.875rem;
+            line-height: 1.5;
         }
 
         .alert-info {
-            background: rgba(6, 182, 212, 0.1);
-            border: 1px solid var(--secondary);
+            background: #e8f0fe;
+            border: 1px solid #d2e3fc;
+            color: #1967d2;
+        }
+
+        /* Flow Steps - Google style */
+        .flow-steps {
+            margin: 1.5rem 0;
+        }
+
+        .flow-step {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            padding: 1rem 1.25rem;
+            background: var(--card-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            transition: box-shadow 0.2s;
+        }
+
+        .flow-step:hover {
+            box-shadow: var(--card-shadow);
+        }
+
+        .step-number {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+            font-weight: 500;
+            font-size: 0.875rem;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+            color: var(--text);
+            font-size: 0.9375rem;
+            line-height: 1.6;
         }
 
         /* Flow Diagram */
@@ -329,89 +505,179 @@ const docsTemplate = `<!DOCTYPE html>
             border: 1px solid var(--border);
         }
 
-        /* Endpoint */
-        .endpoint {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1rem 0;
+        /* Endpoint Detail */
+        .endpoint-detail {
+            margin-bottom: 2rem;
         }
 
         .endpoint-header {
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 0.75rem;
+            margin-bottom: 1rem;
             flex-wrap: wrap;
         }
 
         .method {
-            padding: 0.25rem 0.75rem;
+            padding: 0.25rem 0.625rem;
             border-radius: 4px;
             font-weight: 600;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
 
-        .method.get { background: rgba(6, 182, 212, 0.2); color: var(--secondary); }
-        .method.post { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-        .method.patch { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-        .method.delete { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .method.get { background: #e8f0fe; color: #1a73e8; }
+        .method.post { background: #e6f4ea; color: #137333; }
+        .method.patch { background: #fef3e8; color: #b06000; }
+        .method.delete { background: #fce8e8; color: #c5221f; }
 
         .endpoint-path {
-            font-family: 'Fira Code', monospace;
+            font-family: 'Google Sans Mono', 'Fira Code', monospace;
             color: var(--text);
+            font-weight: 500;
+            font-size: 1.125rem;
+        }
+
+        .endpoint-description {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            font-size: 0.9375rem;
+        }
+
+        .auth-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.875rem;
+            background: var(--primary-light);
+            border: 1px solid #d2e3fc;
+            border-radius: 16px;
+            font-size: 0.8125rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
             font-weight: 500;
         }
 
-        /* Table */
+        /* Table - Google style */
         table {
             width: 100%;
             border-collapse: collapse;
             margin: 1rem 0;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
         }
 
         th, td {
-            padding: 0.75rem;
+            padding: 0.75rem 1rem;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
 
         th {
             color: var(--text);
-            font-weight: 600;
+            font-weight: 500;
+            background: var(--bg-secondary);
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
 
         td {
-            color: var(--text-muted);
+            color: var(--text-secondary);
         }
 
-        /* Badge */
+        tr:hover td {
+            background: var(--bg-secondary);
+        }
+
+        /* Badge - Google style */
         .badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
+            padding: 0.125rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
         }
 
         .badge.required {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--danger);
+            background: #fce8e8;
+            color: #c5221f;
         }
 
         .badge.optional {
-            background: rgba(148, 163, 184, 0.2);
-            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
         }
 
-        /* API Tester */
-        .api-tester {
-            background: var(--bg);
+        /* Code Block with Header - Google style */
+        .code-block {
+            margin: 1.5rem 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+        }
+
+        .code-header {
+            background: var(--bg-secondary);
+            padding: 0.625rem 1rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .code-block pre {
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            background: var(--bg-secondary);
+        }
+
+        /* Try It Section */
+        .try-it-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .try-it-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.25rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+        }
+
+        .try-it-btn:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
+        }
+
+        /* Global API Tester */
+        .global-tester {
+            margin-top: 1rem;
+            background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .tester-config {
+            margin-bottom: 1rem;
         }
 
         .tester-row {
@@ -421,53 +687,64 @@ const docsTemplate = `<!DOCTYPE html>
         }
 
         .method-select {
-            padding: 0.6rem;
-            background: var(--card-bg);
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--text);
-            font-weight: 600;
+            font-weight: 500;
+            font-size: 0.875rem;
         }
 
         .url-input {
             flex: 1;
-            padding: 0.6rem 0.75rem;
-            background: var(--card-bg);
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--text);
+            font-size: 0.875rem;
         }
 
         .send-btn {
-            padding: 0.6rem 1.25rem;
+            padding: 0.5rem 1.25rem;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 4px;
             font-weight: 500;
+            font-size: 0.875rem;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
         }
 
         .send-btn:hover {
             background: var(--primary-dark);
+            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
         }
 
         .tester-tabs {
             display: flex;
-            gap: 0.5rem;
+            gap: 0;
             margin-bottom: 1rem;
             border-bottom: 1px solid var(--border);
         }
 
         .tab-btn {
-            padding: 0.6rem 1rem;
+            padding: 0.625rem 1rem;
             background: none;
             border: none;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            transition: all 0.2s;
+            transition: all 0.15s;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .tab-btn:hover {
+            color: var(--text);
         }
 
         .tab-btn.active {
@@ -492,137 +769,204 @@ const docsTemplate = `<!DOCTYPE html>
 
         .param-key, .param-value, .formdata-key, .formdata-value {
             flex: 1;
-            padding: 0.5rem;
-            background: var(--card-bg);
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--text);
+            font-size: 0.875rem;
         }
 
         .icon-btn {
             width: 36px;
             height: 36px;
-            border-radius: 6px;
+            border-radius: 4px;
             border: none;
             background: var(--primary);
             color: white;
-            font-size: 1.2rem;
+            font-size: 1.25rem;
             cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+        }
+
+        .icon-btn:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
         }
 
         .icon-btn.danger {
             background: var(--danger);
+            box-shadow: 0 1px 2px 0 rgba(234,67,53,0.3);
+        }
+
+        .icon-btn.danger:hover {
+            background: #c5221f;
+            box-shadow: 0 2px 4px 0 rgba(234,67,53,0.4);
         }
 
         textarea {
             width: 100%;
-            min-height: 150px;
+            min-height: 120px;
             padding: 0.75rem;
-            background: var(--card-bg);
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--text);
-            font-family: 'Fira Code', monospace;
-            font-size: 0.9rem;
+            font-family: 'Google Sans Mono', 'Fira Code', monospace;
+            font-size: 0.875rem;
             resize: vertical;
+            line-height: 1.5;
         }
 
         .response-section {
             margin-top: 1rem;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 8px;
             overflow: hidden;
+            box-shadow: var(--card-shadow);
         }
 
         .response-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.75rem;
-            background: var(--card-bg);
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
         }
 
         .response-body {
             padding: 1rem;
             margin: 0;
-            max-height: 400px;
+            max-height: 300px;
             overflow: auto;
+            background: var(--bg);
         }
 
         .status-badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            padding: 0.25rem 0.625rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
 
-        .status-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-        .status-error { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .status-success { background: #e6f4ea; color: #137333; }
+        .status-error { background: #fce8e8; color: #c5221f; }
 
-        /* Quick Tests */
-        .quick-tests {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-
-        .quick-test-btn {
-            padding: 0.5rem 1rem;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .quick-test-btn:hover {
-            border-color: var(--primary);
-            background: rgba(79, 70, 229, 0.1);
-        }
-
-        /* Form Group */
+        /* Form Group - Google style */
         .form-group {
             margin-bottom: 1rem;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.375rem;
             font-weight: 500;
             color: var(--text);
+            font-size: 0.875rem;
         }
 
         .form-group input {
             width: 100%;
-            padding: 0.6rem 0.75rem;
-            background: var(--card-bg);
+            padding: 0.625rem 0.875rem;
+            background: var(--bg);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 4px;
             color: var(--text);
+            font-size: 0.875rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
         }
 
         .form-group small {
             display: block;
-            margin-top: 0.25rem;
-            color: var(--text-muted);
-            font-size: 0.85rem;
+            margin-top: 0.375rem;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
         }
 
-        /* Footer */
+        /* Auth Selector - Google style */
+        .auth-selector {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .auth-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .auth-option input {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .auth-option label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 16px;
+            font-weight: 500;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--text-secondary);
+        }
+
+        .auth-option input:checked + label {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+        }
+
+        /* Quick Tests in sidebar */
+        .quick-test-nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1.5rem 0.5rem 2rem;
+            color: var(--sidebar-text);
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            border-radius: 0 24px 24px 0;
+            margin-right: 0.5rem;
+        }
+
+        .quick-test-nav-item:hover {
+            background: var(--sidebar-hover);
+            color: var(--text);
+        }
+
+        /* Footer - Google style */
         .footer {
-            background: var(--card-bg);
+            background: var(--bg-secondary);
             border-top: 1px solid var(--border);
-            padding: 2rem;
+            padding: 1.5rem 2rem;
             text-align: center;
-            color: var(--text-muted);
+            color: var(--text-secondary);
+            font-size: 0.8125rem;
         }
 
         .footer a {
             color: var(--primary);
             text-decoration: none;
+            font-weight: 500;
         }
 
         .footer a:hover {
@@ -631,76 +975,436 @@ const docsTemplate = `<!DOCTYPE html>
 
         /* Responsive */
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.8rem;
+            .mobile-header {
+                display: flex;
             }
 
-            .tester-row {
-                flex-direction: column;
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 2px 0 8px rgba(0,0,0,0.15);
             }
 
-            .nav {
-                gap: 1rem;
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay {
+                display: block;
+            }
+
+            .main-content {
+                margin-left: 0;
+                margin-top: 64px;
+            }
+
+            .content-panels {
+                padding: 1rem;
             }
 
             #flow-diagram-container {
                 height: 350px;
             }
+
+            .tester-row {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
-    <header class="header">
-        <h1>🏛️ {{.Info.Title}}</h1>
-        <p>{{.Info.Description}}</p>
-        <div class="header-actions">
-            <a href="/api/docs/yaml" class="btn btn-secondary" download>
-                📥 Download API Spec (YAML)
-            </a>
+    <!-- Mobile Header -->
+    <div class="mobile-header">
+        <button class="hamburger" onclick="toggleSidebar()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <span class="mobile-title">{{.Info.Title}}</span>
+    </div>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">🏛️ {{.Info.Title}}</div>
+            <div class="sidebar-version">v{{.Info.Version}}</div>
+            <a href="/api/docs/yaml" class="sidebar-download" download>📥 Download YAML</a>
         </div>
-    </header>
 
-    <nav class="nav">
-        <a href="#overview" class="active">Overview</a>
-        <a href="#flow-diagram">🔄 Flow</a>
-        <a href="#endpoints">Endpoints</a>
-        <a href="#file-upload">📤 Upload</a>
-        <a href="#api-tester">🧪 API Tester</a>
-    </nav>
-
-    <div class="container">
-        <!-- Overview Section -->
-        <section class="section" id="overview">
-            <h2>📋 Overview</h2>
-            <p>{{.Info.Description}}</p>
-
-            <div class="cards">
-                <div class="card">
-                    <h4>🏛️ Museum Management</h4>
-                    <p>CRUD operations untuk museum dengan single museum pattern</p>
-                </div>
-                <div class="card">
-                    <h4>🏺 Artifact Management</h4>
-                    <p>Kelola koleksi artifact dengan metadata lengkap</p>
-                </div>
-                <div class="card">
-                    <h4>📸 Media Integration</h4>
-                    <p>Integrasi dengan Media Service untuk upload file</p>
-                </div>
-                <div class="card">
-                    <h4>🔐 JWT Authentication</h4>
-                    <p>Autentikasi via Account Service dengan RS256</p>
+        <nav class="sidebar-nav">
+            <!-- Overview -->
+            <div class="nav-item">
+                <div class="nav-item-header" data-target="panel-overview">
+                    <span class="nav-item-header-content">📋 Overview</span>
                 </div>
             </div>
 
-            <h3>Base URL</h3>
-            <pre><code>{{.Info.BaseURL}}</code></pre>
+            <!-- Example Flow -->
+            <div class="nav-item has-children">
+                <div class="nav-item-header" onclick="toggleCollapse(this)">
+                    <span class="nav-item-header-content">🔄 Example Flow</span>
+                </div>
+                <div class="nav-children">
+                    <a class="nav-child-item" data-target="panel-flow-jwt">JWT Authentication</a>
+                    <a class="nav-child-item" data-target="panel-flow-apikey">API Key Authentication</a>
+                    <a class="nav-child-item" data-target="panel-flow-diagram">Service Flow Diagram</a>
+                </div>
+            </div>
 
-            <h3>Authentication</h3>
-            {{if .Authentication.Methods}}
+            <!-- Endpoint List -->
+            <div class="nav-item has-children">
+                <div class="nav-item-header" onclick="toggleCollapse(this)">
+                    <span class="nav-item-header-content">🔌 Endpoint List</span>
+                </div>
+                <div class="nav-children">
+                    {{range $si, $section := .Sections}}
+                    {{if .Endpoints}}
+                    <div class="nav-group-label">{{.Title}}</div>
+                    {{range $ei, $ep := .Endpoints}}
+                    <a class="nav-child-item" data-target="panel-endpoint-{{$si}}-{{$ei}}">
+                        <span class="nav-method {{lower .Method}}">{{.Method}}</span>
+                        <span>{{.Path}}</span>
+                    </a>
+                    {{end}}
+                    {{end}}
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="nav-item">
+                <div class="nav-item-header" data-target="panel-file-upload">
+                    <span class="nav-item-header-content">📤 File Upload</span>
+                </div>
+            </div>
+
+            <!-- Quick Tests -->
+            <div class="nav-item has-children">
+                <div class="nav-item-header" onclick="toggleCollapse(this)">
+                    <span class="nav-item-header-content">🧪 Quick Tests</span>
+                </div>
+                <div class="nav-children">
+                    {{range $group, $tests := groupTests .APITesterDefaults.QuickTests}}
+                    <div class="nav-group-label">{{$group}}</div>
+                    {{range $tests}}
+                    <a class="quick-test-nav-item" onclick="loadQuickTest('{{.ID}}')">
+                        <span class="nav-method {{lower .Method}}">{{.Method}}</span>
+                        <span>{{.Label}}</span>
+                    </a>
+                    {{end}}
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- Authentication -->
+            <div class="nav-item">
+                <div class="nav-item-header" data-target="panel-authentication">
+                    <span class="nav-item-header-content">🔐 Authentication</span>
+                </div>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-panels">
+            <!-- Overview Panel -->
+            <div class="content-panel active" id="panel-overview">
+                <div class="content-header">
+                    <h1>📋 Overview</h1>
+                    <p>{{.Info.Description}}</p>
+                </div>
+
+                <div class="cards">
+                    <div class="card">
+                        <h4>🏛️ Museum Management</h4>
+                        <p>CRUD operations untuk museum dengan single museum pattern</p>
+                    </div>
+                    <div class="card">
+                        <h4>🏺 Artifact Management</h4>
+                        <p>Kelola koleksi artifact dengan metadata lengkap</p>
+                    </div>
+                    <div class="card">
+                        <h4>📸 Media Integration</h4>
+                        <p>Integrasi dengan Media Service untuk upload file</p>
+                    </div>
+                    <div class="card">
+                        <h4>🔐 JWT Authentication</h4>
+                        <p>Autentikasi via Account Service dengan RS256</p>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Base URL</h3>
+                <pre><code>{{.Info.BaseURL}}</code></pre>
+
+                <h3 class="section-title">Constraints</h3>
+                <ul>
+                    {{range .Constraints}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+            </div>
+
+            <!-- JWT Flow Panel -->
+            <div class="content-panel" id="panel-flow-jwt">
+                <div class="content-header">
+                    <h1>🔄 JWT Authentication Flow</h1>
+                    <p>Step-by-step authentication menggunakan JWT Bearer token</p>
+                </div>
+
+                <div class="flow-steps">
+                    {{range $i, $step := .FlowOverview.StepsJWT}}
+                    <div class="flow-step">
+                        <div class="step-number">{{add $i 1}}</div>
+                        <div class="step-content">{{.}}</div>
+                    </div>
+                    {{end}}
+                </div>
+
+                {{if .FlowOverview.Note}}
+                <div class="alert alert-info">{{.FlowOverview.Note}}</div>
+                {{end}}
+            </div>
+
+            <!-- API Key Flow Panel -->
+            <div class="content-panel" id="panel-flow-apikey">
+                <div class="content-header">
+                    <h1>🔑 API Key Authentication Flow</h1>
+                    <p>Step-by-step authentication menggunakan API Key</p>
+                </div>
+
+                <div class="flow-steps">
+                    {{range $i, $step := .FlowOverview.StepsAPIKey}}
+                    <div class="flow-step">
+                        <div class="step-number">{{add $i 1}}</div>
+                        <div class="step-content">{{.}}</div>
+                    </div>
+                    {{end}}
+                </div>
+
+                {{if .FlowOverview.Note}}
+                <div class="alert alert-info">{{.FlowOverview.Note}}</div>
+                {{end}}
+            </div>
+
+            <!-- Flow Diagram Panel -->
+            <div class="content-panel" id="panel-flow-diagram">
+                <div class="content-header">
+                    <h1>🔄 Service Flow Diagram</h1>
+                    <p>Visualisasi alur data antara services</p>
+                </div>
+                <div id="flow-diagram-container"></div>
+            </div>
+
+            <!-- Endpoint Panels -->
+            {{range $si, $section := .Sections}}
+            {{if .Endpoints}}
+            {{range $ei, $ep := .Endpoints}}
+            <div class="content-panel" id="panel-endpoint-{{$si}}-{{$ei}}">
+                <div class="breadcrumb">
+                    <span>{{$section.Title}}</span>
+                    <span>{{$ep.Name}}</span>
+                </div>
+
+                <div class="endpoint-detail">
+                    <div class="endpoint-header">
+                        <span class="method {{lower $ep.Method}}">{{$ep.Method}}</span>
+                        <span class="endpoint-path">{{$ep.Path}}</span>
+                    </div>
+
+                    <p class="endpoint-description">{{$ep.Description}}</p>
+
+                    {{if eq $ep.Auth "required"}}
+                    <div class="auth-badge">
+                        🔒 Auth Required {{if $ep.Permission}}<code>{{$ep.Permission}}</code>{{end}}
+                    </div>
+                    {{else if eq $ep.Auth "optional"}}
+                    <div class="auth-badge">🔓 Optional Auth (Public available)</div>
+                    {{end}}
+
+                    {{if $ep.QueryParams}}
+                    <h3 class="section-title">Query Parameters</h3>
+                    <table>
+                        <tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
+                        {{range $ep.QueryParams}}
+                        <tr>
+                            <td>{{.Name}}</td>
+                            <td>{{.Type}}</td>
+                            <td><span class="badge {{if .Required}}required{{else}}optional{{end}}">{{if .Required}}required{{else}}optional{{end}}</span></td>
+                            <td>{{.Description}}{{if .Default}} (default: {{.Default}}){{end}}</td>
+                        </tr>
+                        {{end}}
+                    </table>
+                    {{end}}
+
+                    {{if $ep.Body}}
+                    <h3 class="section-title">Request Body Fields</h3>
+                    <table>
+                        <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+                        {{range $ep.Body}}
+                        <tr>
+                            <td>{{.Name}}</td>
+                            <td>{{.Type}}</td>
+                            <td><span class="badge {{if .Required}}required{{else}}optional{{end}}">{{if .Required}}required{{else}}optional{{end}}</span></td>
+                            <td>{{.Description}}{{if .Example}} <code>ex: {{.Example}}</code>{{end}}</td>
+                        </tr>
+                        {{end}}
+                    </table>
+                    {{end}}
+
+                    {{if $ep.ExampleBody}}
+                    <div class="code-block">
+                        <div class="code-header">Example Request Body</div>
+                        <pre><code>{{$ep.ExampleBody}}</code></pre>
+                    </div>
+                    {{end}}
+
+                    {{if $ep.ExampleResponse}}
+                    <div class="code-block">
+                        <div class="code-header">Example Response</div>
+                        <pre><code>{{$ep.ExampleResponse}}</code></pre>
+                    </div>
+                    {{end}}
+
+                    <!-- Try It Section -->
+                    <div class="try-it-section">
+                        <button class="try-it-btn" onclick="openTester({{$si}}, {{$ei}})">
+                            ▶ Try It
+                        </button>
+                        <div class="global-tester" id="tester-endpoint-{{$si}}-{{$ei}}" style="display:none">
+                            <div class="tester-config">
+                                <div class="form-group">
+                                    <label>Authentication Method</label>
+                                    <div class="auth-selector">
+                                        <div class="auth-option">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="jwt" id="auth-jwt-{{$si}}-{{$ei}}" checked onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <label for="auth-jwt-{{$si}}-{{$ei}}">JWT</label>
+                                        </div>
+                                        <div class="auth-option">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="apikey" id="auth-apikey-{{$si}}-{{$ei}}" onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <label for="auth-apikey-{{$si}}-{{$ei}}">API Key</label>
+                                        </div>
+                                        <div class="auth-option">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <label for="auth-none-{{$si}}-{{$ei}}">Public</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group" id="jwt-group-{{$si}}-{{$ei}}">
+                                    <label>JWT Token</label>
+                                    <input type="text" class="inline-token" data-section="{{$si}}" data-endpoint="{{$ei}}" placeholder="Bearer eyJhbGci...">
+                                </div>
+                                <div class="form-group" id="apikey-group-{{$si}}-{{$ei}}" style="display:none">
+                                    <label>API Key</label>
+                                    <input type="text" class="inline-apikey" data-section="{{$si}}" data-endpoint="{{$ei}}" placeholder="your-api-key">
+                                </div>
+                            </div>
+                            <div class="tester-row">
+                                <select class="method-select inline-method" data-section="{{$si}}" data-endpoint="{{$ei}}">
+                                    <option value="GET"{{if eq $ep.Method "GET"}} selected{{end}}>GET</option>
+                                    <option value="POST"{{if eq $ep.Method "POST"}} selected{{end}}>POST</option>
+                                    <option value="PATCH"{{if eq $ep.Method "PATCH"}} selected{{end}}>PATCH</option>
+                                    <option value="DELETE"{{if eq $ep.Method "DELETE"}} selected{{end}}>DELETE</option>
+                                </select>
+                                <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{$.Info.BaseURL}}{{$ep.Path}}">
+                                <button class="send-btn" onclick="sendInlineRequest({{$si}}, {{$ei}})">Send</button>
+                            </div>
+                            <div class="tester-tabs">
+                                <button class="tab-btn active" onclick="switchInlineTab({{$si}}, {{$ei}}, 'body')">Body</button>
+                                <button class="tab-btn" onclick="switchInlineTab({{$si}}, {{$ei}}, 'headers')">Headers</button>
+                            </div>
+                            <div class="tab-content active" id="tab-body-{{$si}}-{{$ei}}">
+                                <textarea class="inline-body" data-section="{{$si}}" data-endpoint="{{$ei}}">{{$ep.ExampleBody}}</textarea>
+                            </div>
+                            <div class="tab-content" id="tab-headers-{{$si}}-{{$ei}}">
+                                <div class="header-row" style="display:flex; gap:0.75rem; margin-bottom:0.5rem;">
+                                    <input type="text" value="Content-Type" class="header-key" readonly style="flex:1; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                    <input type="text" value="application/json" class="header-value" style="flex:2; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                </div>
+                            </div>
+                            <div class="response-section">
+                                <div class="response-header">
+                                    <span>Response</span>
+                                    <span class="status-badge inline-status" data-section="{{$si}}" data-endpoint="{{$ei}}"></span>
+                                </div>
+                                <pre class="response-body inline-response" data-section="{{$si}}" data-endpoint="{{$ei}}"><code>Click "Send" to see response...</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+            {{end}}
+            {{end}}
+
+            <!-- File Upload Panel -->
+            <div class="content-panel" id="panel-file-upload">
+                <div class="content-header">
+                    <h1>📤 File Upload Flow</h1>
+                    <p>Cara upload file ke Museum Service</p>
+                </div>
+
+                <p>Museum Service tidak menangani upload file langsung. Frontend harus upload ke <strong>Media Service</strong> terlebih dahulu, kemudian kirim URL yang didapat ke Museum Service.</p>
+
+                {{range .Sections}}{{if eq .ID "file_upload"}}{{range .Flow}}
+                <h3 class="section-title">Step {{.Step}}: {{.Title}}</h3>
+                {{if .Endpoint}}
+                <div class="endpoint-detail">
+                    <div class="endpoint-header">
+                        <span class="method {{lower .Endpoint.Method}}">{{.Endpoint.Method}}</span>
+                        <span class="endpoint-path">{{.Endpoint.Path}}</span>
+                    </div>
+                    <p>Service: {{.Endpoint.Service}}</p>
+                    {{if .CurlExample}}
+                    <div class="code-block">
+                        <div class="code-header">cURL Example</div>
+                        <pre><code>{{.CurlExample}}</code></pre>
+                    </div>
+                    {{end}}
+                    {{if .ResponseExample}}
+                    <div class="code-block">
+                        <div class="code-header">Response Example</div>
+                        <pre><code>{{.ResponseExample}}</code></pre>
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+                {{if .Actions}}
+                <p>Gunakan <code>url</code> dari response Media Service untuk update image:</p>
+                <pre><code>// Update museum image
+curl -X POST {{$.Info.BaseURL}}/api/v1/museum/image \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'
+
+// Update artifact image
+curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'</code></pre>
+                {{end}}
+                {{end}}{{end}}{{end}}
+
+                <div class="alert alert-info">
+                    <strong>Tips:</strong> Simpan juga <code>media_id</code> di database jika perlu referensi ke file di Media Service.
+                </div>
+            </div>
+
+            <!-- Authentication Panel -->
+            <div class="content-panel" id="panel-authentication">
+                <div class="content-header">
+                    <h1>🔐 Authentication</h1>
+                    <p>Methods and permissions for API access</p>
+                </div>
+
+                {{if .Authentication.Methods}}
+                <h3 class="section-title">Authentication Methods</h3>
                 {{range .Authentication.Methods}}
-                <div class="auth-method">
-                    <h4>{{.Type}}</h4>
+                <div class="endpoint-detail" style="background:var(--card-bg); padding:1.5rem; border-radius:8px; margin-bottom:1rem;">
+                    <h4 style="color:var(--primary); margin-bottom:1rem;">{{.Type}}</h4>
                     <p><strong>Header:</strong> <code>{{.Header}}: {{.Format}}</code></p>
                     <p><strong>Source:</strong> {{.Source}}</p>
                     <p>{{.Description}}</p>
@@ -712,316 +1416,35 @@ const docsTemplate = `<!DOCTYPE html>
                     {{end}}
                 </div>
                 {{end}}
-            {{else}}
-                <p>Type: <strong>{{.Authentication.Type}}</strong></p>
-                <p>Header: <code>{{.Authentication.Header}}: Bearer &lt;token&gt;</code></p>
-                <p>Token source: {{.Authentication.Source}}</p>
-                <div class="alert alert-info">
-                    <strong>Token contains:</strong> {{join .Authentication.TokenContains ", "}}
-                </div>
-            {{end}}
+                {{end}}
 
-            <h3>Flow Overview</h3>
-            {{if .FlowOverview.StepsJWT}}
-            <h4>JWT Flow</h4>
-            <ol>
-                {{range .FlowOverview.StepsJWT}}
-                <li>{{.}}</li>
-                {{end}}
-            </ol>
-            <h4>API Key Flow</h4>
-            <ol>
-                {{range .FlowOverview.StepsAPIKey}}
-                <li>{{.}}</li>
-                {{end}}
-            </ol>
-            {{if .FlowOverview.Note}}<p class="text-muted"><em>{{.FlowOverview.Note}}</em></p>{{end}}
-            {{else}}
-            <ol>
-                {{range .FlowOverview.Steps}}
-                <li>{{.}}</li>
-                {{end}}
-            </ol>
-            {{end}}
-
-            <h3>Constraints</h3>
-            <ul>
-                {{range .Constraints}}
-                <li>{{.}}</li>
-                {{end}}
-            </ul>
-        </section>
-
-        <!-- Flow Diagram Section -->
-        <section class="section" id="flow-diagram">
-            <h2>🔄 Service Flow Diagram</h2>
-            <p>Visualisasi alur data antara Account Service → Museum → Artifacts → Media Service</p>
-            <div id="flow-diagram-container"></div>
-        </section>
-
-        <!-- Endpoints Section -->
-        <section class="section" id="endpoints">
-            <h2>🔌 API Endpoints</h2>
-            {{range .Sections}}
-            {{if .Endpoints}}
-            <h3>{{.Title}}</h3>
-            {{if .Description}}<p>{{.Description}}</p>{{end}}
-            {{range .Endpoints}}
-            <div class="endpoint">
-                <div class="endpoint-header">
-                    <span class="method {{lower .Method}}">{{.Method}}</span>
-                    <span class="endpoint-path">{{.Path}}</span>
-                </div>
-                <p>{{.Description}}</p>
-                {{if eq .Auth "required"}}
-                <p><strong>Auth:</strong> Required {{if .Permission}}<code>{{.Permission}}</code>{{end}}</p>
-                {{else if eq .Auth "optional"}}
-                <p><strong>Auth:</strong> Optional (public access available)</p>
-                {{end}}
-                {{if .QueryParams}}
+                <h3 class="section-title">Permissions</h3>
                 <table>
-                    <tr><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr>
-                    {{range .QueryParams}}
+                    <tr><th>Permission</th><th>Description</th></tr>
+                    {{range .Permissions}}
                     <tr>
-                        <td>{{.Name}}</td>
-                        <td>{{.Type}}</td>
-                        <td><span class="badge {{if .Required}}required{{else}}optional{{end}}">{{if .Required}}required{{else}}optional{{end}}</span></td>
-                        <td>{{.Description}}{{if .Default}} (default: {{.Default}}){{end}}</td>
+                        <td><code>{{.Name}}</code></td>
+                        <td>{{.Description}}</td>
                     </tr>
                     {{end}}
                 </table>
-                {{end}}
-                {{if .Body}}
-                <table>
-                    <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
-                    {{range .Body}}
-                    <tr>
-                        <td>{{.Name}}</td>
-                        <td>{{.Type}}</td>
-                        <td><span class="badge {{if .Required}}required{{else}}optional{{end}}">{{if .Required}}required{{else}}optional{{end}}</span></td>
-                        <td>{{.Description}}{{if .Example}} <code>ex: {{.Example}}</code>{{end}}</td>
-                    </tr>
-                    {{end}}
-                </table>
-                {{end}}
-                {{if .ExampleBody}}
-                <p><strong>Request Body:</strong></p>
-                <pre><code>{{.ExampleBody}}</code></pre>
-                {{end}}
-                {{if .ExampleResponse}}
-                <p><strong>Response Example:</strong></p>
-                <pre><code>{{.ExampleResponse}}</code></pre>
-                {{end}}
             </div>
-            {{end}}
-            {{end}}
-            {{end}}
-        </section>
+        </div>
 
-        <!-- File Upload Section -->
-        <section class="section" id="file-upload">
-            <h2>📤 File Upload Flow</h2>
-            <p>Museum Service tidak menangani upload file langsung. Frontend harus upload ke <strong>Media Service</strong> terlebih dahulu, kemudian kirim URL yang didapat ke Museum Service.</p>
-            {{range .Sections}}{{if eq .ID "file_upload"}}{{range .Flow}}
-            <h3>Step {{.Step}}: {{.Title}}</h3>
-            {{if .Endpoint}}
-            <div class="endpoint">
-                <div class="endpoint-header">
-                    <span class="method {{lower .Endpoint.Method}}">{{.Endpoint.Method}}</span>
-                    <span class="endpoint-path">{{.Endpoint.Path}}</span>
-                </div>
-                <p>Service: {{.Endpoint.Service}}</p>
-                <p><strong>Auth:</strong> Required <code>{{.Endpoint.Permission}}</code></p>
-                {{if .CurlExample}}<pre><code>{{.CurlExample}}</code></pre>{{end}}
-                {{if .ResponseExample}}<p><strong>Response:</strong></p><pre><code>{{.ResponseExample}}</code></pre>{{end}}
-            </div>
-            {{end}}
-            {{if .Actions}}
-            <p>Gunakan <code>url</code> dari response Media Service untuk update image:</p>
-            <pre><code>// Update museum image
-curl -X POST {{$.Info.BaseURL}}/api/v1/museum/image \\
-  -H "Authorization: Bearer TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'
-
-// Update artifact image
-curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
-  -H "Authorization: Bearer TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'</code></pre>
-            {{end}}
-            {{end}}{{end}}{{end}}
-            <div class="alert alert-info">
-                <strong>Tips:</strong> Simpan juga <code>media_id</code> di database jika perlu referensi ke file di Media Service (untuk delete atau update nanti).
-            </div>
-        </section>
-
-        <!-- API Tester Section -->
-        <section class="section" id="api-tester">
-            <h2>🧪 API Tester</h2>
-            <p>Test API endpoints directly from this documentation. Pilih metode autentikasi (JWT atau API Key), masukkan token/key, dan klik "Send Request".</p>
-
-            <div class="api-tester">
-                <div class="tester-config">
-                    <div class="form-group">
-                        <label>Authentication Method</label>
-                        <div class="auth-selector">
-                            <div class="auth-option">
-                                <input type="radio" name="auth-method" value="jwt" id="auth-jwt" checked onchange="toggleAuthMethod()">
-                                <label for="auth-jwt">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                    JWT Token
-                                </label>
-                            </div>
-                            <div class="auth-option">
-                                <input type="radio" name="auth-method" value="apikey" id="auth-apikey" onchange="toggleAuthMethod()">
-                                <label for="auth-apikey">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
-                                    API Key
-                                </label>
-                            </div>
-                            <div class="auth-option">
-                                <input type="radio" name="auth-method" value="none" id="auth-none" onchange="toggleAuthMethod()">
-                                <label for="auth-none">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
-                                    Public
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group" id="jwt-token-group">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <label>JWT Token</label>
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
-                                    <input type="checkbox" id="save-token" checked>
-                                    <span>Remember Token</span>
-                                </label>
-                                <button onclick="clearToken()" style="background: none; border: none; color: var(--danger); font-size: 0.85rem; cursor: pointer; text-decoration: underline;">Clear</button>
-                            </div>
-                        </div>
-                        <input type="text" id="tester-token" placeholder="Bearer eyJhbGciOiJSUzI1NiIs...">
-                        <small>Token tersimpan di browser (localStorage). Format: Bearer &lt;token&gt;</small>
-                    </div>
-
-                    <div class="form-group" id="api-key-group" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <label>API Key</label>
-                            <div style="display: flex; align-items: center; gap: 1rem;">
-                                <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
-                                    <input type="checkbox" id="save-apikey" checked>
-                                    <span>Remember API Key</span>
-                                </label>
-                                <button onclick="clearApiKey()" style="background: none; border: none; color: var(--danger); font-size: 0.85rem; cursor: pointer; text-decoration: underline;">Clear</button>
-                            </div>
-                        </div>
-                        <input type="text" id="tester-apikey" placeholder="your-api-key-here">
-                        <small>API Key tersimpan di browser (localStorage). Backend akan exchange ke JWT.</small>
-                    </div>
-                </div>
-
-                <div class="tester-row">
-                    <select id="tester-method" class="method-select">
-                        <option value="GET" selected>GET</option>
-                        <option value="POST">POST</option>
-                        <option value="PATCH">PATCH</option>
-                        <option value="DELETE">DELETE</option>
-                    </select>
-                    <input type="text" id="tester-url" class="url-input" value="{{.APITesterDefaults.DefaultURL}}" placeholder="{{.APITesterDefaults.DefaultURL}}">
-                    <button onclick="sendRequest()" class="send-btn">Send Request</button>
-                </div>
-
-                <div class="tester-tabs">
-                    <button class="tab-btn active" onclick="switchTab('params')">Query Params</button>
-                    <button class="tab-btn" onclick="switchTab('body')">JSON Body</button>
-                    <button class="tab-btn" onclick="switchTab('formdata')">Form Data</button>
-                    <button class="tab-btn" onclick="switchTab('headers')">Headers</button>
-                </div>
-
-                <div id="tab-params" class="tab-content active">
-                    <div class="param-row">
-                        <input type="text" placeholder="Key" class="param-key" value="page">
-                        <input type="text" placeholder="Value" class="param-value" value="1">
-                        <button onclick="addParamRow(this)" class="icon-btn">+</button>
-                    </div>
-                    <div class="param-row">
-                        <input type="text" placeholder="Key" class="param-key" value="page_size">
-                        <input type="text" placeholder="Value" class="param-value" value="9">
-                        <button onclick="removeParamRow(this)" class="icon-btn danger">×</button>
-                    </div>
-                </div>
-
-                <div id="tab-body" class="tab-content">
-                    <textarea id="request-body" placeholder='{
-  "name": "Museum Test",
-  "location": "Jakarta",
-  "description": "Test museum"
-}'></textarea>
-                </div>
-
-                <div id="tab-formdata" class="tab-content">
-                    <div class="formdata-info" style="background: var(--bg); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem;">
-                        <p style="margin: 0; color: var(--text-muted);">📤 Gunakan untuk upload file ke Media Service.</p>
-                        <p style="margin: 0.5rem 0 0 0; color: var(--warning); font-size: 0.85rem;">⚠️ Note: Untuk upload file asli, gunakan curl atau Postman dengan multipart/form-data.</p>
-                    </div>
-                    <div id="formdata-fields">
-                        <div class="formdata-row" style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem; align-items: center;">
-                            <input type="text" placeholder="Field name" class="formdata-key" value="folder_id" style="flex: 1; padding: 0.6rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text);">
-                            <input type="text" placeholder="Value" class="formdata-value" placeholder="optional-folder-id" style="flex: 2; padding: 0.6rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text);">
-                            <button onclick="addFormDataRow(this)" class="icon-btn" style="width: 36px; height: 36px; border-radius: 6px; border: none; background: var(--primary); color: white; font-size: 1.2rem; cursor: pointer;">+</button>
-                        </div>
-                    </div>
-                    <div style="margin-top: 1rem; padding: 1rem; background: var(--bg); border-radius: 8px; border: 2px dashed var(--border);">
-                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">File Upload (Simulasi)</label>
-                        <input type="file" id="formdata-file" style="width: 100%; color: var(--text);" onchange="updateFormDataFileName(this)">
-                        <input type="hidden" id="formdata-file-field" value="file">
-                    </div>
-                </div>
-
-                <div id="tab-headers" class="tab-content">
-                    <div class="header-row">
-                        <input type="text" value="Content-Type" class="header-key" readonly>
-                        <input type="text" value="application/json" class="header-value">
-                    </div>
-                </div>
-
-                <div class="response-section">
-                    <div class="response-header">
-                        <span>Response</span>
-                        <span id="response-status" class="status-badge"></span>
-                    </div>
-                    <pre id="response-body" class="response-body"><code>Click "Send Request" to see the response...</code></pre>
-                </div>
-            </div>
-
-            <h3>Quick Test Buttons</h3>
-            {{range $group, $tests := groupTests .APITesterDefaults.QuickTests}}
-            <h4 style="margin-top: 1rem;">{{$group}}</h4>
-            <div class="quick-tests">
-                {{range $tests}}
-                <button onclick="loadTest('{{.ID}}')" class="quick-test-btn"{{if .IsFormData}} title="Upload file ke Media Service dulu"{{end}}>
-                    <span class="method {{lower .Method}}">{{.Method}}</span> {{.Label}}
-                </button>
-                {{end}}
-            </div>
-            {{end}}
-        </section>
-    </div>
-
-    <footer class="footer">
-        <p>© 2026 Museum Digital Indonesia. Built with ❤️ for preserving culture.</p>
-        <p style="margin-top: 0.5rem; font-size: 0.9rem;">
-            <a href="/swagger/index.html">Swagger UI</a> •
-            <a href="/swagger/doc.json">OpenAPI JSON</a> •
-            <a href="/api/docs/yaml" download>📥 API Spec YAML (for AI)</a> •
-            <a href="/api/docs/spec">🤖 AI Spec (JSON)</a>
-        </p>
-    </footer>
+        <!-- Footer -->
+        <footer class="footer">
+            <p>© 2026 Museum Digital Indonesia. Built with ❤️ for preserving culture.</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="/swagger/index.html">Swagger UI</a> •
+                <a href="/swagger/doc.json">OpenAPI JSON</a> •
+                <a href="/api/docs/yaml" download>📥 YAML</a> •
+                <a href="/api/docs/spec">🤖 JSON</a>
+            </p>
+        </footer>
+    </main>
 
     <!-- ReactFlow Component -->
     <script type="text/babel">
-        // ReactFlow v11 UMD exports - komponen ada di window.ReactFlow.ReactFlow
         const ReactFlow = window.ReactFlow.ReactFlow || window.ReactFlow.default;
 
         const nodes = [
@@ -1052,7 +1475,6 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
                 label: '{{.Label | js}}',
                 animated: {{.Animated}},
                 style: { stroke: '{{.Color}}' }
-                {{if .Style}},type: 'dashed'{{end}}
             },
             {{end}}
         ];
@@ -1074,235 +1496,198 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \\
     </script>
 
     <script>
-        // Quick Tests Data - convert to object map for easy lookup
+        // Quick Tests Data
         const quickTestsData = JSON.parse({{.APITesterDefaults.QuickTests | json}});
         const quickTestsArray = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
         const quickTests = {};
         quickTestsArray.forEach(t => { if (t && t.id) quickTests[t.id] = t; });
 
-        // Load saved token and API Key
+        // Load saved tokens
         document.addEventListener('DOMContentLoaded', function() {
             const savedToken = localStorage.getItem('museum_api_token');
-            if (savedToken) {
-                document.getElementById('tester-token').value = savedToken;
-            }
             const savedApiKey = localStorage.getItem('museum_api_key');
+
+            // Populate all inline token inputs
+            if (savedToken) {
+                document.querySelectorAll('.inline-token').forEach(el => el.value = savedToken);
+            }
             if (savedApiKey) {
-                document.getElementById('tester-apikey').value = savedApiKey;
+                document.querySelectorAll('.inline-apikey').forEach(el => el.value = savedApiKey);
             }
-            const savedAuthMethod = localStorage.getItem('museum_auth_method');
-            if (savedAuthMethod) {
-                document.getElementById('auth-' + savedAuthMethod).checked = true;
-                toggleAuthMethod();
-            }
+
+            // Setup panel switching for nav items
+            document.querySelectorAll('.nav-item-header[data-target]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const target = this.getAttribute('data-target');
+                    showPanel(target);
+                });
+            });
+
+            document.querySelectorAll('.nav-child-item[data-target]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const target = this.getAttribute('data-target');
+                    showPanel(target);
+                });
+            });
         });
 
-        function toggleAuthMethod() {
-            const method = document.querySelector('input[name="auth-method"]:checked').value;
-            const jwtGroup = document.getElementById('jwt-token-group');
-            const apiKeyGroup = document.getElementById('api-key-group');
+        // Panel switching
+        function showPanel(targetId) {
+            // Hide all panels
+            document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
+            // Show target
+            document.getElementById(targetId).classList.add('active');
 
-            if (method === 'jwt') {
+            // Update sidebar active state
+            document.querySelectorAll('.nav-item-header').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-child-item').forEach(el => el.classList.remove('active'));
+
+            const activeNav = document.querySelector('[data-target="' + targetId + '"]');
+            if (activeNav) activeNav.classList.add('active');
+
+            // Close mobile sidebar
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        // Sidebar collapse toggle
+        function toggleCollapse(el) {
+            const navItem = el.closest('.nav-item');
+            navItem.classList.toggle('open');
+        }
+
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('mobile-open');
+            document.querySelector('.sidebar-overlay').classList.toggle('visible');
+        }
+
+        // Open inline tester
+        function openTester(sectionIdx, endpointIdx) {
+            const testerId = 'tester-endpoint-' + sectionIdx + '-' + endpointIdx;
+            const tester = document.getElementById(testerId);
+
+            if (tester.style.display === 'none') {
+                tester.style.display = 'block';
+            } else {
+                tester.style.display = 'none';
+            }
+        }
+
+        // Toggle inline auth method
+        function toggleInlineAuthMethod(sectionIdx, endpointIdx) {
+            const authMethod = document.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
+            const jwtGroup = document.getElementById('jwt-group-' + sectionIdx + '-' + endpointIdx);
+            const apikeyGroup = document.getElementById('apikey-group-' + sectionIdx + '-' + endpointIdx);
+
+            if (authMethod === 'jwt') {
                 jwtGroup.style.display = 'block';
-                apiKeyGroup.style.display = 'none';
-            } else if (method === 'apikey') {
+                apikeyGroup.style.display = 'none';
+            } else if (authMethod === 'apikey') {
                 jwtGroup.style.display = 'none';
-                apiKeyGroup.style.display = 'block';
+                apikeyGroup.style.display = 'block';
             } else {
                 jwtGroup.style.display = 'none';
-                apiKeyGroup.style.display = 'none';
-            }
-            localStorage.setItem('museum_auth_method', method);
-        }
-
-        function saveToken() {
-            const token = document.getElementById('tester-token').value;
-            if (document.getElementById('save-token').checked && token) {
-                localStorage.setItem('museum_api_token', token);
+                apikeyGroup.style.display = 'none';
             }
         }
 
-        function clearToken() {
-            document.getElementById('tester-token').value = '';
-            localStorage.removeItem('museum_api_token');
-        }
+        // Switch inline tab
+        function switchInlineTab(sectionIdx, endpointIdx, tabName) {
+            var container = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            container.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
-        function saveApiKey() {
-            const apiKey = document.getElementById('tester-apikey').value;
-            if (document.getElementById('save-apikey').checked && apiKey) {
-                localStorage.setItem('museum_api_key', apiKey);
-            }
-        }
-
-        function clearApiKey() {
-            document.getElementById('tester-apikey').value = '';
-            localStorage.removeItem('museum_api_key');
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + tabName).classList.add('active');
+            document.getElementById('tab-' + tabName + '-' + sectionIdx + '-' + endpointIdx).classList.add('active');
             event.target.classList.add('active');
         }
 
-        function addParamRow(btn) {
-            const row = btn.parentElement;
-            const newRow = row.cloneNode(true);
-            newRow.querySelector('.param-key').value = '';
-            newRow.querySelector('.param-value').value = '';
-            newRow.querySelector('button').textContent = '×';
-            newRow.querySelector('button').classList.add('danger');
-            newRow.querySelector('button').onclick = function() { removeParamRow(this); };
-            row.parentElement.appendChild(newRow);
-        }
+        // Send inline request
+        async function sendInlineRequest(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const method = tester.querySelector('.inline-method').value;
+            let url = tester.querySelector('.inline-url').value;
+            const authMethod = tester.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
+            const token = tester.querySelector('.inline-token').value;
+            const apiKey = tester.querySelector('.inline-apikey').value;
+            const body = tester.querySelector('.inline-body').value;
+            const statusEl = tester.querySelector('.inline-status');
+            const responseEl = tester.querySelector('.inline-response');
 
-        function removeParamRow(btn) {
-            btn.parentElement.remove();
-        }
+            // Save to localStorage
+            if (token) localStorage.setItem('museum_api_token', token);
+            if (apiKey) localStorage.setItem('museum_api_key', apiKey);
 
-        function addFormDataRow(btn) {
-            const row = btn.parentElement;
-            const newRow = row.cloneNode(true);
-            newRow.querySelector('.formdata-key').value = '';
-            newRow.querySelector('.formdata-value').value = '';
-            newRow.querySelector('button').onclick = function() { removeFormDataRow(this); };
-            row.parentElement.appendChild(newRow);
-        }
-
-        function removeFormDataRow(btn) {
-            btn.parentElement.remove();
-        }
-
-        function updateFormDataFileName(input) {
-            if (input.files && input.files[0]) {
-                console.log('Selected file:', input.files[0].name);
-            }
-        }
-
-        async function sendRequest() {
-            const method = document.getElementById('tester-method').value;
-            let url = document.getElementById('tester-url').value;
-            const authMethod = document.querySelector('input[name="auth-method"]:checked').value;
-            const token = document.getElementById('tester-token').value;
-            const apiKey = document.getElementById('tester-apikey').value;
-            const responseBody = document.getElementById('response-body');
-            const statusBadge = document.getElementById('response-status');
-
-            if (!url.startsWith('http')) {
-                url = '{{.Info.BaseURL}}' + url;
-            }
-
-            // Save auth data if checked
-            if (authMethod === 'jwt') {
-                saveToken();
-            } else if (authMethod === 'apikey') {
-                saveApiKey();
-            }
-
-            // Build query params
-            const params = new URLSearchParams();
-            document.querySelectorAll('#tab-params .param-row').forEach(row => {
-                const key = row.querySelector('.param-key').value;
-                const value = row.querySelector('.param-value').value;
-                if (key && value) params.append(key, value);
-            });
-            if (params.toString()) url += (url.includes('?') ? '&' : '?') + params.toString();
-
-            // Build headers based on auth method
+            // Build headers
             const headers = {};
             if (authMethod === 'jwt' && token) {
                 headers['Authorization'] = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
-                console.log('Set Authorization header:', headers['Authorization'].substring(0, 20) + '...');
             } else if (authMethod === 'apikey' && apiKey) {
                 headers['X-API-Key'] = apiKey;
-                console.log('Set X-API-Key header:', apiKey.substring(0, 10) + '...');
-            } else {
-                console.log('No auth header set');
             }
 
-            const options = {
-                method: method,
-                headers: headers
-            };
+            const options = { method: method, headers: headers };
 
-            // Add body for non-GET requests
-            if (method !== 'GET') {
-                const activeTab = document.querySelector('.tab-content.active').id;
-                if (activeTab === 'tab-body') {
-                    const body = document.getElementById('request-body').value;
-                    if (body) {
-                        headers['Content-Type'] = 'application/json';
-                        options.body = body;
-                    }
-                } else if (activeTab === 'tab-formdata') {
-                    const formData = new FormData();
-                    document.querySelectorAll('.formdata-row').forEach(row => {
-                        const key = row.querySelector('.formdata-key').value;
-                        const value = row.querySelector('.formdata-value').value;
-                        if (key) formData.append(key, value);
-                    });
-                    const fileInput = document.getElementById('formdata-file');
-                    if (fileInput.files[0]) {
-                        formData.append('file', fileInput.files[0]);
-                    }
-                    options.body = formData;
-                }
+            if (method !== 'GET' && body) {
+                headers['Content-Type'] = 'application/json';
+                options.body = body;
             }
 
-            responseBody.innerHTML = '<code>Sending request...</code>';
-            statusBadge.className = 'status-badge';
+            responseEl.innerHTML = '<code>Sending...</code>';
+            statusEl.className = 'status-badge inline-status';
 
             try {
                 const response = await fetch(url, options);
                 const contentType = response.headers.get('content-type');
                 let data;
+
                 if (contentType && contentType.includes('application/json')) {
                     data = await response.json();
                 } else {
                     data = await response.text();
                 }
 
-                statusBadge.textContent = response.status + ' ' + response.statusText;
-                statusBadge.className = 'status-badge ' + (response.ok ? 'status-success' : 'status-error');
+                statusEl.textContent = response.status + ' ' + response.statusText;
+                statusEl.className = 'status-badge inline-status ' + (response.ok ? 'status-success' : 'status-error');
 
                 if (typeof data === 'object') {
-                    responseBody.innerHTML = '<code>' + JSON.stringify(data, null, 2) + '</code>';
+                    responseEl.innerHTML = '<code>' + JSON.stringify(data, null, 2) + '</code>';
                 } else {
-                    responseBody.innerHTML = '<code>' + data + '</code>';
+                    responseEl.innerHTML = '<code>' + data + '</code>';
                 }
             } catch (error) {
-                statusBadge.textContent = 'Error';
-                statusBadge.className = 'status-badge status-error';
-                responseBody.innerHTML = '<code>Error: ' + error.message + '</code>';
+                statusEl.textContent = 'Error';
+                statusEl.className = 'status-badge inline-status status-error';
+                responseEl.innerHTML = '<code>Error: ' + error.message + '</code>';
             }
         }
 
-        function loadTest(testId) {
+        // Load quick test
+        function loadQuickTest(testId) {
             const test = quickTests[testId];
             if (!test) return;
 
-            document.getElementById('tester-method').value = test.method;
-            document.getElementById('tester-url').value = test.url;
-
-            // Set body if present
-            if (test.body && test.body !== '') {
-                if (typeof test.body === 'object') {
-                    document.getElementById('request-body').value = JSON.stringify(test.body, null, 2);
-                } else {
-                    document.getElementById('request-body').value = test.body;
+            // Find the endpoint panel and show it
+            document.querySelectorAll('.content-panel').forEach(el => {
+                if (el.id.startsWith('panel-endpoint')) {
+                    const urlInput = el.querySelector('.inline-url');
+                    if (urlInput && test.url && urlInput.value.indexOf(test.url.replace('{{"{{.Info.BaseURL}}" | js}}', '')) !== -1) {
+                        showPanel(el.id);
+                        el.querySelector('.inline-method').value = test.method;
+                        if (test.body) {
+                            el.querySelector('.inline-body').value = typeof test.body === 'object' ? JSON.stringify(test.body, null, 2) : test.body;
+                        }
+                        const testerBtn = el.querySelector('.try-it-btn');
+                        if (testerBtn) testerBtn.click();
+                    }
                 }
-                switchTab('body');
+            });
+
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
             }
         }
-
-        // Navigation highlight
-        document.querySelectorAll('.nav a').forEach(link => {
-            link.addEventListener('click', function() {
-                document.querySelectorAll('.nav a').forEach(l => l.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
     </script>
 </body>
 </html>

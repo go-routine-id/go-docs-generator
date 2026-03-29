@@ -53,6 +53,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			return s
 		},
 		"groupTests": groupTestsByCategory,
+		"add":      func(a, b int) int { return a + b },
 	}
 
 	tmpl, err := template.New("docs").Funcs(funcMap).Parse(docsTemplate)
