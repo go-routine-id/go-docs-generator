@@ -6,6 +6,14 @@ info:
   version: "1.0.0"
   description: API untuk Museum Digital Indonesia - Single Museum Pattern
   base_url: https://museumdigi.id
+  base_urls:
+    - label: Production
+      url: https://museumdigi.id
+      default: true
+    - label: Staging
+      url: https://staging.museumdigi.id
+    - label: Local
+      url: http://localhost:8080
   overview_cards:
     - icon: "🚀"
       title: "REST API"

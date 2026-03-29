@@ -713,6 +713,30 @@ const docsTemplate = `<!DOCTYPE html>
             font-size: 0.875rem;
         }
 
+        .base-url-select {
+            padding: 0.5rem 0.5rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            max-width: 140px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .base-url-selector {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 0.875rem;
+            font-family: 'Google Sans Mono', monospace;
+        }
+
         .send-btn {
             padding: 0.5rem 1.25rem;
             background: var(--primary);
@@ -1163,7 +1187,15 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
 
                 <h3 class="section-title">Base URL</h3>
+                {{if .Info.BaseURLs}}
+                <select class="base-url-selector" id="global-base-url" onchange="updateGlobalBaseURL()">
+                    {{range .Info.BaseURLs}}
+                    <option value="{{.URL}}" {{if .Default}}selected{{end}}>{{.Label}} ({{.URL}})</option>
+                    {{end}}
+                </select>
+                {{else}}
                 <pre><code>{{.Info.BaseURL}}</code></pre>
+                {{end}}
 
                 <h3 class="section-title">Constraints</h3>
                 <ul>
@@ -1308,7 +1340,13 @@ const docsTemplate = `<!DOCTYPE html>
                                     {{range $mi, $m := $.APITesterDefaults.Methods}}<option value="{{$m}}"{{if eq $ep.Method $m}} selected{{end}}>{{$m}}</option>
                                     {{end}}
                                 </select>
-                                <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{$.Info.BaseURL}}{{$ep.Path}}">
+                                {{if $.Info.BaseURLs}}
+                                <select class="base-url-select inline-base-url" data-section="{{$si}}" data-endpoint="{{$ei}}" onchange="updateEndpointBaseURL({{$si}}, {{$ei}})">
+                                    {{range $bi, $bu := $.Info.BaseURLs}}<option value="{{$bu.URL}}" {{if $bu.Default}}selected{{end}}>{{$bu.Label}}</option>
+                                    {{end}}
+                                </select>
+                                {{end}}
+                                <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{$.Info.BaseURL}}{{$ep.Path}}" data-path="{{$ep.Path}}">
                                 <button class="send-btn" onclick="sendInlineRequest({{$si}}, {{$ei}})">Send</button>
                             </div>
                             <div class="tester-tabs">
@@ -1392,12 +1430,22 @@ const docsTemplate = `<!DOCTYPE html>
                     <p>Konfigurasi credentials untuk testing API</p>
                 </div>
 
+                {{if .Info.BaseURLs}}
+                <div style="margin-bottom:1.5rem;">
+                    <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">Environment</label>
+                    <select class="base-url-selector" id="cred-env-select" onchange="switchCredEnvironment()">
+                        {{range $bi, $bu := .Info.BaseURLs}}<option value="{{$bu.URL}}" {{if $bu.Default}}selected{{end}}>{{$bu.Label}} ({{$bu.URL}})</option>
+                        {{end}}
+                    </select>
+                </div>
+                {{end}}
+
                 <div class="endpoint-detail" style="background:var(--card-bg); padding:2rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--card-shadow);">
                     {{range $ai, $mode := .APITesterDefaults.AuthModes}}
                     <div class="cred-row" style="margin-bottom:1.5rem;">
                         <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">{{$mode.Name}}</label>
                         <div class="cred-input-wrapper" style="position:relative;">
-                            <input type="password" id="cred-{{$ai}}" placeholder="{{$mode.Placeholder}}" onchange="saveCredential('{{$mode.Name}}', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
+                            <input type="password" id="cred-{{$ai}}" placeholder="{{$mode.Placeholder}}" onchange="saveCurrentCredential('{{$mode.Name}}', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
                             <button class="cred-toggle" onclick="toggleVisibility('cred-{{$ai}}')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
                         </div>
                         <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">{{$mode.Header}}: {{$mode.Prefix}}&lt;value&gt;</small>
@@ -1405,7 +1453,7 @@ const docsTemplate = `<!DOCTYPE html>
                     {{end}}
 
                     <div class="alert alert-info" style="margin-top:1.5rem;">
-                        <strong>💡 Info:</strong> Credentials tersimpan di browser Anda (localStorage) dan tidak dikirim ke server.
+                        <strong>💡 Info:</strong> Credentials tersimpan per environment di browser Anda (localStorage) dan tidak dikirim ke server.
                     </div>
                 </div>
 
@@ -1533,30 +1581,46 @@ const docsTemplate = `<!DOCTYPE html>
     </script>
 
     <script>
-        // Credentials Management
-        const CREDENTIALS_KEY = 'api_credentials_v3';
-
-        // Auth modes config from YAML
+        // Credentials Management - per environment
+        const CREDENTIALS_KEY_PREFIX = 'api_credentials_v4_';
+        const baseUrlsConfig = JSON.parse({{.Info.BaseURLs | json}});
         const authModesConfig = JSON.parse({{.APITesterDefaults.AuthModes | json}});
 
-        // Load credentials saat page load
-        function loadCredentials() {
-            const stored = localStorage.getItem(CREDENTIALS_KEY);
-            if (stored) {
-                const creds = JSON.parse(stored);
-                authModesConfig.forEach((mode, idx) => {
-                    const input = document.getElementById('cred-' + idx);
-                    if (input && creds[mode.name]) input.value = creds[mode.name];
-                });
-            }
+        function getActiveBaseURL() {
+            const envSelect = document.getElementById('cred-env-select');
+            if (envSelect) return envSelect.value;
+            const globalSelect = document.getElementById('global-base-url');
+            if (globalSelect) return globalSelect.value;
+            return '';
         }
 
-        // Save credential ke localStorage
-        function saveCredential(modeName, value) {
-            const stored = localStorage.getItem(CREDENTIALS_KEY);
+        function getCredKey() {
+            return CREDENTIALS_KEY_PREFIX + getActiveBaseURL();
+        }
+
+        function loadCredentials() {
+            const stored = localStorage.getItem(getCredKey());
+            const creds = stored ? JSON.parse(stored) : {};
+            authModesConfig.forEach((mode, idx) => {
+                const input = document.getElementById('cred-' + idx);
+                if (input) input.value = creds[mode.name] || '';
+            });
+        }
+
+        function saveCurrentCredential(modeName, value) {
+            const stored = localStorage.getItem(getCredKey());
             const creds = stored ? JSON.parse(stored) : {};
             creds[modeName] = value;
-            localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(creds));
+            localStorage.setItem(getCredKey(), JSON.stringify(creds));
+        }
+
+        function switchCredEnvironment() {
+            loadCredentials();
+        }
+
+        function getCredentialsForBaseURL(baseUrl) {
+            const stored = localStorage.getItem(CREDENTIALS_KEY_PREFIX + baseUrl);
+            return stored ? JSON.parse(stored) : {};
         }
 
         // Toggle password visibility
@@ -1630,6 +1694,32 @@ const docsTemplate = `<!DOCTYPE html>
             }
         }
 
+        // Update all endpoint URLs when global base URL changes
+        function updateGlobalBaseURL() {
+            const globalSelect = document.getElementById('global-base-url');
+            if (!globalSelect) return;
+            const newBase = globalSelect.value;
+            document.querySelectorAll('.inline-base-url').forEach(sel => {
+                sel.value = newBase;
+                const si = sel.dataset.section;
+                const ei = sel.dataset.endpoint;
+                const urlInput = document.querySelector('.inline-url[data-section="'+si+'"][data-endpoint="'+ei+'"]');
+                if (urlInput) {
+                    urlInput.value = newBase + (urlInput.dataset.path || '');
+                }
+            });
+        }
+
+        // Update single endpoint URL when its base URL dropdown changes
+        function updateEndpointBaseURL(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const baseSelect = tester.querySelector('.inline-base-url');
+            const urlInput = tester.querySelector('.inline-url');
+            if (baseSelect && urlInput) {
+                urlInput.value = baseSelect.value + (urlInput.dataset.path || '');
+            }
+        }
+
         // Update auth display di tester
         function updateAuthDisplay(sectionIdx, endpointIdx) {
             const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
@@ -1645,9 +1735,12 @@ const docsTemplate = `<!DOCTYPE html>
 
             displayDiv.style.display = 'block';
             const modeConfig = authModesConfig.find(m => m.name === authMethod);
-            const modeIdx = modeConfig ? authModesConfig.indexOf(modeConfig) : -1;
-            const credInput = modeIdx >= 0 ? document.getElementById('cred-' + modeIdx) : null;
-            const credValue = credInput ? credInput.value : '';
+
+            // Get credentials for the active base URL of this tester
+            const baseSelect = tester.querySelector('.inline-base-url');
+            const activeBase = baseSelect ? baseSelect.value : getActiveBaseURL();
+            const envCreds = getCredentialsForBaseURL(activeBase);
+            const credValue = modeConfig ? (envCreds[modeConfig.name] || '') : '';
 
             labelSpan.textContent = modeConfig ? modeConfig.name : authMethod;
             previewInput.value = credValue ? maskToken(credValue) : '(not set - configure in Credentials panel)';
@@ -1705,15 +1798,16 @@ const docsTemplate = `<!DOCTYPE html>
             const statusEl = tester.querySelector('.inline-status');
             const responseEl = tester.querySelector('.inline-response');
 
-            // Build headers from global credentials
+            // Build headers from credentials for active base URL
             const headers = {};
 
             if (authMethod !== 'none') {
                 const modeConfig = authModesConfig.find(m => m.name === authMethod);
                 if (modeConfig) {
-                    const modeIdx = authModesConfig.indexOf(modeConfig);
-                    const credInput = document.getElementById('cred-' + modeIdx);
-                    const credValue = credInput ? credInput.value : '';
+                    const baseSelect = tester.querySelector('.inline-base-url');
+                    const activeBase = baseSelect ? baseSelect.value : getActiveBaseURL();
+                    const envCreds = getCredentialsForBaseURL(activeBase);
+                    const credValue = envCreds[modeConfig.name] || '';
                     if (credValue) {
                         headers[modeConfig.header] = modeConfig.prefix + credValue;
                     }

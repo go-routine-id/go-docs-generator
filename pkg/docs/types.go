@@ -20,11 +20,19 @@ type OverviewCard struct {
 	Description string `yaml:"description" json:"description"`
 }
 
+// BaseURL represents a single environment base URL
+type BaseURL struct {
+	Label   string `yaml:"label" json:"label"`
+	URL     string `yaml:"url" json:"url"`
+	Default bool   `yaml:"default,omitempty" json:"default,omitempty"`
+}
+
 type InfoInfo struct {
 	Title         string         `yaml:"title" json:"title"`
 	Version       string         `yaml:"version" json:"version"`
 	Description   string         `yaml:"description" json:"description"`
 	BaseURL       string         `yaml:"base_url" json:"base_url"`
+	BaseURLs      []BaseURL      `yaml:"base_urls" json:"base_urls"`
 	OverviewCards []OverviewCard `yaml:"overview_cards" json:"overview_cards"`
 }
 
