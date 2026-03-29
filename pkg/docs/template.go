@@ -935,6 +935,69 @@ const docsTemplate = `<!DOCTYPE html>
             box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
         }
 
+        /* Credentials Panel */
+        .credentials-panel {
+            padding: 1rem;
+            margin: 0 0.5rem;
+        }
+
+        .cred-row {
+            margin-bottom: 1rem;
+        }
+
+        .cred-row label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .cred-input-wrapper {
+            position: relative;
+        }
+
+        .cred-row input {
+            width: 100%;
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-family: 'Google Sans Mono', monospace;
+        }
+
+        .cred-row input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+        }
+
+        .cred-toggle {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .cred-toggle:hover {
+            color: var(--text);
+        }
+
+        .cred-row small {
+            display: block;
+            margin-top: 0.25rem;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
         /* Quick Tests in sidebar */
         .quick-test-nav-item {
             display: flex;
@@ -1099,10 +1162,10 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
             </div>
 
-            <!-- Authentication -->
+            <!-- Credentials -->
             <div class="nav-item">
-                <div class="nav-item-header" data-target="panel-authentication">
-                    <span class="nav-item-header-content">🔐 Authentication</span>
+                <div class="nav-item-header" data-target="panel-credentials">
+                    <span class="nav-item-header-content">🔐 Credentials</span>
                 </div>
             </div>
         </nav>
@@ -1280,26 +1343,23 @@ const docsTemplate = `<!DOCTYPE html>
                                     <label>Authentication Method</label>
                                     <div class="auth-selector">
                                         <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="jwt" id="auth-jwt-{{$si}}-{{$ei}}" checked onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="jwt" id="auth-jwt-{{$si}}-{{$ei}}" checked onchange="updateAuthDisplay({{$si}}, {{$ei}})">
                                             <label for="auth-jwt-{{$si}}-{{$ei}}">JWT</label>
                                         </div>
                                         <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="apikey" id="auth-apikey-{{$si}}-{{$ei}}" onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="apikey" id="auth-apikey-{{$si}}-{{$ei}}" onchange="updateAuthDisplay({{$si}}, {{$ei}})">
                                             <label for="auth-apikey-{{$si}}-{{$ei}}">API Key</label>
                                         </div>
                                         <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" onchange="toggleInlineAuthMethod({{$si}}, {{$ei}})">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" onchange="updateAuthDisplay({{$si}}, {{$ei}})">
                                             <label for="auth-none-{{$si}}-{{$ei}}">Public</label>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-group" id="jwt-group-{{$si}}-{{$ei}}">
-                                    <label>JWT Token</label>
-                                    <input type="text" class="inline-token" data-section="{{$si}}" data-endpoint="{{$ei}}" placeholder="Bearer eyJhbGci...">
-                                </div>
-                                <div class="form-group" id="apikey-group-{{$si}}-{{$ei}}" style="display:none">
-                                    <label>API Key</label>
-                                    <input type="text" class="inline-apikey" data-section="{{$si}}" data-endpoint="{{$ei}}" placeholder="your-api-key">
+                                <!-- Display only, not input -->
+                                <div class="form-group" id="auth-display-{{$si}}-{{$ei}}" style="display:none">
+                                    <label>Using <span class="auth-type-label">JWT</span> from Credentials</label>
+                                    <input type="text" class="inline-auth-preview" readonly style="background:var(--bg-secondary); color:var(--text-secondary);">
                                 </div>
                             </div>
                             <div class="tester-row">
@@ -1390,6 +1450,58 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
 
                 <div class="alert alert-info">
                     <strong>Tips:</strong> Simpan juga <code>media_id</code> di database jika perlu referensi ke file di Media Service.
+                </div>
+            </div>
+
+            <!-- Credentials Panel -->
+            <div class="content-panel" id="panel-credentials">
+                <div class="content-header">
+                    <h1>🔐 Credentials</h1>
+                    <p>Konfigurasi JWT Token dan API Key untuk testing API</p>
+                </div>
+
+                <div class="endpoint-detail" style="background:var(--card-bg); padding:2rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--card-shadow);">
+                    <div class="cred-row" style="margin-bottom:1.5rem;">
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">JWT Token</label>
+                        <div class="cred-input-wrapper" style="position:relative;">
+                            <input type="password" id="cred-jwt" placeholder="Bearer eyJhbGciOiJSUzI1NiIs..." onchange="saveCredential('jwt', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
+                            <button class="cred-toggle" onclick="toggleVisibility('cred-jwt')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
+                        </div>
+                        <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">Token JWT dari Account Service. Format: Bearer &lt;token&gt;</small>
+                    </div>
+
+                    <div class="cred-row" style="margin-bottom:1.5rem;">
+                        <label style="display:block; font-size:0.875rem; font-weight:500; color:var(--text); margin-bottom:0.5rem;">API Key</label>
+                        <div class="cred-input-wrapper" style="position:relative;">
+                            <input type="password" id="cred-apikey" placeholder="your-api-key-here" onchange="saveCredential('apikey', this.value)" style="width:100%; padding:0.75rem 3rem 0.75rem 1rem; border:1px solid var(--border); border-radius:8px; font-size:0.9375rem; font-family:'Google Sans Mono', monospace; background:var(--bg);">
+                            <button class="cred-toggle" onclick="toggleVisibility('cred-apikey')" title="Show/Hide" style="position:absolute; right:0.75rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0.5rem; font-size:1rem;">👁</button>
+                        </div>
+                        <small style="display:block; margin-top:0.5rem; color:var(--text-muted); font-size:0.8125rem;">API Key untuk service-to-service authentication</small>
+                    </div>
+
+                    <div class="alert alert-info" style="margin-top:1.5rem;">
+                        <strong>💡 Info:</strong> Credentials tersimpan di browser Anda (localStorage) dan tidak dikirim ke server.
+                    </div>
+                </div>
+
+                <h3 class="section-title" style="margin-top:2rem;">Cara Menggunakan</h3>
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">Isi JWT Token atau API Key di atas</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">Klik "Endpoint List" di sidebar untuk memilih API</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">Klik "Try It" pada endpoint yang ingin di-test</div>
+                    </div>
+                    <div class="flow-step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">Pilih metode autentikasi (JWT/API Key/Public) dan klik Send</div>
+                    </div>
                 </div>
             </div>
 
@@ -1496,6 +1608,33 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
     </script>
 
     <script>
+        // Credentials Management
+        const CREDENTIALS_KEY = 'museum_api_credentials_v2';
+
+        // Load credentials saat page load
+        function loadCredentials() {
+            const stored = localStorage.getItem(CREDENTIALS_KEY);
+            if (stored) {
+                const creds = JSON.parse(stored);
+                document.getElementById('cred-jwt').value = creds.jwt || '';
+                document.getElementById('cred-apikey').value = creds.apikey || '';
+            }
+        }
+
+        // Save credential ke localStorage
+        function saveCredential(type, value) {
+            const stored = localStorage.getItem(CREDENTIALS_KEY);
+            const creds = stored ? JSON.parse(stored) : {};
+            creds[type] = value;
+            localStorage.setItem(CREDENTIALS_KEY, JSON.stringify(creds));
+        }
+
+        // Toggle password visibility
+        function toggleVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
         // Quick Tests Data
         const quickTestsData = JSON.parse({{.APITesterDefaults.QuickTests | json}});
         const quickTestsArray = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
@@ -1504,16 +1643,7 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
 
         // Load saved tokens
         document.addEventListener('DOMContentLoaded', function() {
-            const savedToken = localStorage.getItem('museum_api_token');
-            const savedApiKey = localStorage.getItem('museum_api_key');
-
-            // Populate all inline token inputs
-            if (savedToken) {
-                document.querySelectorAll('.inline-token').forEach(el => el.value = savedToken);
-            }
-            if (savedApiKey) {
-                document.querySelectorAll('.inline-apikey').forEach(el => el.value = savedApiKey);
-            }
+            loadCredentials();
 
             // Setup panel switching for nav items
             document.querySelectorAll('.nav-item-header[data-target]').forEach(el => {
@@ -1570,27 +1700,43 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
 
             if (tester.style.display === 'none') {
                 tester.style.display = 'block';
+                updateAuthDisplay(sectionIdx, endpointIdx);
             } else {
                 tester.style.display = 'none';
             }
         }
 
-        // Toggle inline auth method
-        function toggleInlineAuthMethod(sectionIdx, endpointIdx) {
-            const authMethod = document.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
-            const jwtGroup = document.getElementById('jwt-group-' + sectionIdx + '-' + endpointIdx);
-            const apikeyGroup = document.getElementById('apikey-group-' + sectionIdx + '-' + endpointIdx);
+        // Update auth display di tester
+        function updateAuthDisplay(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const authMethod = tester.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
+            const displayDiv = document.getElementById('auth-display-' + sectionIdx + '-' + endpointIdx);
+            const labelSpan = tester.querySelector('.auth-type-label');
+            const previewInput = tester.querySelector('.inline-auth-preview');
 
-            if (authMethod === 'jwt') {
-                jwtGroup.style.display = 'block';
-                apikeyGroup.style.display = 'none';
-            } else if (authMethod === 'apikey') {
-                jwtGroup.style.display = 'none';
-                apikeyGroup.style.display = 'block';
-            } else {
-                jwtGroup.style.display = 'none';
-                apikeyGroup.style.display = 'none';
+            if (authMethod === 'none') {
+                displayDiv.style.display = 'none';
+                return;
             }
+
+            displayDiv.style.display = 'block';
+            const credValue = authMethod === 'jwt'
+                ? document.getElementById('cred-jwt').value
+                : document.getElementById('cred-apikey').value;
+
+            labelSpan.textContent = authMethod === 'jwt' ? 'JWT Token' : 'API Key';
+            previewInput.value = credValue ? maskToken(credValue) : '(not set - configure in Credentials panel)';
+        }
+
+        // Mask token untuk display
+        function maskToken(token) {
+            if (!token || token.length < 15) return token || '';
+            return token.substring(0, 12) + '...' + token.substring(token.length - 4);
+        }
+
+        // Toggle inline auth method (deprecated, keeping for compatibility)
+        function toggleInlineAuthMethod(sectionIdx, endpointIdx) {
+            updateAuthDisplay(sectionIdx, endpointIdx);
         }
 
         // Switch inline tab
@@ -1609,22 +1755,23 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
             const method = tester.querySelector('.inline-method').value;
             let url = tester.querySelector('.inline-url').value;
             const authMethod = tester.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
-            const token = tester.querySelector('.inline-token').value;
-            const apiKey = tester.querySelector('.inline-apikey').value;
             const body = tester.querySelector('.inline-body').value;
             const statusEl = tester.querySelector('.inline-status');
             const responseEl = tester.querySelector('.inline-response');
 
-            // Save to localStorage
-            if (token) localStorage.setItem('museum_api_token', token);
-            if (apiKey) localStorage.setItem('museum_api_key', apiKey);
-
-            // Build headers
+            // Build headers from global credentials
             const headers = {};
-            if (authMethod === 'jwt' && token) {
-                headers['Authorization'] = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
-            } else if (authMethod === 'apikey' && apiKey) {
-                headers['X-API-Key'] = apiKey;
+
+            if (authMethod === 'jwt') {
+                const jwt = document.getElementById('cred-jwt').value;
+                if (jwt) {
+                    headers['Authorization'] = jwt.startsWith('Bearer ') ? jwt : 'Bearer ' + jwt;
+                }
+            } else if (authMethod === 'apikey') {
+                const apikey = document.getElementById('cred-apikey').value;
+                if (apikey) {
+                    headers['X-API-Key'] = apikey;
+                }
             }
 
             const options = { method: method, headers: headers };
