@@ -133,11 +133,13 @@ const docsTemplate = `<!DOCTYPE html>
             background: rgba(32,33,36,0.6);
             z-index: 250;
             opacity: 0;
+            pointer-events: none;
             transition: opacity 0.3s;
         }
 
         .sidebar-overlay.visible {
             opacity: 1;
+            pointer-events: auto;
         }
 
         /* Sidebar */
@@ -151,7 +153,7 @@ const docsTemplate = `<!DOCTYPE html>
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            z-index: 200;
+            z-index: 260;
             overflow: hidden;
         }
 
@@ -257,7 +259,8 @@ const docsTemplate = `<!DOCTYPE html>
         }
 
         .nav-child-item {
-            display: block;
+            display: flex;
+            align-items: center;
             padding: 0.5rem 1.5rem 0.5rem 3rem;
             color: var(--sidebar-text);
             font-size: 0.8125rem;
@@ -292,13 +295,16 @@ const docsTemplate = `<!DOCTYPE html>
         /* Method badge in sidebar */
         .nav-method {
             display: inline-block;
-            padding: 0.125rem 0.375rem;
+            width: 3rem;
+            padding: 0.125rem 0;
             border-radius: 4px;
             font-size: 0.625rem;
             font-weight: 600;
             text-transform: uppercase;
+            text-align: center;
             margin-right: 0.5rem;
             letter-spacing: 0.025em;
+            flex-shrink: 0;
         }
 
         .nav-method.get { background: #e8f0fe; color: #1a73e8; }
@@ -390,6 +396,7 @@ const docsTemplate = `<!DOCTYPE html>
             border: 1px solid var(--border);
             transition: box-shadow 0.2s, border-color 0.2s;
             box-shadow: var(--card-shadow);
+            cursor: pointer;
         }
 
         .card:hover {
@@ -476,6 +483,7 @@ const docsTemplate = `<!DOCTYPE html>
             border-radius: 8px;
             border: 1px solid var(--border);
             transition: box-shadow 0.2s;
+            cursor: pointer;
         }
 
         .flow-step:hover {
@@ -501,6 +509,40 @@ const docsTemplate = `<!DOCTYPE html>
             color: var(--text);
             font-size: 0.9375rem;
             line-height: 1.6;
+        }
+
+        .step-title {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-arrow {
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+        }
+
+        .flow-step.open .step-arrow {
+            transform: rotate(180deg);
+        }
+
+        .step-detail {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            margin-top: 0;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 400;
+            line-height: 1.6;
+            transition: max-height 0.3s ease, opacity 0.2s ease, margin-top 0.2s ease;
+        }
+
+        .flow-step.open .step-detail {
+            max-height: 200px;
+            opacity: 1;
+            margin-top: 0.5rem;
         }
 
         /* Flow Diagram */
@@ -1151,12 +1193,14 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
             </div>
 
-            <!-- File Upload -->
+            <!-- Guides -->
+            {{range $gi, $guide := .Guides}}
             <div class="nav-item">
-                <div class="nav-item-header" data-target="panel-file-upload">
-                    <span class="nav-item-header-content">📤 File Upload</span>
+                <div class="nav-item-header" data-target="panel-guide-{{$gi}}">
+                    <span class="nav-item-header-content">{{$guide.Icon}} {{$guide.Title}}</span>
                 </div>
             </div>
+            {{end}}
 
             <!-- Credentials -->
             <div class="nav-item">
@@ -1178,10 +1222,10 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
 
                 <div class="cards">
-                    {{range .Info.OverviewCards}}
-                    <div class="card">
-                        <h4>{{.Icon}} {{.Title}}</h4>
-                        <p>{{.Description}}</p>
+                    {{range $ci, $card := .Info.OverviewCards}}
+                    <div class="card" onclick="{{if $card.Content}}showPanel('panel-card-{{$ci}}'){{end}}">
+                        <h4>{{$card.Icon}} {{$card.Title}}</h4>
+                        <p>{{$card.Description}}</p>
                     </div>
                     {{end}}
                 </div>
@@ -1205,6 +1249,21 @@ const docsTemplate = `<!DOCTYPE html>
                 </ul>
             </div>
 
+            <!-- Overview Card Content Panels -->
+            {{range $ci, $card := .Info.OverviewCards}}
+            {{if $card.Content}}
+            <div class="content-panel" id="panel-card-{{$ci}}">
+                <div class="content-header">
+                    <h1>{{$card.Icon}} {{$card.Title}}</h1>
+                </div>
+                <div style="line-height:1.8; color:var(--text);">{{$card.Content | md}}</div>
+                <div style="margin-top:2rem;">
+                    <button class="try-it-btn" onclick="showPanel('panel-overview')">← Back to Overview</button>
+                </div>
+            </div>
+            {{end}}
+            {{end}}
+
             <!-- Dynamic Auth Flow Panels -->
             {{range $fi, $flow := .FlowOverview.Methods}}
             <div class="content-panel" id="panel-flow-{{$fi}}">
@@ -1215,9 +1274,14 @@ const docsTemplate = `<!DOCTYPE html>
 
                 <div class="flow-steps">
                     {{range $i, $step := $flow.Steps}}
-                    <div class="flow-step">
+                    <div class="flow-step" onclick="toggleStepDetail(this)">
                         <div class="step-number">{{add $i 1}}</div>
-                        <div class="step-content">{{.}}</div>
+                        <div class="step-content">
+                            <div class="step-title">{{$step.Title}} <span class="step-arrow">▾</span></div>
+                            {{if $step.Detail}}
+                            <div class="step-detail">{{$step.Detail}}</div>
+                            {{end}}
+                        </div>
                     </div>
                     {{end}}
                 </div>
@@ -1296,14 +1360,14 @@ const docsTemplate = `<!DOCTYPE html>
                     {{if $ep.ExampleBody}}
                     <div class="code-block">
                         <div class="code-header">Example Request Body</div>
-                        <pre><code>{{$ep.ExampleBody}}</code></pre>
+                        <pre class="json-highlight"><code>{{$ep.ExampleBody}}</code></pre>
                     </div>
                     {{end}}
 
                     {{if $ep.ExampleResponse}}
                     <div class="code-block">
                         <div class="code-header">Example Response</div>
-                        <pre><code>{{$ep.ExampleResponse}}</code></pre>
+                        <pre class="json-highlight"><code>{{$ep.ExampleResponse}}</code></pre>
                     </div>
                     {{end}}
 
@@ -1377,23 +1441,55 @@ const docsTemplate = `<!DOCTYPE html>
             {{end}}
             {{end}}
 
-            <!-- File Upload Panel -->
-            {{range .Sections}}{{if eq .ID "file_upload"}}
-            <div class="content-panel" id="panel-file-upload">
+            <!-- Guide Panels -->
+            {{range $gi, $guide := .Guides}}
+            <div class="content-panel" id="panel-guide-{{$gi}}">
                 <div class="content-header">
-                    <h1>📤 {{.Title}}</h1>
-                    <p>{{.Description}}</p>
+                    <h1>{{$guide.Icon}} {{$guide.Title}}</h1>
+                    <p>{{$guide.Description}}</p>
                 </div>
 
                 {{range .Flow}}
                 <h3 class="section-title">Step {{.Step}}: {{.Title}}</h3>
+                {{if .Description}}
+                <p style="color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;">{{.Description}}</p>
+                {{end}}
                 {{if .Endpoint}}
                 <div class="endpoint-detail">
                     <div class="endpoint-header">
                         <span class="method {{lower .Endpoint.Method}}">{{.Endpoint.Method}}</span>
                         <span class="endpoint-path">{{.Endpoint.Path}}</span>
                     </div>
-                    <p>Service: {{.Endpoint.Service}}</p>
+                    <p style="color:var(--text-secondary); margin-bottom:1rem;">Service: {{.Endpoint.Service}}</p>
+                    {{if .Endpoint.ContentType}}
+                    <p style="color:var(--text-secondary); margin-bottom:1rem;">Content-Type: <code>{{.Endpoint.ContentType}}</code></p>
+                    {{end}}
+                    {{if .Endpoint.Fields}}
+                    <h3 class="section-title">Fields</h3>
+                    <table>
+                        <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+                        {{range .Endpoint.Fields}}
+                        <tr>
+                            <td>{{.Name}}</td>
+                            <td>{{.Type}}</td>
+                            <td><span class="badge {{if .Required}}required{{else}}optional{{end}}">{{if .Required}}required{{else}}optional{{end}}</span></td>
+                            <td>{{.Description}}</td>
+                        </tr>
+                        {{end}}
+                    </table>
+                    {{end}}
+                    {{if .CurlExampleJWT}}
+                    <div class="code-block">
+                        <div class="code-header">cURL Example (JWT Bearer)</div>
+                        <pre><code>{{.CurlExampleJWT}}</code></pre>
+                    </div>
+                    {{end}}
+                    {{if .CurlExampleAPIKey}}
+                    <div class="code-block">
+                        <div class="code-header">cURL Example (API Key)</div>
+                        <pre><code>{{.CurlExampleAPIKey}}</code></pre>
+                    </div>
+                    {{end}}
                     {{if .CurlExample}}
                     <div class="code-block">
                         <div class="code-header">cURL Example</div>
@@ -1403,25 +1499,25 @@ const docsTemplate = `<!DOCTYPE html>
                     {{if .ResponseExample}}
                     <div class="code-block">
                         <div class="code-header">Response Example</div>
-                        <pre><code>{{.ResponseExample}}</code></pre>
+                        <pre class="json-highlight"><code>{{.ResponseExample}}</code></pre>
                     </div>
                     {{end}}
                 </div>
                 {{end}}
                 {{if .Actions}}
-                <p>Use <code>url</code> from Media Service response:</p>
-                <pre><code>curl -X POST {{$.Info.BaseURL}}/api/v1/resource/image \
-  -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"image_url": "https://cdn.example.com/media/abc123/photo.jpg"}'</code></pre>
-                {{end}}
-                {{end}}
-
-                <div class="alert alert-info">
-                    <strong>Tip:</strong> Store the <code>media_id</code> for future reference if you need to manage the file later.
+                <h3 class="section-title">Next Steps</h3>
+                {{range .Actions}}
+                <div class="flow-step" style="cursor:default;">
+                    <div class="step-content">
+                        <strong>{{.Description}}</strong>
+                        <p style="color:var(--text-secondary); margin-top:0.25rem;">Endpoint: <code>{{.Endpoint}}</code></p>
+                    </div>
                 </div>
+                {{end}}
+                {{end}}
+                {{end}}
             </div>
-            {{end}}{{end}}
+            {{end}}
 
             <!-- Credentials Panel -->
             <div class="content-panel" id="panel-credentials">
@@ -1633,6 +1729,14 @@ const docsTemplate = `<!DOCTYPE html>
         document.addEventListener('DOMContentLoaded', function() {
             loadCredentials();
 
+            // Highlight all static JSON blocks
+            document.querySelectorAll('pre.json-highlight code').forEach(el => {
+                try {
+                    var parsed = JSON.parse(el.textContent);
+                    el.innerHTML = syntaxHighlightJSON(parsed);
+                } catch(e) {}
+            });
+
             // Setup panel switching for nav items
             document.querySelectorAll('.nav-item-header[data-target]').forEach(el => {
                 el.addEventListener('click', function() {
@@ -1673,6 +1777,11 @@ const docsTemplate = `<!DOCTYPE html>
         function toggleCollapse(el) {
             const navItem = el.closest('.nav-item');
             navItem.classList.toggle('open');
+        }
+
+        // Flow step detail toggle
+        function toggleStepDetail(el) {
+            el.classList.toggle('open');
         }
 
         // Mobile sidebar toggle

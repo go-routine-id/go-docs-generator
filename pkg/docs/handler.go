@@ -53,6 +53,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			return s
 		},
 		"add":           func(a, b int) int { return a + b },
+		"md":            mdToHTML,
 	}
 
 	tmpl, err := template.New("docs").Funcs(funcMap).Parse(docsTemplate)
@@ -183,4 +184,97 @@ func (h *Handler) watchSpecFile() {
 
 		time.Sleep(2 * time.Second)
 	}
+}
+
+// mdToHTML converts basic Markdown to template.HTML for safe rendering.
+// Supports: paragraphs, **bold**, *italic*, `code`, - lists, headers.
+func mdToHTML(s string) template.HTML {
+	s = strings.TrimSpace(s)
+
+	// Split into lines
+	lines := strings.Split(s, "\n")
+	var result strings.Builder
+	inList := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Close list if current line is not a list item
+		if inList && !strings.HasPrefix(trimmed, "- ") {
+			result.WriteString("</ul>")
+			inList = false
+		}
+
+		if trimmed == "" {
+			continue
+		}
+
+		// Headers
+		if strings.HasPrefix(trimmed, "### ") {
+			result.WriteString("<h3>" + inlineFmt(trimmed[4:]) + "</h3>")
+			continue
+		}
+		if strings.HasPrefix(trimmed, "## ") {
+			result.WriteString("<h3>" + inlineFmt(trimmed[3:]) + "</h3>")
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# ") {
+			result.WriteString("<h3>" + inlineFmt(trimmed[2:]) + "</h3>")
+			continue
+		}
+
+		// List items
+		if strings.HasPrefix(trimmed, "- ") {
+			if !inList {
+				result.WriteString("<ul style=\"margin:0.5rem 0; padding-left:1.5rem;\">")
+				inList = true
+			}
+			result.WriteString("<li style=\"margin-bottom:0.25rem;\">" + inlineFmt(trimmed[2:]) + "</li>")
+			continue
+		}
+
+		// Regular paragraph
+		result.WriteString("<p style=\"margin-bottom:0.75rem;\">" + inlineFmt(trimmed) + "</p>")
+	}
+
+	if inList {
+		result.WriteString("</ul>")
+	}
+
+	return template.HTML(result.String())
+}
+
+// inlineFmt handles inline formatting: **bold**, *italic*, `code`
+func inlineFmt(s string) string {
+	// Escape HTML
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+
+	// Bold: **text**
+	s = replacePair(s, "**", "<strong>", "</strong>")
+	// Italic: *text*
+	s = replacePair(s, "*", "<em>", "</em>")
+	// Inline code: `text`
+	s = replacePair(s, "`", "<code>", "</code>")
+
+	return s
+}
+
+// replacePair replaces paired delimiters like **text** → <strong>text</strong>
+func replacePair(s, delim, open, close string) string {
+	for {
+		start := strings.Index(s, delim)
+		if start == -1 {
+			break
+		}
+		after := start + len(delim)
+		end := strings.Index(s[after:], delim)
+		if end == -1 {
+			break
+		}
+		inner := s[after : after+end]
+		s = s[:start] + open + inner + close + s[after+end+len(delim):]
+	}
+	return s
 }

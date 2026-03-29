@@ -18,15 +18,94 @@ info:
     - icon: "🚀"
       title: "REST API"
       description: "API untuk Museum Digital Indonesia - Single Museum Pattern"
+      content: |
+        Museum Service API menggunakan arsitektur RESTful. Semua komunikasi dilakukan melalui HTTP request dengan response format JSON.
+
+        **Base URL:** Semua endpoint diakses melalui base URL yang bisa dipilih (Production / Staging / Local).
+
+        **HTTP Methods:**
+        - `GET` — Membaca data
+        - `POST` — Membuat data baru atau melakukan aksi
+        - `PATCH` — Update sebagian data
+        - `DELETE` — Menghapus data
+
+        **Response Format:**
+        Semua response menggunakan format JSON. Response berhasil mengembalikan data yang diminta, sedangkan error mengembalikan object dengan pesan error.
+
+        **Status Codes:**
+        - `200 OK` — Request berhasil
+        - `201 Created` — Data berhasil dibuat
+        - `400 Bad Request` — Parameter tidak valid
+        - `401 Unauthorized` — Auth token tidak valid atau tidak ada
+        - `403 Forbidden` — Tidak punya permission
+        - `404 Not Found` — Resource tidak ditemukan
+        - `500 Internal Server Error` — Error di server
+
     - icon: "📚"
       title: "Multiple Endpoints"
       description: "Comprehensive API endpoints for all your needs"
+      content: |
+        API menyediakan endpoint-endpoint untuk mengelola semua resource Museum Digital:
+
+        **Museum:**
+        - Get, Update, Delete museum milik organization
+        - Update museum image
+
+        **Artifacts:**
+        - List artifacts (public/authenticated)
+        - Create, Get, Update, Delete artifact
+        - Update artifact image dan 3D model
+
+        **Articles (CMS):**
+        - List articles dengan filter dan pagination
+        - Get article by slug (public) atau by ID
+        - Create, Update, Delete, Restore article
+
+        **File Upload:**
+        - Upload via Media Service (terpisah)
+        - Simpan URL ke museum/artifact
+
     - icon: "📖"
       title: "Interactive Docs"
       description: "Test API directly from this documentation"
+      content: |
+        Dokumentasi ini dilengkapi dengan API Tester built-in di setiap endpoint.
+
+        **Cara menggunakan:**
+        1. Klik endpoint yang ingin di-test di sidebar
+        2. Klik tombol "Try It" di bawah detail endpoint
+        3. Pilih metode autentikasi (JWT Bearer / API Key / Public)
+        4. Edit request body jika diperlukan
+        5. Klik "Send" untuk mengirim request
+
+        **Fitur:**
+        - Pilih environment (Production / Staging / Local)
+        - Request body pre-filled dari example
+        - Response dengan syntax highlighting
+        - Status code indicator (success/error)
+
+        **Credentials:**
+        Simpan token di halaman "Credentials" — tersimpan per environment di browser localStorage.
+
     - icon: "🔐"
       title: "Secure Auth"
       description: "Bearer JWT, API Key authentication support"
+      content: |
+        Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode:
+
+        **1. Bearer JWT**
+        - Login ke Account Service untuk mendapatkan JWT token
+        - Kirim via header: `Authorization: Bearer <token>`
+        - Token berisi: account_id, organization_id, permissions
+
+        **2. API Key**
+        - Dapatkan API Key dari Account Service
+        - Kirim via header: `X-API-Key: <api_key>`
+        - Backend otomatis exchange API Key ke JWT (cached 1 jam)
+        - Cocok untuk service-to-service, CLI, atau background jobs
+
+        **Permissions:**
+        Setiap endpoint dilindungi oleh permission tertentu (misal: `museum:write`, `artifact:delete`). Permission tersemat di dalam JWT token.
 
 authentication:
   methods:
@@ -50,16 +129,24 @@ flow_overview:
   methods:
     - type: Bearer JWT
       steps:
-        - "Login ke Account Service → dapat JWT token"
-        - "Simpan token di localStorage/browser"
-        - "Kirim token di setiap request dengan header Authorization: Bearer <token>"
-        - "Museum di-identifikasi dari org_id dalam JWT (bukan URL path)"
+        - title: "Login ke Account Service"
+          detail: "Autentikasi menggunakan email/password ke Account Service. Response berisi JWT token yang berisi account_id, organization_id, dan permissions."
+        - title: "Simpan token"
+          detail: "Simpan JWT token di localStorage browser atau secure storage di aplikasi client."
+        - title: "Kirim token di setiap request"
+          detail: "Tambahkan header Authorization: Bearer <token> di setiap API request yang membutuhkan autentikasi."
+        - title: "Museum di-identifikasi dari JWT"
+          detail: "org_id yang ada di JWT token digunakan untuk mengidentifikasi museum. Tidak perlu museum_id di URL path."
     - type: API Key
       steps:
-        - "Dapatkan API Key dari Account Service (untuk service/client)"
-        - "Kirim API Key di setiap request dengan header X-API-Key: <api_key>"
-        - "Backend akan exchange API Key ke JWT (dengan caching 1 jam)"
-        - "JWT hasil exchange digunakan untuk autentikasi dan otorisasi"
+        - title: "Dapatkan API Key"
+          detail: "Minta API Key dari Account Service. Biasanya digunakan untuk service-to-service, CLI, atau background jobs."
+        - title: "Kirim API Key di setiap request"
+          detail: "Tambahkan header X-API-Key: <api_key> di setiap API request."
+        - title: "Backend exchange API Key ke JWT"
+          detail: "Backend otomatis exchange API Key menjadi JWT dengan caching 1 jam (3600 detik) untuk mengurangi pemanggilan ke Account Service."
+        - title: "JWT digunakan untuk autentikasi"
+          detail: "JWT hasil exchange digunakan sama seperti Bearer JWT biasa untuk autentikasi dan otorisasi endpoint."
   note: "Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)"
 
 sections:
@@ -459,7 +546,9 @@ sections:
         permission: article:write
         description: Restore artikel yang sudah dihapus
 
+guides:
   - id: file_upload
+    icon: "📤"
     title: File Upload Flow
     description: Museum Service tidak handle upload file langsung
     flow:
@@ -659,7 +748,6 @@ flow_diagram_edges:
     color: "#ec4899"
 
 api_tester_defaults:
-  default_url: /api/v1/museum
   methods:
     - GET
     - POST
@@ -674,17 +762,3 @@ api_tester_defaults:
       header: X-API-Key
       prefix: ""
       placeholder: YOUR_API_KEY_HERE
-
-    - id: create-artifact-apikey
-      label: Create Artifact (X-API-Key)
-      method: POST
-      url: /api/v1/artifacts
-      body:
-        museum_id: f6c857ea-5428-427f-b7bb-a19bfaeff6cf
-        name: Artifact via API Key
-        description: Testing X-API-Key auth
-        category: historical
-        era: ancient
-        origin: Indonesia
-        status: active
-      auth_mode: API Key

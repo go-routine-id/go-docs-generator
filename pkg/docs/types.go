@@ -6,6 +6,7 @@ type APISpec struct {
 	Authentication    AuthenticationInfo    `yaml:"authentication" json:"authentication"`
 	FlowOverview      FlowOverviewInfo      `yaml:"flow_overview" json:"flow_overview"`
 	Sections          []SectionInfo         `yaml:"sections" json:"sections"`
+	Guides            []Guide               `yaml:"guides" json:"guides"`
 	Permissions       []PermissionInfo      `yaml:"permissions" json:"permissions"`
 	Constraints       []string              `yaml:"constraints" json:"constraints"`
 	FlowDiagramNodes  []FlowNodeInfo        `yaml:"flow_diagram_nodes" json:"flow_diagram_nodes"`
@@ -18,6 +19,7 @@ type OverviewCard struct {
 	Icon        string `yaml:"icon" json:"icon"`
 	Title       string `yaml:"title" json:"title"`
 	Description string `yaml:"description" json:"description"`
+	Content     string `yaml:"content,omitempty" json:"content,omitempty"`
 }
 
 // BaseURL represents a single environment base URL
@@ -56,9 +58,15 @@ type AuthenticationInfo struct {
 }
 
 // FlowMethodSteps groups steps for a specific auth method
+// FlowOverviewStep represents a single step in the flow overview with expandable detail
+type FlowOverviewStep struct {
+	Title  string `yaml:"title" json:"title"`
+	Detail string `yaml:"detail,omitempty" json:"detail,omitempty"`
+}
+
 type FlowMethodSteps struct {
-	Type  string   `yaml:"type" json:"type"`
-	Steps []string `yaml:"steps" json:"steps"`
+	Type  string             `yaml:"type" json:"type"`
+	Steps []FlowOverviewStep `yaml:"steps" json:"steps"`
 }
 
 type FlowOverviewInfo struct {
@@ -71,7 +79,15 @@ type SectionInfo struct {
 	Title       string     `yaml:"title" json:"title"`
 	Description string     `yaml:"description" json:"description"`
 	Endpoints   []Endpoint `yaml:"endpoints,omitempty" json:"endpoints,omitempty"`
-	Flow        []FlowStep `yaml:"flow,omitempty" json:"flow,omitempty"`
+}
+
+// Guide represents a custom flow/guide (e.g. file upload flow)
+type Guide struct {
+	ID          string     `yaml:"id" json:"id"`
+	Icon        string     `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Title       string     `yaml:"title" json:"title"`
+	Description string     `yaml:"description" json:"description"`
+	Flow        []FlowStep `yaml:"flow" json:"flow"`
 }
 
 type Endpoint struct {
@@ -104,13 +120,15 @@ type BodyField struct {
 }
 
 type FlowStep struct {
-	Step            int           `yaml:"step" json:"step"`
-	Title           string        `yaml:"title" json:"title"`
-	Description     string        `yaml:"description,omitempty" json:"description,omitempty"`
-	Endpoint        *FlowEndpoint `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
-	Actions         []FlowAction  `yaml:"actions,omitempty" json:"actions,omitempty"`
-	CurlExample     string        `yaml:"curl_example,omitempty" json:"curl_example,omitempty"`
-	ResponseExample string        `yaml:"response_example,omitempty" json:"response_example,omitempty"`
+	Step             int           `yaml:"step" json:"step"`
+	Title            string        `yaml:"title" json:"title"`
+	Description      string        `yaml:"description,omitempty" json:"description,omitempty"`
+	Endpoint         *FlowEndpoint `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Actions          []FlowAction  `yaml:"actions,omitempty" json:"actions,omitempty"`
+	CurlExample      string        `yaml:"curl_example,omitempty" json:"curl_example,omitempty"`
+	CurlExampleJWT   string        `yaml:"curl_example_jwt,omitempty" json:"curl_example_jwt,omitempty"`
+	CurlExampleAPIKey string       `yaml:"curl_example_api_key,omitempty" json:"curl_example_api_key,omitempty"`
+	ResponseExample  string        `yaml:"response_example,omitempty" json:"response_example,omitempty"`
 }
 
 type FlowEndpoint struct {
@@ -165,7 +183,6 @@ type AuthMode struct {
 }
 
 type APITesterDefaultsInfo struct {
-	DefaultURL string     `yaml:"default_url" json:"default_url"`
-	Methods    []string   `yaml:"methods" json:"methods"`
-	AuthModes  []AuthMode `yaml:"auth_modes" json:"auth_modes"`
+	Methods   []string   `yaml:"methods" json:"methods"`
+	AuthModes []AuthMode `yaml:"auth_modes" json:"auth_modes"`
 }
