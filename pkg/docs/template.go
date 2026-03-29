@@ -1005,24 +1005,6 @@ const docsTemplate = `<!DOCTYPE html>
             font-size: 0.75rem;
         }
 
-        /* Quick Tests in sidebar */
-        .quick-test-nav-item {
-            display: flex;
-            align-items: center;
-            padding: 0.5rem 1.5rem 0.5rem 2rem;
-            color: var(--sidebar-text);
-            font-size: 0.8125rem;
-            cursor: pointer;
-            transition: all 0.15s;
-            border-radius: 0 24px 24px 0;
-            margin-right: 0.5rem;
-        }
-
-        .quick-test-nav-item:hover {
-            background: var(--sidebar-hover);
-            color: var(--text);
-        }
-
         /* Footer - Google style */
         .footer {
             background: var(--bg-secondary);
@@ -1128,7 +1110,7 @@ const docsTemplate = `<!DOCTYPE html>
             <!-- Endpoint List -->
             <div class="nav-item has-children">
                 <div class="nav-item-header" onclick="toggleCollapse(this)">
-                    <span class="nav-item-header-content">🔌 Endpoint List</span>
+                    <span class="nav-item-header-content">🔌 Endpoints</span>
                 </div>
                 <div class="nav-children">
                     {{range $si, $section := .Sections}}
@@ -1149,24 +1131,6 @@ const docsTemplate = `<!DOCTYPE html>
             <div class="nav-item">
                 <div class="nav-item-header" data-target="panel-file-upload">
                     <span class="nav-item-header-content">📤 File Upload</span>
-                </div>
-            </div>
-
-            <!-- Quick Tests -->
-            <div class="nav-item has-children">
-                <div class="nav-item-header" onclick="toggleCollapse(this)">
-                    <span class="nav-item-header-content">🧪 Quick Tests</span>
-                </div>
-                <div class="nav-children">
-                    {{range $group, $tests := groupTests .APITesterDefaults.QuickTests}}
-                    <div class="nav-group-label">{{$group}}</div>
-                    {{range $tests}}
-                    <a class="quick-test-nav-item" onclick="loadQuickTest('{{.ID}}')">
-                        <span class="nav-method {{lower .Method}}">{{.Method}}</span>
-                        <span>{{.Label}}</span>
-                    </a>
-                    {{end}}
-                    {{end}}
                 </div>
             </div>
 
@@ -1453,7 +1417,7 @@ const docsTemplate = `<!DOCTYPE html>
                     </div>
                     <div class="flow-step">
                         <div class="step-number">2</div>
-                        <div class="step-content">Klik "Endpoint List" di sidebar untuk memilih API</div>
+                        <div class="step-content">Klik "Endpoints" di sidebar untuk memilih API</div>
                     </div>
                     <div class="flow-step">
                         <div class="step-number">3</div>
@@ -1600,12 +1564,6 @@ const docsTemplate = `<!DOCTYPE html>
             const input = document.getElementById(inputId);
             input.type = input.type === 'password' ? 'text' : 'password';
         }
-
-        // Quick Tests Data
-        const quickTestsData = JSON.parse({{.APITesterDefaults.QuickTests | json}});
-        const quickTestsArray = Array.isArray(quickTestsData) ? quickTestsData : Object.values(quickTestsData);
-        const quickTests = {};
-        quickTestsArray.forEach(t => { if (t && t.id) quickTests[t.id] = t; });
 
         // Load saved tokens
         document.addEventListener('DOMContentLoaded', function() {
@@ -1801,32 +1759,6 @@ const docsTemplate = `<!DOCTYPE html>
                 statusEl.textContent = 'Error';
                 statusEl.className = 'status-badge inline-status status-error';
                 responseEl.innerHTML = '<code>Error: ' + error.message + '</code>';
-            }
-        }
-
-        // Load quick test
-        function loadQuickTest(testId) {
-            const test = quickTests[testId];
-            if (!test) return;
-
-            // Find the endpoint panel and show it
-            document.querySelectorAll('.content-panel').forEach(el => {
-                if (el.id.startsWith('panel-endpoint')) {
-                    const urlInput = el.querySelector('.inline-url');
-                    if (urlInput && test.url && urlInput.value.indexOf(test.url.replace('{{"{{.Info.BaseURL}}" | js}}', '')) !== -1) {
-                        showPanel(el.id);
-                        el.querySelector('.inline-method').value = test.method;
-                        if (test.body) {
-                            el.querySelector('.inline-body').value = typeof test.body === 'object' ? JSON.stringify(test.body, null, 2) : test.body;
-                        }
-                        const testerBtn = el.querySelector('.try-it-btn');
-                        if (testerBtn) testerBtn.click();
-                    }
-                }
-            });
-
-            if (window.innerWidth <= 768) {
-                toggleSidebar();
             }
         }
     </script>

@@ -157,19 +157,7 @@ type AuthMode struct {
 }
 
 type APITesterDefaultsInfo struct {
-	DefaultURL string      `yaml:"default_url" json:"default_url"`
-	Methods    []string    `yaml:"methods" json:"methods"`
-	AuthModes  []AuthMode  `yaml:"auth_modes" json:"auth_modes"`
-	QuickTests []QuickTest `yaml:"quick_tests" json:"quick_tests"`
-}
-
-type QuickTest struct {
-	ID         string      `yaml:"id" json:"id"`
-	Label      string      `yaml:"label" json:"label"`
-	Method     string      `yaml:"method" json:"method"`
-	URL        string      `yaml:"url" json:"url"`
-	Body       interface{} `yaml:"body" json:"body"`
-	IsFormData bool        `yaml:"isFormData,omitempty" json:"isFormData,omitempty"`
-	Category   string      `yaml:"category,omitempty" json:"category,omitempty"`
-	AuthMode   string      `yaml:"auth_mode,omitempty" json:"auth_mode,omitempty"`
+	DefaultURL string     `yaml:"default_url" json:"default_url"`
+	Methods    []string   `yaml:"methods" json:"methods"`
+	AuthModes  []AuthMode `yaml:"auth_modes" json:"auth_modes"`
 }

@@ -52,7 +52,6 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			s = strings.ReplaceAll(s, "\r", "")
 			return s
 		},
-		"groupTests": groupTestsByCategory,
 		"add":           func(a, b int) int { return a + b },
 	}
 
@@ -153,21 +152,6 @@ func (h *Handler) ServeEcho(c *gin.Context) {
 		"headers": headers,
 		"message": "Echo of received request headers",
 	})
-}
-
-// groupTestsByCategory groups quick tests by their category field
-func groupTestsByCategory(tests []QuickTest) map[string][]QuickTest {
-	groups := make(map[string][]QuickTest)
-
-	for _, test := range tests {
-		cat := test.Category
-		if cat == "" {
-			cat = "Other"
-		}
-		groups[cat] = append(groups[cat], test)
-	}
-
-	return groups
 }
 
 // watchSpecFile watches the spec file for changes and reloads automatically
