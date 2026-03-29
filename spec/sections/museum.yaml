@@ -1,0 +1,82 @@
+# Museum endpoints
+sections:
+  - id: museum
+    title: My Museum (Single Museum Pattern)
+    description: Setiap organization hanya memiliki satu museum
+    endpoints:
+      - name: Get My Museum
+        method: GET
+        path: /api/v1/museum
+        auth: required
+        description: Ambil museum milik organization dari JWT org_id
+        response: Museum object
+        example_response: |
+          {
+            "id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "organization_id": "d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a",
+            "name": "Museum Gangelang",
+            "location": "Bali",
+            "description": "Museum untuk organisasi ini",
+            "image_url": "https://media.museumdigi.id/media/abc123/photo.jpg",
+            "contact_info": "",
+            "artifact_count": 0,
+            "created_at": "2026-03-02T16:09:02+07:00",
+            "updated_at": "2026-03-02T16:09:02+07:00"
+          }
+
+      - name: Update My Museum
+        method: PATCH
+        path: /api/v1/museum
+        auth: required
+        permission: museum:write
+        description: Update data museum milik organization
+        body:
+          - name: name
+            type: string
+            required: false
+            example: "Museum Gangelang Updated"
+          - name: location
+            type: string
+            required: false
+            example: "Jakarta Pusat"
+          - name: description
+            type: string
+            required: false
+            example: "Deskripsi museum yang diupdate"
+          - name: image_url
+            type: string
+            required: false
+            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+          - name: contact_info
+            type: string
+            required: false
+            example: "+62 812-3456-7890"
+        example_body: |
+          {
+            "name": "Museum Gangelang Updated",
+            "location": "Bali",
+            "description": "Updated description"
+          }
+
+      - name: Delete My Museum
+        method: DELETE
+        path: /api/v1/museum
+        auth: required
+        permission: museum:delete
+        description: Hapus museum milik organization
+
+      - name: Update Museum Image
+        method: POST
+        path: /api/v1/museum/image
+        auth: required
+        permission: museum:write
+        description: Update image URL museum (URL dari Media Service)
+        body:
+          - name: image_url
+            type: string
+            required: true
+            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+        example_body: |
+          {
+            "image_url": "https://media.museumdigi.id/media/xyz789/updated.jpg"
+          }

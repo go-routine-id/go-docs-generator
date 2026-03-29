@@ -1,0 +1,182 @@
+# Articles (CMS) endpoints
+sections:
+  - id: articles
+    title: Articles (CMS)
+    description: Kelola artikel/berita museum dan konten artifact
+    endpoints:
+      - name: List Articles
+        method: GET
+        path: /api/v1/articles
+        auth: optional
+        description: List semua artikel dengan filter dan pagination
+        query_params:
+          - name: page
+            type: integer
+            required: false
+            default: 1
+            description: Halaman ke-
+          - name: page_size
+            type: integer
+            required: false
+            default: 12
+            description: Jumlah item per halaman
+          - name: museum_id
+            type: string (uuid)
+            required: false
+            description: Filter berdasarkan museum
+          - name: type
+            type: string
+            required: false
+            description: Filter berdasarkan tipe (news, artifact_detail)
+          - name: search
+            type: string
+            required: false
+            description: Cari berdasarkan judul/konten
+          - name: is_published
+            type: boolean
+            required: false
+            description: Filter berdasarkan status publish
+          - name: include_deleted
+            type: boolean
+            required: false
+            default: false
+            description: Sertakan artikel yang sudah dihapus (admin only)
+        example_response: |
+          {
+            "data": [
+              {
+                "id": "art-123",
+                "museum_id": "museum-456",
+                "user_id": "user-789",
+                "type": "news",
+                "title": "Pameran Baru Dibuka",
+                "slug": "pameran-baru-dibuka-1709523456",
+                "excerpt": "Kami dengan bangga mengumumkan...",
+                "content_html": "<h1>Pameran Baru</h1><p>Kami dengan bangga...</p>",
+                "cover_image": "https://media.museumdigi.id/media/art123/cover.jpg",
+                "is_published": true,
+                "published_at": "2024-03-15T10:00:00Z",
+                "created_at": "2024-03-10T08:00:00Z",
+                "updated_at": "2024-03-15T09:00:00Z"
+              }
+            ],
+            "meta": {
+              "page": 1,
+              "page_size": 12,
+              "total": 1,
+              "total_pages": 1
+            }
+          }
+
+      - name: Get Article by Slug (Public)
+        method: GET
+        path: /api/v1/articles/slug/{slug}
+        auth: optional
+        description: Ambil artikel by slug (untuk akses publik)
+        note: Hanya mengembalikan artikel yang sudah dipublish
+
+      - name: Get Article by ID
+        method: GET
+        path: /api/v1/articles/{id}
+        auth: optional
+        description: Ambil detail artikel by ID
+
+      - name: Create Article
+        method: POST
+        path: /api/v1/articles
+        auth: required
+        permission: article:write
+        description: Buat artikel baru
+        body:
+          - name: museum_id
+            type: string (uuid)
+            required: true
+            description: ID museum pemilik
+          - name: type
+            type: string
+            required: true
+            enum: [news, artifact_detail]
+            description: Tipe artikel
+          - name: artifact_id
+            type: string (uuid)
+            required: false
+            description: Wajib jika type = artifact_detail
+          - name: title
+            type: string
+            required: true
+            max_length: 255
+            description: Judul artikel
+          - name: slug
+            type: string
+            required: false
+            max_length: 255
+            description: URL slug (auto-generate jika kosong)
+          - name: content
+            type: string (markdown)
+            required: true
+            description: Konten artikel dalam format Markdown
+          - name: cover_image
+            type: string
+            required: false
+            description: URL cover image dari Media Service
+          - name: is_published
+            type: boolean
+            required: false
+            default: false
+            description: Status publish
+        example_body: |
+          {
+            "museum_id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "type": "news",
+            "title": "Pameran Sejarah Indonesia 2024",
+            "content": "# Pameran Sejarah Indonesia\n\nKami dengan **bangga** mengumumkan...",
+            "cover_image": "https://media.museumdigi.id/media/art123/cover.jpg",
+            "is_published": true
+          }
+
+      - name: Update Article
+        method: PATCH
+        path: /api/v1/articles/{id}
+        auth: required
+        permission: article:write
+        description: Update data artikel
+        body:
+          - name: type
+            type: string
+            required: false
+            enum: [news, artifact_detail]
+          - name: artifact_id
+            type: string (uuid)
+            required: false
+          - name: title
+            type: string
+            required: false
+            max_length: 255
+          - name: slug
+            type: string
+            required: false
+            max_length: 255
+          - name: content
+            type: string (markdown)
+            required: false
+          - name: cover_image
+            type: string
+            required: false
+          - name: is_published
+            type: boolean
+            required: false
+        note: Field yang tidak diisi tidak akan diupdate
+
+      - name: Delete Article
+        method: DELETE
+        path: /api/v1/articles/{id}
+        auth: required
+        permission: article:delete
+        description: Soft-delete artikel
+
+      - name: Restore Article
+        method: POST
+        path: /api/v1/articles/{id}/restore
+        auth: required
+        permission: article:write
+        description: Restore artikel yang sudah dihapus

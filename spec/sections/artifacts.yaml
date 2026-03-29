@@ -1,0 +1,135 @@
+# Artifact endpoints
+sections:
+  - id: artifacts
+    title: Artifacts
+    description: Kelola koleksi artifact museum
+    endpoints:
+      - name: List Artifacts
+        method: GET
+        path: /api/v1/artifacts
+        auth: optional
+        description: List semua artifact (public) atau filter by org (authenticated)
+        query_params:
+          - name: page
+            type: integer
+            required: false
+            default: 1
+            description: Halaman ke-
+          - name: page_size
+            type: integer
+            required: false
+            default: 9
+            description: Jumlah item per halaman
+          - name: search
+            type: string
+            required: false
+            description: Cari berdasarkan nama/description
+
+      - name: Create Artifact
+        method: POST
+        path: /api/v1/artifacts
+        auth: required
+        permission: artifact:write
+        description: Buat artifact baru
+        body:
+          - name: museum_id
+            type: string (uuid)
+            required: true
+            description: ID museum pemilik
+          - name: name
+            type: string
+            required: true
+            description: Nama artifact
+          - name: description
+            type: string
+            required: false
+          - name: category
+            type: string
+            required: false
+            example: "historical"
+          - name: era
+            type: string
+            required: false
+            example: "ancient"
+          - name: origin
+            type: string
+            required: false
+            example: "Indonesia"
+          - name: status
+            type: string
+            required: false
+            example: "active"
+          - name: image_url
+            type: string
+            required: false
+            description: URL dari Media Service
+          - name: model3d_url
+            type: string
+            required: false
+            description: URL 3D model dari Media Service
+        example_body: |
+          {
+            "museum_id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+            "name": "Candi Borobudur Miniature",
+            "description": "Miniatur candi skala 1:100",
+            "category": "historical",
+            "era": "Modern",
+            "origin": "Indonesia",
+            "status": "active",
+            "image_url": "https://media.museumdigi.id/media/art123/photo.jpg",
+            "model3d_url": "https://media.museumdigi.id/media/3d123/model.glb"
+          }
+
+      - name: Get Artifact
+        method: GET
+        path: /api/v1/artifacts/{id}
+        auth: optional
+        description: Ambil detail artifact by ID
+
+      - name: Update Artifact
+        method: PATCH
+        path: /api/v1/artifacts/{id}
+        auth: required
+        permission: artifact:write
+        description: Update data artifact
+        body:
+          - name: name
+            type: string
+            required: false
+          - name: description
+            type: string
+            required: false
+          - name: image_url
+            type: string
+            required: false
+          - name: model3d_url
+            type: string
+            required: false
+        example_body: |
+          {
+            "name": "Artifact Updated",
+            "description": "Updated description",
+            "image_url": "https://media.museumdigi.id/media/art456/new-photo.jpg"
+          }
+
+      - name: Delete Artifact
+        method: DELETE
+        path: /api/v1/artifacts/{id}
+        auth: required
+        permission: artifact:delete
+        description: Hapus artifact
+
+      - name: Update Artifact Image
+        method: POST
+        path: /api/v1/artifacts/{id}/image
+        auth: required
+        permission: artifact:write
+        description: Update image URL artifact
+        body:
+          - name: image_url
+            type: string
+            required: true
+        example_body: |
+          {
+            "image_url": "https://media.museumdigi.id/media/art789/image.jpg"
+          }

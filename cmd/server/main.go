@@ -14,7 +14,7 @@ import (
 
 func main() {
 	var (
-		specPath = flag.String("spec", "./api-spec.yaml", "Path to API spec YAML file")
+		specPath = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory")
 		port     = flag.String("port", "8080", "Server port")
 		devMode  = flag.Bool("dev", false, "Development mode (hot-reload)")
 	)
@@ -63,14 +63,16 @@ func main() {
 	})
 
 	// Print info
-	log.Printf("📄 Spec file: %s", *specPath)
+	log.Printf("📄 Spec path: %s", *specPath)
 	log.Printf("🔄 Dev mode: %v", *devMode)
 	log.Println("")
 	log.Println("📚 Endpoints:")
-	log.Printf("   - http://localhost:%s/docs          - HTML Documentation", *port)
-	log.Printf("   - http://localhost:%s/api/docs/spec - AI Spec (JSON)", *port)
-	log.Printf("   - http://localhost:%s/api/docs/yaml - Download YAML", *port)
-	log.Printf("   - http://localhost:%s/health        - Health check", *port)
+	log.Printf("   - http://localhost:%s/docs              - HTML Documentation", *port)
+	log.Printf("   - http://localhost:%s/docs?p=<project>   - Project docs", *port)
+	log.Printf("   - http://localhost:%s/api/docs/spec      - AI Spec (JSON)", *port)
+	log.Printf("   - http://localhost:%s/api/docs/specs      - List projects", *port)
+	log.Printf("   - http://localhost:%s/api/docs/yaml       - Download YAML", *port)
+	log.Printf("   - http://localhost:%s/health              - Health check", *port)
 	log.Println("")
 
 	// Start server

@@ -1,0 +1,59 @@
+# File Upload Guide
+guides:
+  - id: file_upload
+    icon: "📤"
+    title: File Upload Flow
+    description: Museum Service tidak handle upload file langsung
+    flow:
+      - step: 1
+        title: Upload ke Media Service
+        endpoint:
+          method: POST
+          path: /api/v1/upload
+          service: Media Service (bukan Museum Service)
+          content_type: multipart/form-data
+          auth: required
+          auth_methods: [Bearer JWT, X-API-Key]
+          permission: media:upload
+          fields:
+            - name: file
+              type: binary
+              required: true
+              description: File yang mau diupload (image, 3D model, document)
+            - name: folder_id
+              type: string
+              required: false
+              description: ID folder (optional)
+        curl_example_jwt: |
+          curl -X POST https://museumdigi.id/api/v1/upload \
+            -H "Authorization: Bearer TOKEN" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@photo.jpg" \
+            -F "folder_id=optional-folder-id"
+        curl_example_api_key: |
+          curl -X POST https://museumdigi.id/api/v1/upload \
+            -H "X-API-Key: YOUR_API_KEY" \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@photo.jpg" \
+            -F "folder_id=optional-folder-id"
+        response_example: |
+          {
+            "success": true,
+            "data": {
+              "media_id": "abc123...",
+              "url": "https://media.museumdigi.id/media/abc123/photo.jpg",
+              "thumbnail_url": "https://media.museumdigi.id/media/abc123/thumb.jpg"
+            }
+          }
+
+      - step: 2
+        title: Simpan URL ke Museum/Artifact
+        description: Gunakan URL dari response Media Service
+        actions:
+          - type: update_museum_image
+            description: Update museum image
+            endpoint: POST /api/v1/museum/image
+          - type: update_artifact_image
+            description: Update artifact image
+            endpoint: POST /api/v1/artifacts/{id}/image
+        tip: Simpan juga media_id di database jika perlu reference untuk delete/update

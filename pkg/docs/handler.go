@@ -9,31 +9,40 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gopkg.in/yaml.v3"
 )
+
+// projectInfo is a lightweight project descriptor for listing
+type projectInfo struct {
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	BaseURL     string `json:"base_url"`
+}
 
 // Handler handles documentation requests
 type Handler struct {
-	specPath string
-	spec     *APISpec
-	template *template.Template
+	specRoot string              // path to spec file or directory
 	devMode  bool
+	specs    map[string]*APISpec // key = project name, "" = default
+	template *template.Template
 }
 
 // NewHandler creates a new documentation handler
 func NewHandler(specPath string, devMode bool) (*Handler, error) {
 	h := &Handler{
-		specPath: specPath,
+		specRoot: specPath,
 		devMode:  devMode,
 	}
 
-	// Load and parse YAML
-	if err := h.loadSpec(); err != nil {
-		return nil, fmt.Errorf("failed to load spec: %w", err)
+	// Load specs
+	if err := h.loadAllSpecs(); err != nil {
+		return nil, fmt.Errorf("failed to load specs: %w", err)
 	}
 
 	// Parse template with helper functions
@@ -52,8 +61,8 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			s = strings.ReplaceAll(s, "\r", "")
 			return s
 		},
-		"add":           func(a, b int) int { return a + b },
-		"md":            mdToHTML,
+		"add": func(a, b int) int { return a + b },
+		"md":  mdToHTML,
 	}
 
 	tmpl, err := template.New("docs").Funcs(funcMap).Parse(docsTemplate)
@@ -70,30 +79,68 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 	return h, nil
 }
 
-// loadSpec reads and parses the YAML specification from filesystem
-func (h *Handler) loadSpec() error {
-	data, err := os.ReadFile(h.specPath)
+// loadAllSpecs loads specs based on whether specRoot is file or directory
+func (h *Handler) loadAllSpecs() error {
+	info, err := os.Stat(h.specRoot)
 	if err != nil {
-		return fmt.Errorf("failed to read spec file: %w", err)
+		return fmt.Errorf("failed to stat %s: %w", h.specRoot, err)
 	}
 
-	var spec APISpec
-	if err := yaml.Unmarshal(data, &spec); err != nil {
-		return fmt.Errorf("failed to parse YAML: %w", err)
+	if !info.IsDir() {
+		// File mode — use loadSpecFromPath (handles index.yaml auto-include)
+		spec, err := loadSpecFromPath(h.specRoot)
+		if err != nil {
+			return err
+		}
+		h.specs = map[string]*APISpec{"": spec}
+		return nil
 	}
 
-	h.spec = &spec
+	// Directory mode — discover all projects
+	specs, err := discoverProjects(h.specRoot)
+	if err != nil {
+		return err
+	}
+	h.specs = specs
 	return nil
 }
 
-// ReloadSpec reloads the spec from disk (for hot-reload in development)
+// getSpec returns the spec for a given project name, or default
+func (h *Handler) getSpec(project string) *APISpec {
+	if spec, ok := h.specs[project]; ok {
+		return spec
+	}
+	return h.specs[""]
+}
+
+// getProjectNames returns a sorted list of project names (excluding default)
+func (h *Handler) getProjectNames() []string {
+	names := make([]string, 0, len(h.specs))
+	for name := range h.specs {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// isDirMode returns true if spec is loaded from a directory
+func (h *Handler) isDirMode() bool {
+	info, err := os.Stat(h.specRoot)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}
+
+// ReloadSpec reloads all specs from disk
 func (h *Handler) ReloadSpec() error {
-	return h.loadSpec()
+	return h.loadAllSpecs()
 }
 
 // ServeHTML serves the generated HTML documentation
 func (h *Handler) ServeHTML(c *gin.Context) {
-	// In dev mode, reload spec on each request
+	// In dev mode, reload specs on each request
 	if h.devMode {
 		if err := h.ReloadSpec(); err != nil {
 			c.String(http.StatusInternalServerError, "Failed to reload spec: "+err.Error())
@@ -101,8 +148,11 @@ func (h *Handler) ServeHTML(c *gin.Context) {
 		}
 	}
 
+	project := c.Query("p")
+	spec := h.getSpec(project)
+
 	var buf bytes.Buffer
-	if err := h.template.Execute(&buf, h.spec); err != nil {
+	if err := h.template.Execute(&buf, spec); err != nil {
 		c.String(http.StatusInternalServerError, "Failed to generate documentation: "+err.Error())
 		return
 	}
@@ -113,26 +163,72 @@ func (h *Handler) ServeHTML(c *gin.Context) {
 
 // ServeSpec serves the API spec as JSON for AI agents
 func (h *Handler) ServeSpec(c *gin.Context) {
-	// Reload spec to ensure latest version
+	// Reload specs to ensure latest version
 	if err := h.ReloadSpec(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, h.spec)
+	project := c.Query("p")
+	c.JSON(http.StatusOK, h.getSpec(project))
 }
 
 // ServeYAML serves the raw YAML spec
 func (h *Handler) ServeYAML(c *gin.Context) {
+	project := c.Query("p")
+
+	// In single file mode, serve the file directly
+	if !h.isDirMode() {
+		c.Header("Content-Type", "text/yaml; charset=utf-8")
+		c.Header("Content-Disposition", "attachment; filename=api-spec.yaml")
+		c.File(h.specRoot)
+		return
+	}
+
+	// In dir mode, serve index.yaml for the project
+	yamlPath := filepath.Join(h.specRoot, "index.yaml")
+	if project != "" {
+		yamlPath = filepath.Join(h.specRoot, project, "index.yaml")
+	}
+
 	c.Header("Content-Type", "text/yaml; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=api-spec.yaml")
-	c.File(h.specPath)
+	c.File(yamlPath)
+}
+
+// ServeProjectList returns available projects
+func (h *Handler) ServeProjectList(c *gin.Context) {
+	if err := h.ReloadSpec(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	projects := make([]projectInfo, 0, len(h.specs))
+	for name, spec := range h.specs {
+		label := name
+		if name == "" {
+			label = "default"
+		}
+		projects = append(projects, projectInfo{
+			Name:        label,
+			Title:       spec.Info.Title,
+			Version:     spec.Info.Version,
+			Description: spec.Info.Description,
+			BaseURL:     spec.Info.BaseURL,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"projects": projects,
+		"count":    len(projects),
+	})
 }
 
 // RegisterRoutes registers the documentation routes
 func (h *Handler) RegisterRoutes(router *gin.Engine) {
 	router.GET("/docs", h.ServeHTML)
 	router.GET("/api/docs/spec", h.ServeSpec)
+	router.GET("/api/docs/specs", h.ServeProjectList)
 	router.GET("/api/docs/yaml", h.ServeYAML)
 	router.GET("/api/docs/echo", h.ServeEcho)
 	router.POST("/api/docs/echo", h.ServeEcho)
@@ -155,31 +251,49 @@ func (h *Handler) ServeEcho(c *gin.Context) {
 	})
 }
 
-// watchSpecFile watches the spec file for changes and reloads automatically
+// watchSpecFile watches the spec file/directory for changes and reloads automatically
 func (h *Handler) watchSpecFile() {
-	// Simple polling approach - check every 2 seconds
-	// For production, consider using fsnotify for event-based watching
-	log.Println("🔄 Dev mode: Watching spec file for changes...")
+	log.Println("🔄 Dev mode: Watching spec for changes...")
 
 	var lastModTime int64
 	for {
-		info, err := os.Stat(h.specPath)
-		if err != nil {
-			log.Printf("⚠️  Failed to stat spec file: %v", err)
-			time.Sleep(2 * time.Second)
-			continue
+		var currentMod int64
+
+		if h.isDirMode() {
+			// Walk directory to find latest mod time
+			filepath.WalkDir(h.specRoot, func(path string, d os.DirEntry, err error) error {
+				if err != nil || d.IsDir() {
+					return nil
+				}
+				if strings.HasSuffix(strings.ToLower(path), ".yaml") || strings.HasSuffix(strings.ToLower(path), ".yml") {
+					if info, err := d.Info(); err == nil {
+						if t := info.ModTime().Unix(); t > currentMod {
+							currentMod = t
+						}
+					}
+				}
+				return nil
+			})
+		} else {
+			info, err := os.Stat(h.specRoot)
+			if err != nil {
+				log.Printf("⚠️  Failed to stat spec: %v", err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			currentMod = info.ModTime().Unix()
 		}
 
-		if info.ModTime().Unix() != lastModTime {
+		if currentMod != lastModTime {
 			if lastModTime != 0 { // Skip first check
-				log.Println("📝 Spec file changed, reloading...")
+				log.Println("📝 Spec changed, reloading...")
 				if err := h.ReloadSpec(); err != nil {
 					log.Printf("❌ Failed to reload spec: %v", err)
 				} else {
 					log.Println("✅ Spec reloaded successfully")
 				}
 			}
-			lastModTime = info.ModTime().Unix()
+			lastModTime = currentMod
 		}
 
 		time.Sleep(2 * time.Second)
