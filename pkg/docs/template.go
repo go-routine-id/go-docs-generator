@@ -1183,20 +1183,20 @@ const docsTemplate = `<!DOCTYPE html>
 
                 <div class="cards">
                     <div class="card">
-                        <h4>🏛️ Museum Management</h4>
-                        <p>CRUD operations untuk museum dengan single museum pattern</p>
+                        <h4>🚀 REST API</h4>
+                        <p>{{.Info.Description}}</p>
                     </div>
                     <div class="card">
-                        <h4>🏺 Artifact Management</h4>
-                        <p>Kelola koleksi artifact dengan metadata lengkap</p>
+                        <h4>📚 Multiple Endpoints</h4>
+                        <p>Comprehensive API endpoints for all your needs</p>
                     </div>
                     <div class="card">
-                        <h4>📸 Media Integration</h4>
-                        <p>Integrasi dengan Media Service untuk upload file</p>
+                        <h4>📖 Interactive Docs</h4>
+                        <p>Test API directly from this documentation</p>
                     </div>
                     <div class="card">
-                        <h4>🔐 JWT Authentication</h4>
-                        <p>Autentikasi via Account Service dengan RS256</p>
+                        <h4>🔐 Secure Auth</h4>
+                        <p>JWT and API Key authentication support</p>
                     </div>
                 </div>
 
@@ -1404,10 +1404,10 @@ const docsTemplate = `<!DOCTYPE html>
             <div class="content-panel" id="panel-file-upload">
                 <div class="content-header">
                     <h1>📤 File Upload Flow</h1>
-                    <p>Cara upload file ke Museum Service</p>
+                    <p>File upload integration with external Media Service</p>
                 </div>
 
-                <p>Museum Service tidak menangani upload file langsung. Frontend harus upload ke <strong>Media Service</strong> terlebih dahulu, kemudian kirim URL yang didapat ke Museum Service.</p>
+                <p>This service handles file uploads via external Media Service. Upload files to Media Service first, then use the returned URL in this API.</p>
 
                 {{range .Sections}}{{if eq .ID "file_upload"}}{{range .Flow}}
                 <h3 class="section-title">Step {{.Step}}: {{.Title}}</h3>
@@ -1433,23 +1433,16 @@ const docsTemplate = `<!DOCTYPE html>
                 </div>
                 {{end}}
                 {{if .Actions}}
-                <p>Gunakan <code>url</code> dari response Media Service untuk update image:</p>
-                <pre><code>// Update museum image
-curl -X POST {{$.Info.BaseURL}}/api/v1/museum/image \
+                <p>Use <code>url</code> from Media Service response:</p>
+                <pre><code>curl -X POST {{$.Info.BaseURL}}/api/v1/resource/image \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'
-
-// Update artifact image
-curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
-  -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"image_url": "https://media.museumdigi.id/media/abc123/photo.jpg"}'</code></pre>
+  -d '{"image_url": "https://cdn.example.com/media/abc123/photo.jpg"}'</code></pre>
                 {{end}}
                 {{end}}{{end}}{{end}}
 
                 <div class="alert alert-info">
-                    <strong>Tips:</strong> Simpan juga <code>media_id</code> di database jika perlu referensi ke file di Media Service.
+                    <strong>Tip:</strong> Store the <code>media_id</code> for future reference if you need to manage the file later.
                 </div>
             </div>
 
@@ -1545,7 +1538,7 @@ curl -X POST {{$.Info.BaseURL}}/api/v1/artifacts/{id}/image \
 
         <!-- Footer -->
         <footer class="footer">
-            <p>© 2026 Museum Digital Indonesia. Built with ❤️ for preserving culture.</p>
+            <p>© 2026 {{.Info.Title}}. All rights reserved.</p>
             <p style="margin-top: 0.5rem;">
                 <a href="/swagger/index.html">Swagger UI</a> •
                 <a href="/swagger/doc.json">OpenAPI JSON</a> •
