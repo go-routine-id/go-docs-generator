@@ -224,14 +224,14 @@ func (h *Handler) ServeProjectList(c *gin.Context) {
 	})
 }
 
-// RegisterRoutes registers the documentation routes
-func (h *Handler) RegisterRoutes(router *gin.Engine) {
-	router.GET("/docs", h.ServeHTML)
-	router.GET("/api/docs/spec", h.ServeSpec)
-	router.GET("/api/docs/specs", h.ServeProjectList)
-	router.GET("/api/docs/yaml", h.ServeYAML)
-	router.GET("/api/docs/echo", h.ServeEcho)
-	router.POST("/api/docs/echo", h.ServeEcho)
+// RegisterRoutes registers the documentation routes with a custom prefix
+func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
+	router.GET(prefix, h.ServeHTML)
+	router.GET(prefix+"/spec", h.ServeSpec)
+	router.GET(prefix+"/specs", h.ServeProjectList)
+	router.GET(prefix+"/yaml", h.ServeYAML)
+	router.GET(prefix+"/echo", h.ServeEcho)
+	router.POST(prefix+"/echo", h.ServeEcho)
 }
 
 // ServeEcho echoes back the received headers and request info for debugging

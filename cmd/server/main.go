@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 
 	"docs-generator/pkg/docs"
 
@@ -16,9 +17,13 @@ func main() {
 	var (
 		specPath = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory")
 		port     = flag.String("port", "8080", "Server port")
+		prefix   = flag.String("prefix", "/docs", "URL prefix for documentation routes")
 		devMode  = flag.Bool("dev", false, "Development mode (hot-reload)")
 	)
 	flag.Parse()
+
+	// Normalize prefix (ensure leading /, no trailing /)
+	*prefix = "/" + strings.Trim(*prefix, "/")
 
 	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
@@ -50,7 +55,7 @@ func main() {
 	})
 
 	// Register routes
-	handler.RegisterRoutes(router)
+	handler.RegisterRoutes(router, *prefix)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -65,14 +70,15 @@ func main() {
 	// Print info
 	log.Printf("📄 Spec path: %s", *specPath)
 	log.Printf("🔄 Dev mode: %v", *devMode)
+	log.Printf("🔗 Prefix: %s", *prefix)
 	log.Println("")
 	log.Println("📚 Endpoints:")
-	log.Printf("   - http://localhost:%s/docs              - HTML Documentation", *port)
-	log.Printf("   - http://localhost:%s/docs?p=<project>   - Project docs", *port)
-	log.Printf("   - http://localhost:%s/api/docs/spec      - AI Spec (JSON)", *port)
-	log.Printf("   - http://localhost:%s/api/docs/specs      - List projects", *port)
-	log.Printf("   - http://localhost:%s/api/docs/yaml       - Download YAML", *port)
-	log.Printf("   - http://localhost:%s/health              - Health check", *port)
+	log.Printf("   - http://localhost:%s%s              - HTML Documentation", *port, *prefix)
+	log.Printf("   - http://localhost:%s%s?p=<project>   - Project docs", *port, *prefix)
+	log.Printf("   - http://localhost:%s%s/spec           - AI Spec (JSON)", *port, *prefix)
+	log.Printf("   - http://localhost:%s%s/specs          - List projects", *port, *prefix)
+	log.Printf("   - http://localhost:%s%s/yaml           - Download YAML", *port, *prefix)
+	log.Printf("   - http://localhost:%s/health           - Health check", *port)
 	log.Println("")
 
 	// Start server
