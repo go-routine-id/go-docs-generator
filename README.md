@@ -1,176 +1,198 @@
-# 🏛️ Museum Docs Generator
+# Museum Docs Generator
 
 > Dynamic API Documentation Generator for Museum Digital Indonesia
 
-Standalone service that generates beautiful HTML documentation from YAML specification. Designed for AI agents and frontend developers.
+Standalone service yang menghasilkan dokumentasi HTML interaktif dari YAML specification. Dirancang untuk AI agents dan frontend developers.
 
-## ✨ Features
+## Features
 
-- 📄 **YAML-based** - Single source of truth for API documentation
-- 🎨 **Interactive UI** - Built with ReactFlow for architecture diagrams
-- 🧪 **API Tester** - Test endpoints directly from the browser
-- 🤖 **AI-ready** - JSON endpoint for AI agent consumption
-- 🔄 **Hot-reload** - Auto-refresh in development mode
+- **YAML-based** - Single source of truth, multi-file modular spec
+- **Interactive UI** - ReactFlow architecture diagrams, flow steps, guide panels
+- **API Tester** - Test endpoints langsung dari browser (JWT & API Key auth)
+- **AI-ready** - JSON/YAML endpoint untuk AI agent consumption
+- **Hot-reload** - Auto-refresh saat development mode
+- **Multi-environment** - Support multiple base URLs (production, staging, dll)
+- **Screen Documentation** - Dokumentasi screen/frontend pages
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repo-url>
+# Clone
+git clone git@github.com:Go-Routine-App/go-docs-generator.git
 cd docs-generator
 
-# Download dependencies
+# Dependencies
 go mod tidy
 
-# Run with default spec
+# Run (default: spec/index.yaml, port 8080)
 go run cmd/server/main.go
-
-# Or run with custom spec file
-go run cmd/server/main.go -spec /path/to/your/api-spec.yaml
 
 # Development mode (hot-reload)
 go run cmd/server/main.go -dev
+
+# Custom spec & port
+go run cmd/server/main.go -spec ./spec/index.yaml -port 9090
 ```
 
-## 📚 Endpoints
+## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `/docs` | HTML Documentation with ReactFlow diagrams |
-| `/api/docs/spec` | API Spec as JSON (for AI agents) |
-| `/api/docs/yaml` | Download raw YAML file |
+| `/docs` | HTML Documentation |
+| `/docs?p=<project>` | Project-specific docs |
+| `/api/docs/spec` | API Spec as JSON (for AI) |
+| `/api/docs/specs` | List available projects |
+| `/api/docs/yaml` | Download raw YAML |
+| `/api/docs/echo` | Debug - echo request headers |
 | `/health` | Health check |
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 docs-generator/
-├── cmd/server/         # Main application entry point
-│   └── main.go
-├── pkg/docs/           # Core documentation logic
-│   ├── types.go        # YAML struct definitions
-│   ├── handler.go      # HTTP handlers
-│   └── template.go     # HTML template
-├── api-spec.yaml       # Example API specification
-├── go.mod
+├── cmd/server/main.go       # Entry point
+├── pkg/docs/
+│   ├── types.go             # YAML struct definitions
+│   ├── handler.go           # HTTP handlers
+│   ├── loader.go            # Multi-file YAML loader
+│   └── template.go          # HTML template (embedded)
+├── spec/
+│   ├── index.yaml           # Main spec (entry point)
+│   ├── sections/            # Modular endpoint sections
+│   │   ├── museum.yaml
+│   │   ├── artifacts.yaml
+│   │   └── articles.yaml
+│   ├── guides/              # Guide documentation
+│   │   └── file_upload.yaml
+│   └── screens/             # Screen documentation
+│       └── museum_screens.yaml
+├── Dockerfile
+├── Makefile
 └── README.md
 ```
 
-## 📝 API Spec Format
+## Deployment with PM2
 
-See `api-spec.yaml` for a complete example. The spec includes:
+### Build & Start
 
-- **info** - API metadata (title, version, description)
-- **authentication** - Auth configuration
-- **sections** - Grouped endpoints with details
-- **permissions** - Available permissions list
-- **flow_diagram_nodes/edges** - ReactFlow diagram data
-- **api_tester_defaults** - Default values for API tester
+```bash
+cd /home/dev/museum/docs-generator
 
-## 🔧 Configuration
+# Build binary
+make build
 
-### Command Line Flags
+# Start with PM2
+pm2 start ./docs-generator --name docs-generator -- -spec ./spec/index.yaml -port 8080
+
+# Save config (persist across reboots)
+pm2 save
+```
+
+### Update & Redeploy
+
+```bash
+cd /home/dev/museum/docs-generator
+
+# Pull latest code
+git pull
+
+# Rebuild
+make build
+
+# Restart
+pm2 restart docs-generator
+
+# Verify
+pm2 logs docs-generator --lines 20
+curl http://localhost:8080/health
+```
+
+### PM2 Auto-start on Reboot
+
+```bash
+# Generate startup script (run once)
+pm2 startup systemd -u dev --hp /home/dev
+
+# Save current process list
+pm2 save
+
+# Verify startup is configured
+systemctl status pm2-dev
+```
+
+### PM2 Commands
+
+```bash
+pm2 status                     # List all processes
+pm2 logs docs-generator        # View logs
+pm2 restart docs-generator     # Restart
+pm2 stop docs-generator        # Stop
+pm2 delete docs-generator      # Remove from PM2
+pm2 show docs-generator        # Show process details
+```
+
+## Nginx Configuration
+
+Docs generator di-proxy melalui nginx:
+
+```nginx
+# Documentation page
+location = /docs {
+    proxy_pass http://127.0.0.1:8080/docs;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Docs API endpoints (spec, yaml, echo)
+location /api/docs {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+## Spec Format
+
+Spec menggunakan format multi-file YAML. Entry point: `spec/index.yaml`.
+
+Setiap file YAML di `spec/` directory (termasuk sub-directory) akan otomatis di-merge ke dalam spec utama.
+
+Contoh `spec/index.yaml`:
+```yaml
+info:
+  title: Museum Service API
+  version: "1.0.0"
+  base_url: https://museumdigi.id
+
+authentication:
+  methods:
+    - type: Bearer JWT
+      header: Authorization
+      format: "Bearer <token>"
+```
+
+## Command Line Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-spec` | `./api-spec.yaml` | Path to YAML spec file |
+| `-spec` | `./spec/index.yaml` | Path to spec file or directory |
 | `-port` | `8080` | Server port |
 | `-dev` | `false` | Enable hot-reload mode |
 
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `GIN_MODE` | Set to `release` for production |
-
-## 🐳 Docker
-
-```bash
-# Build image
-docker build -t museum-docs .
-
-# Run container
-docker run -p 8080:8080 -v $(pwd)/api-spec.yaml:/app/api-spec.yaml museum-docs
-```
-
-## 🔗 Integration with Museum Service
-
-This service is designed to be deployed alongside the Museum Service:
-
-```
-┌─────────────────┐     ┌─────────────────┐
-│  Museum Service │     │  Docs Generator │
-│    :9283        │     │    :8080        │
-│  (Backend API)  │     │  (Documentation)│
-└─────────────────┘     └─────────────────┘
-         │                       │
-         └──────────┬────────────┘
-                    │
-              ┌─────────┐
-              │  Nginx  │
-              │  :443   │
-              └─────────┘
-```
-
-Nginx configuration:
-```nginx
-# Museum API
-location /api/v1 {
-    proxy_pass http://localhost:9283;
-}
-
-# Documentation
-location /docs {
-    proxy_pass http://localhost:8080;
-}
-
-location /api/docs {
-    proxy_pass http://localhost:8080;
-}
-```
-
-## 📦 Deployment
-
-### Systemd Service
-
-```ini
-# /etc/systemd/system/museum-docs.service
-[Unit]
-Description=Museum Docs Generator
-After=network.target
-
-[Service]
-Type=simple
-User=dev
-WorkingDirectory=/home/dev/museum/docs-generator
-ExecStart=/home/dev/museum/docs-generator/docs-generator -spec ./api-spec.yaml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl enable museum-docs
-sudo systemctl start museum-docs
-```
-
-## 🤝 For AI Agents
-
-AI agents can consume the API spec directly:
+## For AI Agents
 
 ```bash
 # Get JSON spec
 curl https://museumdigi.id/api/docs/spec
 
-# Or download YAML
+# Download YAML
 curl -O https://museumdigi.id/api/docs/yaml
 ```
 
-The JSON response contains complete API information including endpoints, permissions, and examples.
-
-## 📝 License
+## License
 
 MIT License - Museum Digital Indonesia
