@@ -7,21 +7,50 @@ sections:
       - name: Get My Museum
         method: GET
         path: /api/v1/museum
-        auth: required
-        description: Ambil museum milik organization dari JWT org_id
-        response: Museum object
-        example_response: |
+        auth: optional
+        description: |
+          Ambil data museum.
+          - Jika authenticated: return museum milik organization dari JWT org_id
+          - Jika tidak authenticated (public): return museum yang dipilih admin (is_selected = true)
+        response: Museum object (authenticated) atau list of selected museums (public)
+        example_response_authenticated: |
           {
             "id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
             "organization_id": "d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a",
             "name": "Museum Gangelang",
             "location": "Bali",
             "description": "Museum untuk organisasi ini",
-            "image_url": "https://media.museumdigi.id/media/abc123/photo.jpg",
+            "image_media_id": "abc123-def456",
             "contact_info": "",
             "artifact_count": 0,
+            "is_selected": true,
+            "lat_lng": { "lat": -8.5, "lng": 115.2 },
             "created_at": "2026-03-02T16:09:02+07:00",
             "updated_at": "2026-03-02T16:09:02+07:00"
+          }
+        example_response_public: |
+          {
+            "data": [
+              {
+                "id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+                "organization_id": "d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a",
+                "name": "Museum Gangelang",
+                "location": "Bali",
+                "description": "Museum untuk organisasi ini",
+                "image_media_id": "abc123-def456",
+                "contact_info": "",
+                "artifact_count": 5,
+                "is_selected": true,
+                "lat_lng": { "lat": -8.5, "lng": 115.2 },
+                "created_at": "2026-03-02T16:09:02+07:00",
+                "updated_at": "2026-03-02T16:09:02+07:00"
+              }
+            ],
+            "meta": {
+              "page": 1,
+              "page_size": 2,
+              "total": 2
+            }
           }
 
       - name: Update My Museum
@@ -43,10 +72,11 @@ sections:
             type: string
             required: false
             example: "Deskripsi museum yang diupdate"
-          - name: image_url
-            type: string
+          - name: image_media_id
+            type: string (uuid)
             required: false
-            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+            description: Media ID dari Media Service
+            example: "abc123-def456"
           - name: contact_info
             type: string
             required: false
@@ -70,13 +100,39 @@ sections:
         path: /api/v1/museum/image
         auth: required
         permission: museum:write
-        description: Update image URL museum (URL dari Media Service)
+        description: Update museum image menggunakan media_id dari Media Service
         body:
-          - name: image_url
-            type: string
+          - name: image_media_id
+            type: string (uuid)
             required: true
-            example: "https://media.museumdigi.id/media/abc123/photo.jpg"
+            description: Media ID yang didapat dari response Media Service upload
+            example: "abc123-def456"
         example_body: |
           {
-            "image_url": "https://media.museumdigi.id/media/xyz789/updated.jpg"
+            "image_media_id": "xyz789-abc123"
+          }
+
+      - name: Select Museums (Public Display)
+        method: POST
+        path: /api/v1/museum/select
+        auth: required
+        permission: museum:write
+        description: |
+          Admin memilih museum mana saja yang tampil di GET /api/v1/museum (public).
+          Bersifat replace — museum yang tidak ada di list akan otomatis di-unselect.
+        body:
+          - name: museum_ids
+            type: array of string (uuid)
+            required: true
+            description: Array museum ID yang ingin ditampilkan secara publik
+        example_body: |
+          {
+            "museum_ids": [
+              "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
+              "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+            ]
+          }
+        example_response: |
+          {
+            "message": "Selected museums updated successfully"
           }

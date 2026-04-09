@@ -23,9 +23,10 @@ screens:
     calls:
       - method: GET
         path: /api/v1/museum
-        purpose: "Load info museum milik organization"
+        purpose: "Load info museum (authenticated = milik org, public = selected museums)"
         trigger: "On page load"
-        auth: required
+        auth: optional
+        notes: "Jika auth, return single museum. Jika public, return list of selected museums."
       - method: GET
         path: /api/v1/artifacts
         purpose: "List artifacts dengan pagination"
@@ -59,7 +60,7 @@ screens:
         purpose: "Update museum image"
         trigger: "User uploads new image"
         auth: required
-        notes: "Image URL dari Media Service"
+        notes: "Kirim image_media_id (dari Media Service), bukan URL"
 
   - id: artifact_detail
     title: "Artifact Detail"
@@ -84,7 +85,7 @@ screens:
         purpose: "Upload artifact image ke Media Service"
         trigger: "User selects image file"
         auth: required
-        notes: "Via Media Service, returns image URL"
+        notes: "Via Media Service, returns media_id"
       - method: POST
         path: /api/v1/artifacts
         purpose: "Create new artifact"

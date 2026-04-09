@@ -59,14 +59,14 @@ sections:
             type: string
             required: false
             example: "active"
-          - name: image_url
-            type: string
+          - name: image_media_id
+            type: string (uuid)
             required: false
-            description: URL dari Media Service
-          - name: model3d_url
-            type: string
+            description: Media ID dari Media Service
+          - name: model3d_media_id
+            type: string (uuid)
             required: false
-            description: URL 3D model dari Media Service
+            description: Media ID 3D model dari Media Service
         example_body: |
           {
             "museum_id": "f6c857ea-5428-427f-b7bb-a19bfaeff6cf",
@@ -76,8 +76,8 @@ sections:
             "era": "Modern",
             "origin": "Indonesia",
             "status": "active",
-            "image_url": "https://media.museumdigi.id/media/art123/photo.jpg",
-            "model3d_url": "https://media.museumdigi.id/media/3d123/model.glb"
+            "image_media_id": "abc123-def456",
+            "model3d_media_id": "3dmodel-uuid-789"
           }
 
       - name: Get Artifact
@@ -99,17 +99,17 @@ sections:
           - name: description
             type: string
             required: false
-          - name: image_url
-            type: string
+          - name: image_media_id
+            type: string (uuid)
             required: false
-          - name: model3d_url
-            type: string
+          - name: model3d_media_id
+            type: string (uuid)
             required: false
         example_body: |
           {
             "name": "Artifact Updated",
             "description": "Updated description",
-            "image_url": "https://media.museumdigi.id/media/art456/new-photo.jpg"
+            "image_media_id": "abc456-def789"
           }
 
       - name: Delete Artifact
@@ -119,17 +119,25 @@ sections:
         permission: artifact:delete
         description: Hapus artifact
 
+      - name: Restore Artifact
+        method: POST
+        path: /api/v1/artifacts/{id}/restore
+        auth: required
+        permission: artifact:write
+        description: Restore artifact yang sudah di-soft-delete
+
       - name: Update Artifact Image
         method: POST
         path: /api/v1/artifacts/{id}/image
         auth: required
         permission: artifact:write
-        description: Update image URL artifact
+        description: Update image artifact menggunakan media_id dari Media Service
         body:
-          - name: image_url
-            type: string
+          - name: image_media_id
+            type: string (uuid)
             required: true
+            description: Media ID dari Media Service
         example_body: |
           {
-            "image_url": "https://media.museumdigi.id/media/art789/image.jpg"
+            "image_media_id": "xyz789-abc123"
           }

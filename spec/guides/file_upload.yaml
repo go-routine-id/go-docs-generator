@@ -3,7 +3,7 @@ guides:
   - id: file_upload
     icon: "📤"
     title: File Upload Flow
-    description: Museum Service tidak handle upload file langsung
+    description: Museum Service tidak handle upload file langsung, menggunakan Media Service
     flow:
       - step: 1
         title: Upload ke Media Service
@@ -40,20 +40,26 @@ guides:
           {
             "success": true,
             "data": {
-              "media_id": "abc123...",
-              "url": "https://media.museumdigi.id/media/abc123/photo.jpg",
-              "thumbnail_url": "https://media.museumdigi.id/media/abc123/thumb.jpg"
+              "media_id": "abc123-def456",
+              "url": "https://museumdigi.id/api/v1/media/abc123-def456",
+              "thumbnail_url": "https://museumdigi.id/api/v1/media/abc123-def456?size=thumb"
             }
           }
 
       - step: 2
-        title: Simpan URL ke Museum/Artifact
-        description: Gunakan URL dari response Media Service
+        title: Simpan media_id ke Museum/Artifact
+        description: |
+          Gunakan media_id (bukan URL) dari response Media Service.
+          Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1/media/{media_id}
         actions:
           - type: update_museum_image
             description: Update museum image
             endpoint: POST /api/v1/museum/image
+            field: image_media_id
           - type: update_artifact_image
             description: Update artifact image
             endpoint: POST /api/v1/artifacts/{id}/image
-        tip: Simpan juga media_id di database jika perlu reference untuk delete/update
+            field: image_media_id
+        tip: |
+          Backend menyimpan media_id (UUID), bukan full URL.
+          Untuk menampilkan file di frontend: https://museumdigi.id/api/v1/media/{media_id}
