@@ -1484,7 +1484,7 @@
                 <div class="content-header">
                     <h1>🚀 REST API</h1>
                 </div>
-                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Museum Service API menggunakan arsitektur RESTful. Semua komunikasi dilakukan melalui HTTP request dengan response format JSON.</p><p style="margin-bottom:0.75rem;"><strong>Base URL:</strong> Semua endpoint diakses melalui base URL yang bisa dipilih (Production / Staging / Local).</p><p style="margin-bottom:0.75rem;"><strong>HTTP Methods:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;"><code>GET</code> — Membaca data</li><li style="margin-bottom:0.25rem;"><code>POST</code> — Membuat data baru atau melakukan aksi</li><li style="margin-bottom:0.25rem;"><code>PATCH</code> — Update sebagian data</li><li style="margin-bottom:0.25rem;"><code>DELETE</code> — Menghapus data</li></ul><p style="margin-bottom:0.75rem;"><strong>Response Format:</strong></p><p style="margin-bottom:0.75rem;">Semua response menggunakan format JSON. Response berhasil mengembalikan data yang diminta, sedangkan error mengembalikan object dengan pesan error.</p><p style="margin-bottom:0.75rem;"><strong>Status Codes:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;"><code>200 OK</code> — Request berhasil</li><li style="margin-bottom:0.25rem;"><code>201 Created</code> — Data berhasil dibuat</li><li style="margin-bottom:0.25rem;"><code>400 Bad Request</code> — Parameter tidak valid</li><li style="margin-bottom:0.25rem;"><code>401 Unauthorized</code> — Auth token tidak valid atau tidak ada</li><li style="margin-bottom:0.25rem;"><code>403 Forbidden</code> — Tidak punya permission</li><li style="margin-bottom:0.25rem;"><code>404 Not Found</code> — Resource tidak ditemukan</li><li style="margin-bottom:0.25rem;"><code>500 Internal Server Error</code> — Error di server</li></ul></div>
+                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Museum Service API menggunakan arsitektur RESTful. Semua komunikasi dilakukan melalui HTTP request dengan response format JSON.</p><p style="margin-bottom:0.75rem;"><strong>Base URL:</strong> Semua endpoint diakses melalui base URL yang bisa dipilih (Production / Staging / Local).</p><p style="margin-bottom:0.75rem;"><strong>HTTP Methods:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;"><code>GET</code> — Membaca data</li><li style="margin-bottom:0.25rem;"><code>POST</code> — Membuat data baru atau melakukan aksi</li><li style="margin-bottom:0.25rem;"><code>PATCH</code> — Update sebagian data</li><li style="margin-bottom:0.25rem;"><code>DELETE</code> — Menghapus data</li></ul><p style="margin-bottom:0.75rem;"><strong>Response Format:</strong> Semua response menggunakan format JSON. Response berhasil mengembalikan data yang diminta, sedangkan error mengembalikan object dengan pesan error.</p><p style="margin-bottom:0.75rem;"><strong>Status Codes:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;"><code>200 OK</code> — Request berhasil</li><li style="margin-bottom:0.25rem;"><code>201 Created</code> — Data berhasil dibuat</li><li style="margin-bottom:0.25rem;"><code>400 Bad Request</code> — Parameter tidak valid</li><li style="margin-bottom:0.25rem;"><code>401 Unauthorized</code> — Auth token tidak valid atau tidak ada</li><li style="margin-bottom:0.25rem;"><code>403 Forbidden</code> — Tidak punya permission</li><li style="margin-bottom:0.25rem;"><code>404 Not Found</code> — Resource tidak ditemukan</li><li style="margin-bottom:0.25rem;"><code>500 Internal Server Error</code> — Error di server</li></ul></div>
                 <div style="margin-top:2rem;">
                     <button class="try-it-btn" onclick="showPanel('panel-overview')">← Back to Overview</button>
                 </div>
@@ -1508,7 +1508,7 @@
                 <div class="content-header">
                     <h1>📖 Interactive Docs</h1>
                 </div>
-                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Dokumentasi ini dilengkapi dengan API Tester built-in di setiap endpoint.</p><p style="margin-bottom:0.75rem;"><strong>Cara menggunakan:</strong></p><p style="margin-bottom:0.75rem;">1. Klik endpoint yang ingin di-test di sidebar</p><p style="margin-bottom:0.75rem;">2. Klik tombol "Try It" di bawah detail endpoint</p><p style="margin-bottom:0.75rem;">3. Pilih metode autentikasi (JWT Bearer / API Key / Public)</p><p style="margin-bottom:0.75rem;">4. Edit request body jika diperlukan</p><p style="margin-bottom:0.75rem;">5. Klik "Send" untuk mengirim request</p><p style="margin-bottom:0.75rem;"><strong>Fitur:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Pilih environment (Production / Staging / Local)</li><li style="margin-bottom:0.25rem;">Request body pre-filled dari example</li><li style="margin-bottom:0.25rem;">Response dengan syntax highlighting</li><li style="margin-bottom:0.25rem;">Status code indicator (success/error)</li></ul><p style="margin-bottom:0.75rem;"><strong>Credentials:</strong></p><p style="margin-bottom:0.75rem;">Simpan token di halaman "Credentials" — tersimpan per environment di browser localStorage.</p></div>
+                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Dokumentasi ini dilengkapi dengan API Tester built-in di setiap endpoint.</p><p style="margin-bottom:0.75rem;"><strong>Cara menggunakan:</strong> 1. Klik endpoint yang ingin di-test di sidebar 2. Klik tombol "Try It" di bawah detail endpoint 3. Pilih metode autentikasi (JWT Bearer / API Key / Public) 4. Edit request body jika diperlukan 5. Klik "Send" untuk mengirim request</p><p style="margin-bottom:0.75rem;"><strong>Fitur:</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Pilih environment (Production / Staging / Local)</li><li style="margin-bottom:0.25rem;">Request body pre-filled dari example</li><li style="margin-bottom:0.25rem;">Response dengan syntax highlighting</li><li style="margin-bottom:0.25rem;">Status code indicator (success/error)</li></ul><p style="margin-bottom:0.75rem;"><strong>Credentials:</strong> Simpan token di halaman "Credentials" — tersimpan per environment di browser localStorage.</p></div>
                 <div style="margin-top:2rem;">
                     <button class="try-it-btn" onclick="showPanel('panel-overview')">← Back to Overview</button>
                 </div>
@@ -1520,7 +1520,7 @@
                 <div class="content-header">
                     <h1>🔐 Secure Auth</h1>
                 </div>
-                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode:</p><p style="margin-bottom:0.75rem;"><strong>1. Bearer JWT</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Login ke Account Service untuk mendapatkan JWT token</li><li style="margin-bottom:0.25rem;">Kirim via header: <code>Authorization: Bearer &lt;token&gt;</code></li><li style="margin-bottom:0.25rem;">Token berisi: account_id, organization_id, permissions</li></ul><p style="margin-bottom:0.75rem;"><strong>2. API Key</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Dapatkan API Key dari Account Service</li><li style="margin-bottom:0.25rem;">Kirim via header: <code>X-API-Key: &lt;api_key&gt;</code></li><li style="margin-bottom:0.25rem;">Backend otomatis exchange API Key ke JWT (cached 1 jam)</li><li style="margin-bottom:0.25rem;">Cocok untuk service-to-service, CLI, atau background jobs</li></ul><p style="margin-bottom:0.75rem;"><strong>Permissions:</strong></p><p style="margin-bottom:0.75rem;">Setiap endpoint dilindungi oleh permission tertentu (misal: <code>museum:write</code>, <code>artifact:delete</code>). Permission tersemat di dalam JWT token.</p></div>
+                <div style="line-height:1.8; color:var(--text);"><p style="margin-bottom:0.75rem;">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode:</p><p style="margin-bottom:0.75rem;"><strong>1. Bearer JWT</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Login ke Account Service untuk mendapatkan JWT token</li><li style="margin-bottom:0.25rem;">Kirim via header: <code>Authorization: Bearer &lt;token&gt;</code></li><li style="margin-bottom:0.25rem;">Token berisi: account_id, organization_id, permissions</li></ul><p style="margin-bottom:0.75rem;"><strong>2. API Key</strong></p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Dapatkan API Key dari Account Service</li><li style="margin-bottom:0.25rem;">Kirim via header: <code>X-API-Key: &lt;api_key&gt;</code></li><li style="margin-bottom:0.25rem;">Backend otomatis exchange API Key ke JWT (cached 1 jam)</li><li style="margin-bottom:0.25rem;">Cocok untuk service-to-service, CLI, atau background jobs</li></ul><p style="margin-bottom:0.75rem;"><strong>Permissions:</strong> Setiap endpoint dilindungi oleh permission tertentu (misal: <code>museum:write</code>, <code>artifact:delete</code>). Permission tersemat di dalam JWT token.</p></div>
                 <div style="margin-top:2rem;">
                     <button class="try-it-btn" onclick="showPanel('panel-overview')">← Back to Overview</button>
                 </div>
@@ -1543,7 +1543,7 @@
                         <div class="step-content">
                             <div class="step-title">Login ke Account Service <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Autentikasi menggunakan email/password ke Account Service. Response berisi JWT token yang berisi account_id, organization_id, dan permissions.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Autentikasi menggunakan email/password ke Account Service. Response berisi JWT token yang berisi account_id, organization_id, dan permissions.</p></div>
                             
                         </div>
                     </div>
@@ -1553,7 +1553,7 @@
                         <div class="step-content">
                             <div class="step-title">Simpan token <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Simpan JWT token di localStorage browser atau secure storage di aplikasi client.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Simpan JWT token di localStorage browser atau secure storage di aplikasi client.</p></div>
                             
                         </div>
                     </div>
@@ -1563,7 +1563,7 @@
                         <div class="step-content">
                             <div class="step-title">Kirim token di setiap request <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Tambahkan header Authorization: Bearer &lt;token&gt; di setiap API request yang membutuhkan autentikasi.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Tambahkan header Authorization: Bearer &lt;token&gt; di setiap API request yang membutuhkan autentikasi.</p></div>
                             
                         </div>
                     </div>
@@ -1573,7 +1573,7 @@
                         <div class="step-content">
                             <div class="step-title">Museum di-identifikasi dari JWT <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">org_id yang ada di JWT token digunakan untuk mengidentifikasi museum. Tidak perlu museum_id di URL path.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">org_id yang ada di JWT token digunakan untuk mengidentifikasi museum. Tidak perlu museum_id di URL path.</p></div>
                             
                         </div>
                     </div>
@@ -1581,7 +1581,7 @@
                 </div>
 
                 
-                <div class="alert alert-info">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)</div>
+                <div class="alert alert-info"><p style="margin-bottom:0.75rem;">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)</p></div>
                 
             </div>
             
@@ -1598,7 +1598,7 @@
                         <div class="step-content">
                             <div class="step-title">Dapatkan API Key <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Minta API Key dari Account Service. Biasanya digunakan untuk service-to-service, CLI, atau background jobs.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Minta API Key dari Account Service. Biasanya digunakan untuk service-to-service, CLI, atau background jobs.</p></div>
                             
                         </div>
                     </div>
@@ -1608,7 +1608,7 @@
                         <div class="step-content">
                             <div class="step-title">Kirim API Key di setiap request <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Tambahkan header X-API-Key: &lt;api_key&gt; di setiap API request.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Tambahkan header X-API-Key: &lt;api_key&gt; di setiap API request.</p></div>
                             
                         </div>
                     </div>
@@ -1618,7 +1618,7 @@
                         <div class="step-content">
                             <div class="step-title">Backend exchange API Key ke JWT <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">Backend otomatis exchange API Key menjadi JWT dengan caching 1 jam (3600 detik) untuk mengurangi pemanggilan ke Account Service.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">Backend otomatis exchange API Key menjadi JWT dengan caching 1 jam (3600 detik) untuk mengurangi pemanggilan ke Account Service.</p></div>
                             
                         </div>
                     </div>
@@ -1628,7 +1628,7 @@
                         <div class="step-content">
                             <div class="step-title">JWT digunakan untuk autentikasi <span class="step-arrow">▾</span></div>
                             
-                            <div class="step-detail">JWT hasil exchange digunakan sama seperti Bearer JWT biasa untuk autentikasi dan otorisasi endpoint.</div>
+                            <div class="step-detail"><p style="margin-bottom:0.75rem;">JWT hasil exchange digunakan sama seperti Bearer JWT biasa untuk autentikasi dan otorisasi endpoint.</p></div>
                             
                         </div>
                     </div>
@@ -1636,7 +1636,7 @@
                 </div>
 
                 
-                <div class="alert alert-info">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)</div>
+                <div class="alert alert-info"><p style="margin-bottom:0.75rem;">Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)</p></div>
                 
             </div>
             
@@ -1666,7 +1666,7 @@
                         <span class="endpoint-path">/api/v1/articles</span>
                     </div>
 
-                    <p class="endpoint-description">List semua artikel dengan filter dan pagination</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">List semua artikel dengan filter dan pagination</p></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -1855,7 +1855,7 @@
                         <span class="endpoint-path">/api/v1/articles/slug/{slug}</span>
                     </div>
 
-                    <p class="endpoint-description">Ambil artikel by slug (untuk akses publik)</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Ambil artikel by slug (untuk akses publik)</p></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -1959,7 +1959,7 @@
                         <span class="endpoint-path">/api/v1/articles/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Ambil detail artikel by ID</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Ambil detail artikel by ID</p></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -2063,7 +2063,7 @@
                         <span class="endpoint-path">/api/v1/articles</span>
                     </div>
 
-                    <p class="endpoint-description">Buat artikel baru</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Buat artikel baru</p></div>
 
                     
                     <div class="auth-badge">
@@ -2252,7 +2252,7 @@
                         <span class="endpoint-path">/api/v1/articles/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Update data artikel</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Update data artikel</p></div>
 
                     
                     <div class="auth-badge">
@@ -2413,7 +2413,7 @@
                         <span class="endpoint-path">/api/v1/articles/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Soft-delete artikel</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Soft-delete artikel</p></div>
 
                     
                     <div class="auth-badge">
@@ -2519,7 +2519,7 @@
                         <span class="endpoint-path">/api/v1/articles/{id}/restore</span>
                     </div>
 
-                    <p class="endpoint-description">Restore artikel yang sudah dihapus</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Restore artikel yang sudah dihapus</p></div>
 
                     
                     <div class="auth-badge">
@@ -2629,7 +2629,7 @@
                         <span class="endpoint-path">/api/v1/artifacts</span>
                     </div>
 
-                    <p class="endpoint-description">List semua artifact (public) atau filter by org (authenticated)</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">List semua artifact (public) atau filter by org (authenticated)</p></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -2760,7 +2760,7 @@
                         <span class="endpoint-path">/api/v1/artifacts</span>
                     </div>
 
-                    <p class="endpoint-description">Buat artifact baru</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Buat artifact baru</p></div>
 
                     
                     <div class="auth-badge">
@@ -2962,7 +2962,7 @@
                         <span class="endpoint-path">/api/v1/artifacts/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Ambil detail artifact by ID</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Ambil detail artifact by ID</p></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -3066,7 +3066,7 @@
                         <span class="endpoint-path">/api/v1/artifacts/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Update data artifact</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Update data artifact</p></div>
 
                     
                     <div class="auth-badge">
@@ -3221,7 +3221,7 @@
                         <span class="endpoint-path">/api/v1/artifacts/{id}</span>
                     </div>
 
-                    <p class="endpoint-description">Hapus artifact</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Hapus artifact</p></div>
 
                     
                     <div class="auth-badge">
@@ -3327,7 +3327,7 @@
                         <span class="endpoint-path">/api/v1/artifacts/{id}/restore</span>
                     </div>
 
-                    <p class="endpoint-description">Restore artifact yang sudah di-soft-delete</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Restore artifact yang sudah di-soft-delete</p></div>
 
                     
                     <div class="auth-badge">
@@ -3433,7 +3433,7 @@
                         <span class="endpoint-path">/api/v1/artifacts/{id}/image</span>
                     </div>
 
-                    <p class="endpoint-description">Update image artifact menggunakan media_id dari Media Service</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Update image artifact menggunakan media_id dari Media Service</p></div>
 
                     
                     <div class="auth-badge">
@@ -3567,10 +3567,7 @@
                         <span class="endpoint-path">/api/v1/museum</span>
                     </div>
 
-                    <p class="endpoint-description">Ambil data museum.
-- Jika authenticated: return museum milik organization dari JWT org_id
-- Jika tidak authenticated (public): return museum yang dipilih admin (is_selected = true)
-</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Ambil data museum.</p><ul style="margin:0.5rem 0; padding-left:1.5rem;"><li style="margin-bottom:0.25rem;">Jika authenticated: return museum milik organization dari JWT org_id</li><li style="margin-bottom:0.25rem;">Jika tidak authenticated (public): return museum yang dipilih admin (is_selected = true)</li></ul></div>
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
@@ -3674,7 +3671,7 @@
                         <span class="endpoint-path">/api/v1/museum</span>
                     </div>
 
-                    <p class="endpoint-description">Update data museum milik organization</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Update data museum milik organization</p></div>
 
                     
                     <div class="auth-badge">
@@ -3836,7 +3833,7 @@
                         <span class="endpoint-path">/api/v1/museum</span>
                     </div>
 
-                    <p class="endpoint-description">Hapus museum milik organization</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Hapus museum milik organization</p></div>
 
                     
                     <div class="auth-badge">
@@ -3942,7 +3939,7 @@
                         <span class="endpoint-path">/api/v1/museum/image</span>
                     </div>
 
-                    <p class="endpoint-description">Update museum image menggunakan media_id dari Media Service</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Update museum image menggunakan media_id dari Media Service</p></div>
 
                     
                     <div class="auth-badge">
@@ -4072,9 +4069,7 @@
                         <span class="endpoint-path">/api/v1/museum/select</span>
                     </div>
 
-                    <p class="endpoint-description">Admin memilih museum mana saja yang tampil di GET /api/v1/museum (public).
-Bersifat replace — museum yang tidak ada di list akan otomatis di-unselect.
-</p>
+                    <div class="endpoint-description"><p style="margin-bottom:0.75rem;">Admin memilih museum mana saja yang tampil di GET /api/v1/museum (public). Bersifat replace — museum yang tidak ada di list akan otomatis di-unselect.</p></div>
 
                     
                     <div class="auth-badge">
@@ -4214,7 +4209,7 @@ Bersifat replace — museum yang tidak ada di list akan otomatis di-unselect.
             <div class="content-panel" id="panel-guide-0">
                 <div class="content-header">
                     <h1>📤 File Upload Flow</h1>
-                    <p>Museum Service tidak handle upload file langsung, menggunakan Media Service</p>
+                    <div><p style="margin-bottom:0.75rem;">Museum Service tidak handle upload file langsung, menggunakan Media Service</p></div>
                 </div>
 
                 
@@ -4294,9 +4289,7 @@ Bersifat replace — museum yang tidak ada di list akan otomatis di-unselect.
                 
                 <h3 class="section-title">Step 2: Simpan media_id ke Museum/Artifact</h3>
                 
-                <p style="color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;">Gunakan media_id (bukan URL) dari response Media Service.
-Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1/media/{media_id}
-</p>
+                <div style="color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;"><p style="margin-bottom:0.75rem;">Gunakan media_id (bukan URL) dari response Media Service. Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1/media/{media_id}</p></div>
                 
                 
                 
@@ -4326,7 +4319,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-0">
                 <div class="content-header">
                     <h1>🔑 Login Screen</h1>
-                    <p>Halaman login untuk user masuk ke sistem</p>
+                    <div><p style="margin-bottom:0.75rem;">Halaman login untuk user masuk ke sistem</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4373,7 +4366,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-1">
                 <div class="content-header">
                     <h1>🏛️ Museum Dashboard</h1>
-                    <p>Halaman utama museum setelah login, menampilkan info museum dan daftar artifact</p>
+                    <div><p style="margin-bottom:0.75rem;">Halaman utama museum setelah login, menampilkan info museum dan daftar artifact</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4444,7 +4437,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-2">
                 <div class="content-header">
                     <h1>✏️ Edit Museum</h1>
-                    <p>Form edit data museum (nama, lokasi, deskripsi, image)</p>
+                    <div><p style="margin-bottom:0.75rem;">Form edit data museum (nama, lokasi, deskripsi, image)</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4503,7 +4496,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-3">
                 <div class="content-header">
                     <h1>🏺 Artifact Detail</h1>
-                    <p>Halaman detail artifact dengan gambar dan informasi lengkap</p>
+                    <div><p style="margin-bottom:0.75rem;">Halaman detail artifact dengan gambar dan informasi lengkap</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4540,7 +4533,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-4">
                 <div class="content-header">
                     <h1>✏️ Create/Edit Artifact</h1>
-                    <p>Form buat atau edit artifact termasuk upload image</p>
+                    <div><p style="margin-bottom:0.75rem;">Form buat atau edit artifact termasuk upload image</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4599,7 +4592,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             <div class="content-panel" id="panel-screen-5">
                 <div class="content-header">
                     <h1>📰 Articles CMS</h1>
-                    <p>Kelola artikel dan berita museum (list, create, edit, delete)</p>
+                    <div><p style="margin-bottom:0.75rem;">Kelola artikel dan berita museum (list, create, edit, delete)</p></div>
                 </div>
 
                 <div class="screen-layout">
@@ -4751,7 +4744,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
                     <h4 style="color:var(--primary); margin-bottom:1rem;">Bearer JWT</h4>
                     <p><strong>Header:</strong> <code>Authorization: Bearer &lt;token&gt;</code></p>
                     <p><strong>Source:</strong> Account Service</p>
-                    <p>Untuk user login yang sudah autentikasi</p>
+                    <div><p style="margin-bottom:0.75rem;">Untuk user login yang sudah autentikasi</p></div>
                     
                     
                     <div class="alert alert-info">
@@ -4764,7 +4757,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
                     <h4 style="color:var(--primary); margin-bottom:1rem;">API Key</h4>
                     <p><strong>Header:</strong> <code>X-API-Key: &lt;api_key&gt;</code></p>
                     <p><strong>Source:</strong> Account Service (via token exchange)</p>
-                    <p>Untuk service-to-service, CLI, atau background jobs</p>
+                    <div><p style="margin-bottom:0.75rem;">Untuk service-to-service, CLI, atau background jobs</p></div>
                     <p class="text-muted"><em>Note: Backend akan otomatis exchange API Key menjadi JWT dan cache hasilnya</em></p>
                     
                 </div>

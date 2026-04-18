@@ -69,6 +69,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 		},
 		"add":                 func(a, b int) int { return a + b },
 		"md":                  mdToHTML,
+		"mdi":                 mdInline,
 		"sectionBaseURLs":     sectionBaseURLs,
 		"sectionDefaultURL":   sectionDefaultURL,
 		"sectionUsesGlobal":   sectionUsesGlobal,
@@ -435,44 +436,64 @@ func (h *Handler) watchSpecFile() {
 }
 
 // mdToHTML converts basic Markdown to template.HTML for safe rendering.
-// Supports: paragraphs, **bold**, *italic*, `code`, - lists, headers.
+// Supports: paragraphs (CommonMark: blank line = paragraph break, single
+// newline = soft wrap within same paragraph), **bold**, *italic*, `code`,
+// `- ` lists, and `# ` / `## ` / `### ` headers (all rendered as h3).
 func mdToHTML(s string) template.HTML {
 	s = strings.TrimSpace(s)
 
-	// Split into lines
 	lines := strings.Split(s, "\n")
 	var result strings.Builder
+	var para []string // accumulator for consecutive prose lines
 	inList := false
+
+	flushPara := func() {
+		if len(para) == 0 {
+			return
+		}
+		result.WriteString("<p style=\"margin-bottom:0.75rem;\">" + inlineFmt(strings.Join(para, " ")) + "</p>")
+		para = para[:0]
+	}
+	closeList := func() {
+		if inList {
+			result.WriteString("</ul>")
+			inList = false
+		}
+	}
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// Close list if current line is not a list item
-		if inList && !strings.HasPrefix(trimmed, "- ") {
-			result.WriteString("</ul>")
-			inList = false
-		}
-
+		// Blank line — paragraph break. Close any open paragraph or list.
 		if trimmed == "" {
+			flushPara()
+			closeList()
 			continue
 		}
 
-		// Headers
+		// Headers terminate the previous block.
 		if strings.HasPrefix(trimmed, "### ") {
+			flushPara()
+			closeList()
 			result.WriteString("<h3>" + inlineFmt(trimmed[4:]) + "</h3>")
 			continue
 		}
 		if strings.HasPrefix(trimmed, "## ") {
+			flushPara()
+			closeList()
 			result.WriteString("<h3>" + inlineFmt(trimmed[3:]) + "</h3>")
 			continue
 		}
 		if strings.HasPrefix(trimmed, "# ") {
+			flushPara()
+			closeList()
 			result.WriteString("<h3>" + inlineFmt(trimmed[2:]) + "</h3>")
 			continue
 		}
 
-		// List items
+		// List items — flush paragraph first, then open/continue the list.
 		if strings.HasPrefix(trimmed, "- ") {
+			flushPara()
 			if !inList {
 				result.WriteString("<ul style=\"margin:0.5rem 0; padding-left:1.5rem;\">")
 				inList = true
@@ -481,15 +502,25 @@ func mdToHTML(s string) template.HTML {
 			continue
 		}
 
-		// Regular paragraph
-		result.WriteString("<p style=\"margin-bottom:0.75rem;\">" + inlineFmt(trimmed) + "</p>")
+		// A prose line AFTER a list implicitly ends the list.
+		closeList()
+
+		// Accumulate into current paragraph — flushed on blank line or EOF.
+		para = append(para, trimmed)
 	}
 
-	if inList {
-		result.WriteString("</ul>")
-	}
+	flushPara()
+	closeList()
 
 	return template.HTML(result.String())
+}
+
+// mdInline renders inline-only markdown (bold, italic, code) for contexts
+// where a surrounding block element already exists — table cells, <p> tags,
+// <strong> wrappers. Unlike mdToHTML, it does NOT emit <p>, <h3>, or <ul>
+// tags, so it is safe to use inside any existing inline/block wrapper.
+func mdInline(s string) template.HTML {
+	return template.HTML(inlineFmt(strings.TrimSpace(s)))
 }
 
 // inlineFmt handles inline formatting: **bold**, *italic*, `code`
