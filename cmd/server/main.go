@@ -119,7 +119,7 @@ func runServe() {
 		c.Data(200, "text/markdown; charset=utf-8", []byte(agentsPrompt))
 	})
 
-	router.GET("/health", func(c *gin.Context) {
+	router.GET(*prefix+"/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":    "ok",
 			"service":   "docs-generator",
@@ -251,6 +251,7 @@ func printBanner(specPath string, devMode bool, prefix, port string) {
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/specs\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/yaml\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/openapi\n", port, prefix)
-	fmt.Fprintf(os.Stderr, "  http://localhost:%s/health\n", port)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/agents\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/health\n", port, prefix)
 	fmt.Fprintln(os.Stderr, "")
 }
