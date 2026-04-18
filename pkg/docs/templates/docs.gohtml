@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{if .Theme.Title}}{{.Theme.Title}}{{else}}{{.Info.Title}}{{end}}</title>
     {{if .Theme.Favicon}}<link rel="icon" href="{{.Theme.Favicon}}">{{end}}
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/reactflow@11/dist/umd/index.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/reactflow@11/dist/style.css" />
+    <script src="{{assetURL "react.production.min.js"}}"></script>
+    <script src="{{assetURL "react-dom.production.min.js"}}"></script>
+    <script src="{{assetURL "reactflow.umd.js"}}"></script>
+    <link rel="stylesheet" href="{{assetURL "reactflow.style.css"}}" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 {{template "styles" .}}
 {{if .Theme.PrimaryColor}}<style>:root { --primary: {{.Theme.PrimaryColor}}; --primary-dark: {{.Theme.PrimaryColor}}; }</style>{{end}}

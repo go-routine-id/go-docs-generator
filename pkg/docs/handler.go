@@ -37,6 +37,7 @@ type Handler struct {
 	devMode  bool
 	specs    map[string]*APISpec // key = project name, "" = default
 	template *template.Template
+	prefix   string // URL prefix under which routes are registered (e.g. "/docs")
 }
 
 // NewHandler creates a new documentation handler
@@ -73,6 +74,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 		"sectionBaseURLs":     sectionBaseURLs,
 		"sectionDefaultURL":   sectionDefaultURL,
 		"sectionUsesGlobal":   sectionUsesGlobal,
+		"assetURL":            func(file string) string { return h.prefix + "/assets/vendor/" + file },
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
@@ -252,6 +254,34 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
 	router.POST(prefix+"/validate", h.ServeValidate)
 	router.GET(prefix+"/echo", h.ServeEcho)
 	router.POST(prefix+"/echo", h.ServeEcho)
+
+	// Self-hosted vendor assets (React, ReactFlow, dagre, ReactFlow CSS).
+	// Served from embed.FS so we have zero CDN dependency at runtime.
+	router.GET(prefix+"/assets/vendor/:file", h.ServeVendorAsset)
+	// Expose the prefix so the template can build asset URLs at render time.
+	h.prefix = prefix
+}
+
+// ServeVendorAsset serves a single file out of the embedded vendor bundle.
+// Guards against path traversal by only honouring the :file path param.
+func (h *Handler) ServeVendorAsset(c *gin.Context) {
+	name := c.Param("file")
+	data, err := vendorFS.ReadFile("assets/vendor/" + name)
+	if err != nil {
+		c.String(http.StatusNotFound, "asset not found")
+		return
+	}
+	ct := "application/octet-stream"
+	switch {
+	case strings.HasSuffix(name, ".js"):
+		ct = "application/javascript; charset=utf-8"
+	case strings.HasSuffix(name, ".css"):
+		ct = "text/css; charset=utf-8"
+	}
+	// Assets are content-addressable-ish (filename fixed per build) so a
+	// long cache is safe. Bust by shipping a new binary.
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	c.Data(http.StatusOK, ct, data)
 }
 
 // ValidateResponse is the JSON body returned by POST /{prefix}/validate.
