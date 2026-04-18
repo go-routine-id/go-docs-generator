@@ -11,6 +11,8 @@ The same schema is also published as JSON Schema Draft 2020-12 in [`schemas/spec
 # yaml-language-server: $schema=./schemas/spec.schema.json
 ```
 
+> 💡 For a narrative guide — when to use each mode, worked monolith-vs-microservice examples, conventions, and FAQ — see **[`docs/writing-specs.md`](docs/writing-specs.md)**.
+
 ## Merge rules (multi-file specs)
 
 When a spec directory contains multiple YAML files, they are merged into a single document:

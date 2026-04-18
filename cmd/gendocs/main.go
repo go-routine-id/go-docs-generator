@@ -60,6 +60,8 @@ func renderMarkdown(root *jsonschema.Schema) string {
 	b.WriteString("The same schema is also published as JSON Schema Draft 2020-12 in [`schemas/spec.schema.json`](schemas/spec.schema.json) ")
 	b.WriteString("and can be referenced from YAML files with:\n\n")
 	b.WriteString("```yaml\n# yaml-language-server: $schema=./schemas/spec.schema.json\n```\n\n")
+	b.WriteString("> 💡 For a narrative guide — when to use each mode, worked monolith-vs-microservice examples, ")
+	b.WriteString("conventions, and FAQ — see **[`docs/writing-specs.md`](docs/writing-specs.md)**.\n\n")
 
 	b.WriteString("## Merge rules (multi-file specs)\n\n")
 	b.WriteString("When a spec directory contains multiple YAML files, they are merged into a single document:\n\n")

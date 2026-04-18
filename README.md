@@ -74,7 +74,13 @@ docs-gen init [dir]            scaffold a minimal spec/ directory
 
 ## Spec format
 
-The spec schema is documented in [SPEC.md](SPEC.md) and published as JSON Schema Draft 2020-12 in [schemas/spec.schema.json](schemas/spec.schema.json). Reference it from your YAML for IDE autocomplete:
+Three ways to learn the spec, ordered by depth:
+
+1. **[docs/writing-specs.md](docs/writing-specs.md)** — narrative guide with worked examples (monolith vs microservice, merge rules, conventions, FAQ). Start here.
+2. **[SPEC.md](SPEC.md)** — auto-generated field reference (every field, every type).
+3. **[schemas/spec.schema.json](schemas/spec.schema.json)** — machine-readable JSON Schema for IDE autocomplete.
+
+Reference the schema from your YAML for autocomplete + lint:
 
 ```yaml
 # yaml-language-server: $schema=./schemas/spec.schema.json
