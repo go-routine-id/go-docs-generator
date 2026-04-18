@@ -378,6 +378,7 @@ If the binary is unavailable, you can still validate structurally against the JS
 - ❌ Using overlay empty-string values expecting them to erase base values — zero values are ignored by the merger.
 - ❌ Skipping `description` fields — a docs page with only names is not useful.
 - ❌ Manually positioning 50+ flow diagram nodes — leave `position` unset and let dagre auto-layout.
+- ❌ Leaving a literal `:` followed by a space inside an **unquoted** scalar value. `title: Flow: Render Model` fails YAML parsing ("mapping values are not allowed in this context"). Wrap the whole value in double quotes: `title: "Flow: Render Model"`. Same applies to `description`, `summary`, any string field.
 
 ---
 
