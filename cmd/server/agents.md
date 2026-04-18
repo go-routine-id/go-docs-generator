@@ -272,6 +272,126 @@ theme:                            # branding — all fields optional
 
 ---
 
+## Building a Service Flow Diagram
+
+`flow_diagram_nodes` + `flow_diagram_edges` render a ReactFlow architecture diagram on the overview page. This is the "how the system fits together" picture, not a sequence diagram and not an ER model.
+
+### What to include
+
+Nodes for:
+- **Services** the documented API talks to (auth, media/storage, payment, email, search, …).
+- **External systems** the client will observe (CDN, object storage, webhook receiver).
+- **Key data** entities when the relationship matters — e.g. `museum_id`, `token` — as small badge-like nodes that edges flow through.
+- **The client itself** (mobile, web) when the diagram is for a client-facing doc and the call direction matters.
+
+Do NOT include:
+- Internal tables, row-level entities, or database nodes unless the reader must know them.
+- Every microservice in the company. Keep it to what this doc's readers will actually call or observe.
+- Styling-only duplicates of a single service (one node per service, let edges do the work).
+
+### Choosing node `type`
+
+`type` is a free-form string that renders as a colored pill. The value is opaque to the template; it exists for your own convention and potential future theming. Recommended vocabulary:
+
+| `type` | Typical role |
+|--------|--------------|
+| `service` | A running backend (Account, Media, Payment, Search) |
+| `client` | Caller: mobile app, web SPA, CLI |
+| `data` | An identifier or payload passed between nodes (`org_id`, `media_id`, `token`) |
+| `external` | Third-party service (Stripe, Google OAuth, S3, SES) |
+| `queue` | Message broker topic/queue when drawn as a box (use `events:` for the detail) |
+
+Stay consistent within one diagram.
+
+### Color palette (suggested, not enforced)
+
+Use color to group *kinds* of nodes, not individual services. Suggested defaults:
+
+- Services: `#4f46e5` (indigo), `#06b6d4` (cyan), `#10b981` (emerald) — rotate per service family
+- Client: `#0ea5e9` (sky)
+- Data: `#f59e0b` (amber) — makes IDs visually distinct from service boxes
+- External: `#64748b` (slate) — neutral
+- Queue: `#8b5cf6` (violet)
+
+Match edge color to its *source* node's color so arrows look like they originate from the right place.
+
+### Edge semantics
+
+| Attribute | Meaning | When to set |
+|-----------|---------|-------------|
+| `label` | Short verb describing the call or relationship | Always — "calls", "publishes", "has many", "verify", "returns" |
+| `animated: true` | Active/live flow (request traveling) | Runtime calls that are user-facing |
+| `animated: false` (default) | Static relationship | Ownership, references, constants |
+| `style: dashed` | Secondary / async / async-back | Webhooks, callbacks, eventual consistency |
+| `style:` empty | Solid | Normal synchronous call |
+| `color` | Match the semantic, usually source node's color | Always set — uncolored edges look unfinished |
+
+### Layout strategy
+
+1. **Default to auto-layout**: leave `position: { x: 0, y: 0 }` (or omit entirely) for every node. The client renders dagre when *all* positions are zero. This is almost always the right choice.
+2. **Hand-position only when auto-layout gives a confusing result**: in that case set ALL node positions (partial manual positioning is ignored — if any node has a non-zero coord, every node renders where its YAML says).
+3. **Think in bands**: put related layers at similar `y` values. Top band = clients, middle band = services, bottom band = data stores and external systems.
+
+### Minimal 3-service example (auto-laid-out)
+
+```yaml
+flow_diagram_nodes:
+  - id: mobile
+    label: "📱 Mobile App"
+    type: client
+    color: "#0ea5e9"
+  - id: gateway
+    label: "🚪 API Gateway"
+    type: service
+    color: "#4f46e5"
+  - id: account
+    label: "👤 Account Service"
+    type: service
+    color: "#4f46e5"
+  - id: media
+    label: "🎞️ Media Service"
+    type: service
+    color: "#10b981"
+  - id: jwt
+    label: "🔑 JWT"
+    type: data
+    color: "#f59e0b"
+
+flow_diagram_edges:
+  - { source: mobile,  target: gateway, label: "API calls",  animated: true,  color: "#0ea5e9" }
+  - { source: gateway, target: account, label: "verify",     animated: true,  color: "#4f46e5" }
+  - { source: account, target: jwt,     label: "issues",     animated: false, color: "#f59e0b" }
+  - { source: mobile,  target: media,   label: "fetch file", animated: true,  color: "#10b981" }
+  - { source: media,   target: mobile,  label: "webhook",    animated: true,  style: dashed, color: "#10b981" }
+```
+
+### Publish-subscribe pattern (with Events)
+
+When the service emits events, draw the broker as a node and let `events:` carry the payload detail:
+
+```yaml
+flow_diagram_nodes:
+  - { id: account,  label: "👤 Account",  type: service,  color: "#4f46e5" }
+  - { id: kafka,    label: "🧵 Kafka",    type: queue,    color: "#8b5cf6" }
+  - { id: mailer,   label: "✉️ Mailer",   type: service,  color: "#10b981" }
+  - { id: analytics, label: "📊 Analytics", type: service, color: "#10b981" }
+
+flow_diagram_edges:
+  - { source: account, target: kafka,     label: "publish user.signup", animated: true,  color: "#4f46e5" }
+  - { source: kafka,   target: mailer,    label: "consume",             animated: false, color: "#8b5cf6" }
+  - { source: kafka,   target: analytics, label: "consume",             animated: false, color: "#8b5cf6" }
+```
+
+Pair this with `events:` describing the `user.signup` channel — the diagram shows topology, the events section shows payload.
+
+### Common mistakes
+
+- ❌ 30+ nodes on a single diagram. If the diagram doesn't fit on one screen, split the doc into multiple `projects/` instead.
+- ❌ Unlabeled edges. Every arrow should answer "why does this arrow exist?" in 1-3 words.
+- ❌ Mixing hand-positioned and auto-layout. Either all nodes have coords or none do.
+- ❌ Using `type:` as a free-form description. It's a short taxonomy tag; the `label` field is where detail goes.
+- ❌ Duplicating a service as multiple nodes because it serves multiple concerns. Use one node and let multiple edges point in.
+
 ## Three "flow" concepts — don't mix them up
 
 The spec has three fields that all contain the word "flow". They answer different questions. Pick the right one:
