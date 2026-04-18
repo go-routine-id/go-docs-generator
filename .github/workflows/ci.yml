@@ -16,8 +16,9 @@ jobs:
       - name: Verify generated artifacts are up-to-date
         run: |
           go run ./cmd/gendocs
-          git diff --exit-code -- SPEC.md schemas/spec.schema.json \
-            || (echo "SPEC.md or spec.schema.json is stale — run 'make generate'" && exit 1)
+          cp AGENTS.md cmd/server/agents.md
+          git diff --exit-code -- SPEC.md schemas/spec.schema.json cmd/server/agents.md \
+            || (echo "Generated artifacts are stale — run 'make generate'" && exit 1)
       - name: Build
         run: go build ./...
       - name: Test

@@ -4,9 +4,10 @@
 build:
 	go build -o docs-generator cmd/server/main.go
 
-# Regenerate JSON Schema + SPEC.md from Go structs
+# Regenerate JSON Schema + SPEC.md from Go structs and sync AGENTS.md into cmd/server
 generate:
 	go run ./cmd/gendocs
+	cp AGENTS.md cmd/server/agents.md
 
 # Run the server
 run: build

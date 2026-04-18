@@ -187,6 +187,23 @@ make test             # run all tests
 make generate         # regenerate SPEC.md and schemas/spec.schema.json
 ```
 
+## For AI coding agents
+
+If you are an AI assistant (Claude Code, Cursor, Copilot, Cline, …) working in **someone else's project** and want to generate a docs-generator spec for that project, read [`AGENTS.md`](AGENTS.md). It is self-contained, covers monolith and microservice patterns, common pitfalls, and a self-check list.
+
+Ways to access it:
+
+```bash
+# Option 1 — if docs-gen is installed, pipe the embedded copy:
+docs-gen prompt
+
+# Option 2 — if docs-generator is running somewhere reachable, fetch over HTTP:
+curl https://your-docs-host/docs/agents
+
+# Option 3 — fetch directly from GitHub (stable raw URL):
+curl https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/AGENTS.md
+```
+
 ## License
 
 MIT
