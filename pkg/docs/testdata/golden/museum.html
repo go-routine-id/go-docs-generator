@@ -5163,7 +5163,7 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
         
         const CREDENTIALS_KEY_PREFIX = 'api_credentials_v4_';
         const baseUrlsConfig = JSON.parse("[{\"label\":\"Production\",\"url\":\"https://museumdigi.id\",\"default\":true},{\"label\":\"Staging\",\"url\":\"https://staging.museumdigi.id\"},{\"label\":\"Local\",\"url\":\"http://localhost:8080\"}]");
-        const authModesConfig = JSON.parse("[{\"name\":\"JWT Bearer\",\"header\":\"Authorization\",\"prefix\":\"Bearer \",\"placeholder\":\"YOUR_JWT_TOKEN_HERE\"},{\"name\":\"API Key\",\"header\":\"X-API-Key\",\"prefix\":\"\",\"placeholder\":\"YOUR_API_KEY_HERE\"}]");
+        const authModesConfig = JSON.parse("[{\"name\":\"JWT Bearer\",\"header\":\"Authorization\",\"prefix\":\"Bearer \",\"placeholder\":\"YOUR_JWT_TOKEN_HERE\"},{\"name\":\"API Key\",\"header\":\"X-API-Key\",\"placeholder\":\"YOUR_API_KEY_HERE\"}]");
 
         function getActiveBaseURL() {
             const envSelect = document.getElementById('cred-env-select');

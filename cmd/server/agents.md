@@ -351,18 +351,27 @@ The server auto-detects (by `openapi:` key) and projects it onto the internal mo
 
 ## Validation
 
-If `docs-gen` binary is available:
+Two levels, run both:
 
 ```bash
+# Level 1 — parse, multi-file merge, and JSON Schema conformance
 docs-gen validate ./spec/index.yaml
-# prints "ok: ./spec/index.yaml" on success, "invalid: ..." on failure
+# → "ok: ..." (exit 0) or "invalid: ..." (exit 1)
+
+# Level 2 — semantic checks (dup ids, dangling anchors, orphan permission
+# references, inconsistent auth labels, empty descriptions)
+docs-gen lint ./spec/index.yaml
+# → "clean: ..." or lists "✖ error" / "⚠ warning" lines
+# → exit 0 on warnings, exit 1 on errors; use `-strict` to fail on warnings
 ```
 
 In CI (GitHub Actions example):
 
 ```yaml
-- name: Validate spec
-  run: go run github.com/Go-Routine-App/go-docs-generator/cmd/server@latest validate ./spec/index.yaml
+- name: Validate + lint spec
+  run: |
+    go run github.com/Go-Routine-App/go-docs-generator/cmd/server@latest validate ./spec/index.yaml
+    go run github.com/Go-Routine-App/go-docs-generator/cmd/server@latest lint -strict ./spec/index.yaml
 ```
 
 If the binary is unavailable, you can still validate structurally against the JSON Schema using any Draft 2020-12 validator (e.g. `ajv`, `jsonschema` Python, etc.) by checking `./spec/index.yaml` (after YAML → JSON conversion) against `schemas/spec.schema.json`.
@@ -402,7 +411,8 @@ Before telling the user "spec is ready", confirm:
 
 - [ ] Every endpoint in the spec corresponds to an actual route handler in the code.
 - [ ] At least one `base_url` is set (either in `info.base_urls` or in every section).
-- [ ] `docs-gen validate` exits 0, OR the file parses as YAML and matches the JSON Schema.
+- [ ] `docs-gen validate` exits 0 (schema-valid).
+- [ ] `docs-gen lint` reports no errors (warnings OK to leave for later).
 - [ ] If the project has distinct services with different hosts, each is a separate section with its own `base_url`.
 - [ ] The spec, when served via `docs-gen -spec ...`, opens at `/docs` without a template error.
 - [ ] The schema comment on line 1 (`# yaml-language-server: $schema=...`) is present for IDE support.

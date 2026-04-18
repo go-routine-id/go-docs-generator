@@ -31,14 +31,19 @@ func main() {
 
 	schema := reflector.Reflect(&docs.APISpec{})
 
-	// Write JSON schema
+	// Write JSON schema to two places:
+	//   - schemas/spec.schema.json (root, user-visible, referenced from YAML)
+	//   - pkg/docs/spec.schema.json (co-located, embedded into the binary for validation)
 	schemaBytes, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		fatalf("marshal schema: %v", err)
 	}
 	schemaBytes = append(schemaBytes, '\n')
 	if err := os.WriteFile("schemas/spec.schema.json", schemaBytes, 0o644); err != nil {
-		fatalf("write schema: %v", err)
+		fatalf("write root schema: %v", err)
+	}
+	if err := os.WriteFile("pkg/docs/spec.schema.json", schemaBytes, 0o644); err != nil {
+		fatalf("write embedded schema: %v", err)
 	}
 
 	// Render SPEC.md from schema

@@ -27,3 +27,7 @@ jobs:
         run: go run ./cmd/server validate ./spec/index.yaml
       - name: Validate Museum example
         run: go run ./cmd/server validate ./examples/museum/index.yaml
+      - name: Lint starter spec
+        run: go run ./cmd/server lint ./spec/index.yaml
+      - name: Lint Museum example (warnings allowed)
+        run: go run ./cmd/server lint ./examples/museum/index.yaml

@@ -45,18 +45,18 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `methods` | array<`string`> | **yes** | — |
-| `auth_modes` | array<[`AuthMode`](#authmode)> | **yes** | — |
+| `methods` | array<`string`> | no | — |
+| `auth_modes` | array<[`AuthMode`](#authmode)> | no | — |
 
 ### `AuthMethod`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | `string` | **yes** | — |
-| `header` | `string` | **yes** | — |
-| `format` | `string` | **yes** | — |
-| `source` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
+| `type` | `string` | no | — |
+| `header` | `string` | no | — |
+| `format` | `string` | no | — |
+| `source` | `string` | no | — |
+| `description` | `string` | no | — |
 | `note` | `string` | no | — |
 | `token_contains` | array<`string`> | no | — |
 
@@ -64,36 +64,36 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | **yes** | — |
-| `header` | `string` | **yes** | — |
-| `prefix` | `string` | **yes** | — |
-| `placeholder` | `string` | **yes** | — |
+| `name` | `string` | no | — |
+| `header` | `string` | no | — |
+| `prefix` | `string` | no | — |
+| `placeholder` | `string` | no | — |
 
 ### `AuthenticationInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | `string` | **yes** | — |
-| `header` | `string` | **yes** | — |
-| `source` | `string` | **yes** | — |
-| `token_contains` | array<`string`> | **yes** | — |
-| `methods` | array<[`AuthMethod`](#authmethod)> | **yes** | — |
+| `type` | `string` | no | — |
+| `header` | `string` | no | — |
+| `source` | `string` | no | — |
+| `token_contains` | array<`string`> | no | — |
+| `methods` | array<[`AuthMethod`](#authmethod)> | no | — |
 
 ### `BaseURL`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `label` | `string` | **yes** | — |
-| `url` | `string` | **yes** | — |
+| `label` | `string` | no | — |
+| `url` | `string` | no | — |
 | `default` | `boolean` | no | — |
 
 ### `BodyField`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | **yes** | — |
-| `type` | `string` | **yes** | — |
-| `required` | `boolean` | **yes** | — |
+| `name` | `string` | no | — |
+| `type` | `string` | no | — |
+| `required` | `boolean` | no | — |
 | `description` | `string` | no | — |
 | `example` | `string` | no | — |
 
@@ -101,12 +101,12 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | **yes** | — |
-| `method` | `string` | **yes** | — |
-| `path` | `string` | **yes** | — |
-| `auth` | `string` | **yes** | — |
+| `name` | `string` | no | — |
+| `method` | `string` | no | — |
+| `path` | `string` | no | — |
+| `auth` | `string` | no | — |
 | `permission` | `string` | no | — |
-| `description` | `string` | **yes** | — |
+| `description` | `string` | no | — |
 | `query_params` | array<[`QueryParam`](#queryparam)> | no | — |
 | `body` | array<[`BodyField`](#bodyfield)> | no | — |
 | `example_body` | `string` | no | — |
@@ -137,70 +137,70 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
-| `endpoint` | `string` | **yes** | — |
+| `type` | `string` | no | — |
+| `description` | `string` | no | — |
+| `endpoint` | `string` | no | — |
 
 ### `FlowEdgeInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `source` | `string` | **yes** | — |
-| `target` | `string` | **yes** | — |
+| `source` | `string` | no | — |
+| `target` | `string` | no | — |
 | `label` | `string` | no | — |
 | `animated` | `boolean` | no | — |
-| `color` | `string` | **yes** | — |
+| `color` | `string` | no | — |
 | `style` | `string` | no | — |
 
 ### `FlowEndpoint`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `method` | `string` | **yes** | — |
-| `path` | `string` | **yes** | — |
-| `service` | `string` | **yes** | — |
+| `method` | `string` | no | — |
+| `path` | `string` | no | — |
+| `service` | `string` | no | — |
 | `content_type` | `string` | no | — |
-| `auth` | `string` | **yes** | — |
-| `permission` | `string` | **yes** | — |
+| `auth` | `string` | no | — |
+| `permission` | `string` | no | — |
 | `fields` | array<[`BodyField`](#bodyfield)> | no | — |
 
 ### `FlowMethodSteps`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `type` | `string` | **yes** | — |
-| `steps` | array<[`FlowOverviewStep`](#flowoverviewstep)> | **yes** | — |
+| `type` | `string` | no | — |
+| `steps` | array<[`FlowOverviewStep`](#flowoverviewstep)> | no | — |
 
 ### `FlowNodeInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | **yes** | — |
-| `label` | `string` | **yes** | — |
-| `type` | `string` | **yes** | — |
-| `color` | `string` | **yes** | — |
-| `position` | [`Position`](#position) | **yes** | — |
+| `id` | `string` | no | — |
+| `label` | `string` | no | — |
+| `type` | `string` | no | — |
+| `color` | `string` | no | — |
+| `position` | [`Position`](#position) | no | — |
 
 ### `FlowOverviewInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `methods` | array<[`FlowMethodSteps`](#flowmethodsteps)> | **yes** | — |
+| `methods` | array<[`FlowMethodSteps`](#flowmethodsteps)> | no | — |
 | `note` | `string` | no | — |
 
 ### `FlowOverviewStep`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `title` | `string` | **yes** | — |
+| `title` | `string` | no | — |
 | `detail` | `string` | no | — |
 
 ### `FlowStep`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `step` | `integer` | **yes** | — |
-| `title` | `string` | **yes** | — |
+| `step` | `integer` | no | — |
+| `title` | `string` | no | — |
 | `description` | `string` | no | — |
 | `endpoint` | [`FlowEndpoint`](#flowendpoint) | no | — |
 | `actions` | array<[`FlowAction`](#flowaction)> | no | — |
@@ -213,75 +213,75 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | **yes** | — |
+| `id` | `string` | no | — |
 | `icon` | `string` | no | — |
-| `title` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
-| `flow` | array<[`FlowStep`](#flowstep)> | **yes** | — |
+| `title` | `string` | no | — |
+| `description` | `string` | no | — |
+| `flow` | array<[`FlowStep`](#flowstep)> | no | — |
 
 ### `InfoInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `title` | `string` | **yes** | — |
-| `version` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
-| `base_url` | `string` | **yes** | — |
-| `base_urls` | array<[`BaseURL`](#baseurl)> | **yes** | — |
-| `overview_cards` | array<[`OverviewCard`](#overviewcard)> | **yes** | — |
+| `title` | `string` | no | — |
+| `version` | `string` | no | — |
+| `description` | `string` | no | — |
+| `base_url` | `string` | no | — |
+| `base_urls` | array<[`BaseURL`](#baseurl)> | no | — |
+| `overview_cards` | array<[`OverviewCard`](#overviewcard)> | no | — |
 
 ### `OverviewCard`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `icon` | `string` | **yes** | — |
-| `title` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
+| `icon` | `string` | no | — |
+| `title` | `string` | no | — |
+| `description` | `string` | no | — |
 | `content` | `string` | no | — |
 
 ### `PermissionInfo`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
+| `name` | `string` | no | — |
+| `description` | `string` | no | — |
 
 ### `Position`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `x` | `number` | **yes** | — |
-| `y` | `number` | **yes** | — |
+| `x` | `number` | no | — |
+| `y` | `number` | no | — |
 
 ### `QueryParam`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | `string` | **yes** | — |
-| `type` | `string` | **yes** | — |
-| `required` | `boolean` | **yes** | — |
+| `name` | `string` | no | — |
+| `type` | `string` | no | — |
+| `required` | `boolean` | no | — |
 | `default` | `string` | no | — |
-| `description` | `string` | **yes** | — |
+| `description` | `string` | no | — |
 
 ### `Screen`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | **yes** | — |
+| `id` | `string` | no | — |
 | `icon` | `string` | no | — |
-| `title` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
+| `title` | `string` | no | — |
+| `description` | `string` | no | — |
 | `image` | `string` | no | — |
 | `platform` | array<`string`> | no | — |
-| `calls` | array<[`ScreenCall`](#screencall)> | **yes** | — |
+| `calls` | array<[`ScreenCall`](#screencall)> | no | — |
 
 ### `ScreenCall`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `method` | `string` | **yes** | — |
-| `path` | `string` | **yes** | — |
-| `purpose` | `string` | **yes** | — |
+| `method` | `string` | no | — |
+| `path` | `string` | no | — |
+| `purpose` | `string` | no | — |
 | `trigger` | `string` | no | — |
 | `auth` | `string` | no | — |
 | `notes` | `string` | no | — |
@@ -290,9 +290,9 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | **yes** | — |
-| `title` | `string` | **yes** | — |
-| `description` | `string` | **yes** | — |
+| `id` | `string` | no | — |
+| `title` | `string` | no | — |
+| `description` | `string` | no | — |
 | `base_url` | `string` | no | — |
 | `base_urls` | array<[`BaseURL`](#baseurl)> | no | — |
 | `endpoints` | array<[`Endpoint`](#endpoint)> | no | — |

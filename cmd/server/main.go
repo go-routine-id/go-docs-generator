@@ -38,6 +38,8 @@ func main() {
 		switch os.Args[1] {
 		case "validate":
 			os.Exit(runValidate(os.Args[2:]))
+		case "lint":
+			os.Exit(runLint(os.Args[2:]))
 		case "init":
 			os.Exit(runInit(os.Args[2:]))
 		case "prompt":
@@ -56,7 +58,8 @@ func printUsage(w *os.File) {
 	fmt.Fprintln(w, "usage:")
 	fmt.Fprintln(w, "  docs-gen                       start the HTTP server (default)")
 	fmt.Fprintln(w, "  docs-gen serve [flags...]      explicit server mode")
-	fmt.Fprintln(w, "  docs-gen validate <path>       verify a spec, exit 1 on failure")
+	fmt.Fprintln(w, "  docs-gen validate <path>       parse + JSON-Schema check, exit 1 on failure")
+	fmt.Fprintln(w, "  docs-gen lint <path>           semantic checks (dup ids, dangling refs, …)")
 	fmt.Fprintln(w, "  docs-gen init [dir]            scaffold spec/ with a minimal example")
 	fmt.Fprintln(w, "  docs-gen prompt                print AGENTS.md to stdout (AI agent instructions)")
 	fmt.Fprintln(w, "")
@@ -136,6 +139,10 @@ func runServe() {
 }
 
 // runValidate loads a spec and reports problems without starting the server.
+// Two layers:
+//   1. Parse + merge (same load path as production) — catches YAML / type errors.
+//   2. JSON Schema validation — catches unknown fields, wrong enum values, etc.
+//
 // Returns the process exit code.
 func runValidate(args []string) int {
 	if len(args) == 0 {
@@ -144,13 +151,58 @@ func runValidate(args []string) int {
 	}
 	path := args[0]
 
-	// Calling NewHandler with devMode=false exercises the same load path as
-	// production, including multi-file merge and OpenAPI auto-detection.
 	if _, err := docs.NewHandler(path, false); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid: %v\n", err)
 		return 1
 	}
+
+	if errs := docs.ValidateFile(path); len(errs) > 0 {
+		fmt.Fprintf(os.Stderr, "invalid (%d schema violation(s)):\n", len(errs))
+		for _, e := range errs {
+			fmt.Fprintf(os.Stderr, "  %s\n", e.Error())
+		}
+		return 1
+	}
+
 	fmt.Fprintf(os.Stderr, "ok: %s\n", path)
+	return 0
+}
+
+// runLint runs semantic checks (duplicate ids, dangling anchors, permission
+// reference orphans, auth-label drift, empty descriptions). Errors exit 1;
+// warnings exit 0 — use -strict to treat warnings as errors.
+func runLint(args []string) int {
+	fs := flag.NewFlagSet("lint", flag.ExitOnError)
+	strict := fs.Bool("strict", false, "Treat warnings as errors (CI-friendly)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	rest := fs.Args()
+	if len(rest) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: docs-gen lint [-strict] <path-to-spec>")
+		return 2
+	}
+	path := rest[0]
+
+	diags := docs.LintFile(path)
+	if len(diags) == 0 {
+		fmt.Fprintf(os.Stderr, "clean: %s\n", path)
+		return 0
+	}
+
+	errors, warnings := 0, 0
+	for _, d := range diags {
+		fmt.Fprintln(os.Stderr, d.String())
+		if d.Severity == docs.SeverityError {
+			errors++
+		} else {
+			warnings++
+		}
+	}
+	fmt.Fprintf(os.Stderr, "— %d error(s), %d warning(s)\n", errors, warnings)
+	if errors > 0 || (*strict && warnings > 0) {
+		return 1
+	}
 	return 0
 }
 
