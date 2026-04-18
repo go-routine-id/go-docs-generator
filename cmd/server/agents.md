@@ -109,7 +109,7 @@ sections:
         description: <what it does>
 ```
 
-All other top-level fields (`authentication`, `guides`, `screens`, `events`, `theme`, `permissions`, `constraints`, `flow_diagram_*`, `api_tester_defaults`) are optional — only include them if they add real information.
+All other top-level fields (`authentication`, `flow_overview`, `guides`, `screens`, `events`, `theme`, `permissions`, `constraints`, `flow_diagram_*`, `api_tester_defaults`) are optional — only include them if they add real information.
 
 ---
 
@@ -159,7 +159,21 @@ sections:
         example_response: |
           { "ok": true }
 
-guides:                           # multi-endpoint flows
+flow_overview:                    # auth/onboarding walkthrough, grouped per auth method
+  methods:
+    - type: Bearer JWT              # matches an authentication.methods[].type
+      steps:
+        - title: "Login to auth service"
+          detail: "POST /auth/login with email+password, receive JWT."
+        - title: "Attach token on every request"
+          detail: "Send Authorization: Bearer <token>"
+    - type: API Key
+      steps:
+        - { title: "Get key from admin panel", detail: "..." }
+        - { title: "Send X-API-Key header", detail: "..." }
+  note: "All authenticated endpoints accept either method."
+
+guides:                           # multi-endpoint business flows
   - id: file_upload
     icon: "📤"
     title: File Upload
@@ -257,6 +271,21 @@ theme:                            # branding — all fields optional
 ```
 
 ---
+
+## Three "flow" concepts — don't mix them up
+
+The spec has three fields that all contain the word "flow". They answer different questions. Pick the right one:
+
+| Field | Question it answers | Render location | Scope |
+|-------|---------------------|-----------------|-------|
+| `flow_overview` | "How do I authenticate / get started?" | Overview page, under Authentication | Per auth method: ordered steps |
+| `guides[].flow[]` | "How do I accomplish task X that spans multiple endpoints?" | Dedicated sidebar entry per guide | Per business scenario (e.g. file upload, checkout) |
+| `flow_diagram_nodes` + `flow_diagram_edges` | "What does the system look like?" | Overview page, architecture diagram (ReactFlow) | Services, data, edges between them |
+
+Rule of thumb:
+- Auth-related steps without endpoints → `flow_overview`.
+- Endpoint-by-endpoint walkthrough with cURL and payload → `guides`.
+- Boxes-and-arrows of services → `flow_diagram_*`.
 
 ## Common patterns
 
