@@ -1,5 +1,11 @@
 // Docs Generator - Standalone API Documentation Service
 // Generates dynamic HTML documentation from YAML specification files.
+//
+// Subcommands:
+//   docs-gen                       start the HTTP server (default)
+//   docs-gen serve [flags...]      explicit server mode
+//   docs-gen validate <path>       load and verify a spec, exit 1 on failure
+//   docs-gen init [dir]            scaffold a minimal spec/ directory
 package main
 
 import (
@@ -15,8 +21,37 @@ import (
 )
 
 func main() {
+	// Route into subcommands when the first non-flag arg matches a known name.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "validate":
+			os.Exit(runValidate(os.Args[2:]))
+		case "init":
+			os.Exit(runInit(os.Args[2:]))
+		case "serve":
+			os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
+		case "-h", "--help", "help":
+			printUsage(os.Stderr)
+			return
+		}
+	}
+	runServe()
+}
+
+func printUsage(w *os.File) {
+	fmt.Fprintln(w, "usage:")
+	fmt.Fprintln(w, "  docs-gen                       start the HTTP server (default)")
+	fmt.Fprintln(w, "  docs-gen serve [flags...]      explicit server mode")
+	fmt.Fprintln(w, "  docs-gen validate <path>       verify a spec, exit 1 on failure")
+	fmt.Fprintln(w, "  docs-gen init [dir]            scaffold spec/ with a minimal example")
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "flags (for serve):")
+	fmt.Fprintln(w, "  -spec, -port, -prefix, -dev, -log-format")
+}
+
+func runServe() {
 	var (
-		specPath  = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory")
+		specPath  = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory (YAML native or OpenAPI 3.x)")
 		port      = flag.String("port", "8080", "Server port")
 		prefix    = flag.String("prefix", "/docs", "URL prefix for documentation routes")
 		devMode   = flag.Bool("dev", false, "Development mode (hot-reload)")
@@ -26,10 +61,8 @@ func main() {
 
 	setupLogging(*logFormat)
 
-	// Normalize prefix (ensure leading /, no trailing /)
 	*prefix = "/" + strings.Trim(*prefix, "/")
 
-	// Set Gin mode
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -44,7 +77,6 @@ func main() {
 
 	router := gin.Default()
 
-	// Enable CORS - needed for API tester to work cross-origin
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
@@ -74,6 +106,79 @@ func main() {
 	}
 }
 
+// runValidate loads a spec and reports problems without starting the server.
+// Returns the process exit code.
+func runValidate(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: docs-gen validate <path-to-spec>")
+		return 2
+	}
+	path := args[0]
+
+	// Calling NewHandler with devMode=false exercises the same load path as
+	// production, including multi-file merge and OpenAPI auto-detection.
+	if _, err := docs.NewHandler(path, false); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stderr, "ok: %s\n", path)
+	return 0
+}
+
+// runInit scaffolds a minimal spec directory that a new user can edit.
+func runInit(args []string) int {
+	target := "spec"
+	if len(args) > 0 {
+		target = args[0]
+	}
+	if _, err := os.Stat(target); err == nil {
+		fmt.Fprintf(os.Stderr, "refuse to overwrite existing path: %s\n", target)
+		return 1
+	}
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "mkdir %s: %v\n", target, err)
+		return 1
+	}
+	if err := os.WriteFile(target+"/index.yaml", []byte(scaffoldYAML), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "write: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stderr, "scaffolded %s/index.yaml\n", target)
+	fmt.Fprintf(os.Stderr, "run: docs-gen -spec %s/index.yaml\n", target)
+	return 0
+}
+
+const scaffoldYAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/schemas/spec.schema.json
+info:
+  title: My API
+  version: "1.0.0"
+  description: Describe your API here.
+  base_urls:
+    - label: Production
+      url: https://api.example.com
+      default: true
+    - label: Staging
+      url: https://staging.api.example.com
+
+authentication:
+  methods:
+    - type: Bearer JWT
+      header: Authorization
+      format: "Bearer <token>"
+      description: Standard bearer token authentication.
+
+sections:
+  - id: hello
+    title: Hello
+    description: A sample section — replace with your own.
+    endpoints:
+      - name: Ping
+        method: GET
+        path: /ping
+        auth: none
+        description: Liveness check.
+`
+
 // setupLogging configures slog with the requested handler.
 func setupLogging(format string) {
 	level := slog.LevelInfo
@@ -97,7 +202,6 @@ func setupLogging(format string) {
 	slog.SetDefault(slog.New(h))
 }
 
-// defaultLogFormat picks JSON for non-dev environments, text for humans otherwise.
 func defaultLogFormat() string {
 	if os.Getenv("GIN_MODE") == "release" || os.Getenv("LOG_FORMAT") == "json" {
 		return "json"
@@ -105,7 +209,6 @@ func defaultLogFormat() string {
 	return "text"
 }
 
-// printBanner is kept as plain stderr output — it is presentation, not a log event.
 func printBanner(specPath string, devMode bool, prefix, port string) {
 	fmt.Fprintln(os.Stderr, "Docs Generator")
 	fmt.Fprintln(os.Stderr, "===========================================")
@@ -118,6 +221,7 @@ func printBanner(specPath string, devMode bool, prefix, port string) {
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/spec\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/specs\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/yaml\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/openapi\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s/health\n", port)
 	fmt.Fprintln(os.Stderr, "")
 }

@@ -1,8 +1,9 @@
 {{define "flow_diagram"}}
+    <script src="https://unpkg.com/@dagrejs/dagre@1.1.4/dist/dagre.min.js"></script>
     <script type="text/babel">
         const ReactFlow = window.ReactFlow.ReactFlow || window.ReactFlow.default;
 
-        const nodes = [
+        const rawNodes = [
             {{range .FlowDiagramNodes}}
             {
                 id: '{{.ID}}',
@@ -33,6 +34,30 @@
             },
             {{end}}
         ];
+
+        // When every node has position (0,0) we infer the spec didn't provide
+        // layout and auto-arrange with dagre. Manual positioning still wins
+        // whenever *any* node carries a non-zero coordinate.
+        function needsAutoLayout(ns) {
+            return ns.length > 0 && ns.every(n => n.position.x === 0 && n.position.y === 0);
+        }
+
+        function autoLayout(ns, es) {
+            if (!window.dagre) return ns;
+            const g = new dagre.graphlib.Graph();
+            g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 90 });
+            g.setDefaultEdgeLabel(() => ({}));
+            const W = 180, H = 60;
+            ns.forEach(n => g.setNode(n.id, { width: W, height: H }));
+            es.forEach(e => g.setEdge(e.source, e.target));
+            dagre.layout(g);
+            return ns.map(n => {
+                const p = g.node(n.id);
+                return { ...n, position: { x: p.x - W / 2, y: p.y - H / 2 } };
+            });
+        }
+
+        const nodes = needsAutoLayout(rawNodes) ? autoLayout(rawNodes, edges) : rawNodes;
 
         function FlowDiagram() {
             return React.createElement('div', { style: { width: '100%', height: '100%' } },

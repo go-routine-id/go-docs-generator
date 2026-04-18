@@ -732,6 +732,32 @@
         "title",
         "description"
       ]
+    },
+    "Theme": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Overrides the title shown in the sidebar and mobile header."
+        },
+        "logo_icon": {
+          "type": "string",
+          "description": "Emoji or short string placed before the title."
+        },
+        "logo_image": {
+          "type": "string",
+          "description": "URL to a logo image shown in the sidebar header."
+        },
+        "primary_color": {
+          "type": "string",
+          "description": "CSS color used for links, buttons, and highlights (overrides --primary)."
+        },
+        "favicon": {
+          "type": "string",
+          "description": "Browser favicon URL."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
     }
   },
   "properties": {
@@ -806,6 +832,10 @@
       },
       "type": "array",
       "description": "Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks)."
+    },
+    "theme": {
+      "$ref": "#/$defs/Theme",
+      "description": "Branding overrides (title, logo, primary color). All fields optional."
     }
   },
   "additionalProperties": false,

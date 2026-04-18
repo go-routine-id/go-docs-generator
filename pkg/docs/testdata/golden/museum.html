@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Museum Service API</title>
+    
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1186,6 +1187,7 @@
         }
     </style>
 
+
 </head>
 <body>
     
@@ -1204,7 +1206,10 @@
     
     <aside class="sidebar">
         <div class="sidebar-header">
-            <div class="sidebar-title">🏛️ Museum Service API</div>
+            <div class="sidebar-title">
+                📖
+                Museum Service API
+            </div>
             <div class="sidebar-version">v1.0.0</div>
             <a href="/api/docs/yaml" class="sidebar-download" download>📥 Download YAML</a>
         </div>
@@ -4827,10 +4832,11 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
     </main>
 
 
+    <script src="https://unpkg.com/@dagrejs/dagre@1.1.4/dist/dagre.min.js"></script>
     <script type="text/babel">
         const ReactFlow = window.ReactFlow.ReactFlow || window.ReactFlow.default;
 
-        const nodes = [
+        const rawNodes = [
             
             {
                 id: 'account',
@@ -5110,6 +5116,30 @@ Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1
             },
             
         ];
+
+        // When every node has position (0,0) we infer the spec didn't provide
+        // layout and auto-arrange with dagre. Manual positioning still wins
+        // whenever *any* node carries a non-zero coordinate.
+        function needsAutoLayout(ns) {
+            return ns.length > 0 && ns.every(n => n.position.x === 0 && n.position.y === 0);
+        }
+
+        function autoLayout(ns, es) {
+            if (!window.dagre) return ns;
+            const g = new dagre.graphlib.Graph();
+            g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 90 });
+            g.setDefaultEdgeLabel(() => ({}));
+            const W = 180, H = 60;
+            ns.forEach(n => g.setNode(n.id, { width: W, height: H }));
+            es.forEach(e => g.setEdge(e.source, e.target));
+            dagre.layout(g);
+            return ns.map(n => {
+                const p = g.node(n.id);
+                return { ...n, position: { x: p.x - W / 2, y: p.y - H / 2 } };
+            });
+        }
+
+        const nodes = needsAutoLayout(rawNodes) ? autoLayout(rawNodes, edges) : rawNodes;
 
         function FlowDiagram() {
             return React.createElement('div', { style: { width: '100%', height: '100%' } },

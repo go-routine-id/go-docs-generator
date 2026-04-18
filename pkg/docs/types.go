@@ -19,6 +19,17 @@ type APISpec struct {
 	FlowDiagramEdges  []FlowEdgeInfo        `yaml:"flow_diagram_edges,omitempty" json:"flow_diagram_edges,omitempty" jsonschema_description:"Edges for the ReactFlow architecture diagram."`
 	APITesterDefaults APITesterDefaultsInfo `yaml:"api_tester_defaults,omitempty" json:"api_tester_defaults,omitempty" jsonschema_description:"Defaults for the in-browser API tester (HTTP methods, auth modes)."`
 	Events            []EventChannel        `yaml:"events,omitempty" json:"events,omitempty" jsonschema_description:"Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks)."`
+	Theme             Theme                 `yaml:"theme,omitempty" json:"theme,omitempty" jsonschema_description:"Branding overrides (title, logo, primary color). All fields optional."`
+}
+
+// Theme controls the branding of the rendered documentation page. All fields
+// are optional; unset values fall back to Info.Title and built-in defaults.
+type Theme struct {
+	Title        string `yaml:"title,omitempty" json:"title,omitempty" jsonschema_description:"Overrides the title shown in the sidebar and mobile header."`
+	LogoIcon     string `yaml:"logo_icon,omitempty" json:"logo_icon,omitempty" jsonschema_description:"Emoji or short string placed before the title."`
+	LogoImage    string `yaml:"logo_image,omitempty" json:"logo_image,omitempty" jsonschema_description:"URL to a logo image shown in the sidebar header."`
+	PrimaryColor string `yaml:"primary_color,omitempty" json:"primary_color,omitempty" jsonschema_description:"CSS color used for links, buttons, and highlights (overrides --primary)."`
+	Favicon      string `yaml:"favicon,omitempty" json:"favicon,omitempty" jsonschema_description:"Browser favicon URL."`
 }
 
 // EventChannel documents an async messaging channel — a Kafka topic, AMQP

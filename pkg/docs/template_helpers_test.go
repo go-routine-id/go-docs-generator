@@ -79,6 +79,43 @@ func TestSectionUsesGlobal(t *testing.T) {
 	}
 }
 
+func TestRender_Theme(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Default Title
+theme:
+  title: Custom Docs
+  logo_icon: "🚀"
+  primary_color: "#ff0099"
+  favicon: /my-favicon.ico
+`)
+	h, err := NewHandler(dir+"/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+
+	checks := []string{
+		"<title>Custom Docs</title>",            // Theme.Title overrides
+		"🚀",                                    // Theme.LogoIcon
+		`href="/my-favicon.ico"`,                // Theme.Favicon
+		"--primary: #ff0099",                    // Theme.PrimaryColor CSS override
+	}
+	for _, needle := range checks {
+		if !strings.Contains(got, needle) {
+			t.Errorf("expected output to contain %q", needle)
+		}
+	}
+	if strings.Contains(got, "<title>Default Title</title>") {
+		t.Error("theme title should replace Info.Title, but Info.Title still appears")
+	}
+}
+
 // TestRender_Events verifies that async EventChannel entries show up in both
 // the sidebar and the main content area.
 func TestRender_Events(t *testing.T) {

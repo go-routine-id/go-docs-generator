@@ -35,6 +35,7 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `flow_diagram_edges` | array<[`FlowEdgeInfo`](#flowedgeinfo)> | no | Edges for the ReactFlow architecture diagram. |
 | `api_tester_defaults` | [`APITesterDefaultsInfo`](#apitesterdefaultsinfo) | no | Defaults for the in-browser API tester (HTTP methods, auth modes). |
 | `events` | array<[`EventChannel`](#eventchannel)> | no | Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks). |
+| `theme` | [`Theme`](#theme) | no | Branding overrides (title, logo, primary color). All fields optional. |
 
 ## Nested types
 
@@ -293,4 +294,14 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `base_url` | `string` | no | — |
 | `base_urls` | array<[`BaseURL`](#baseurl)> | no | — |
 | `endpoints` | array<[`Endpoint`](#endpoint)> | no | — |
+
+### `Theme`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | `string` | no | Overrides the title shown in the sidebar and mobile header. |
+| `logo_icon` | `string` | no | Emoji or short string placed before the title. |
+| `logo_image` | `string` | no | URL to a logo image shown in the sidebar header. |
+| `primary_color` | `string` | no | CSS color used for links, buttons, and highlights (overrides --primary). |
+| `favicon` | `string` | no | Browser favicon URL. |
 
