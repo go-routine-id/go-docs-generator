@@ -177,7 +177,7 @@ func runInit(args []string) int {
 	return 0
 }
 
-const scaffoldYAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/schemas/spec.schema.json
+const scaffoldYAML = `# yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
 info:
   title: My API
   version: "1.0.0"

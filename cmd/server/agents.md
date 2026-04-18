@@ -8,7 +8,7 @@
 
 An HTTP server that renders an interactive API documentation page from a YAML specification. One repo can document either a monolith or multiple microservices. The server also accepts OpenAPI 3.x as input.
 
-Upstream repo: `github.com/rhyanz46/go-docs-generator`
+Upstream repo: `github.com/Go-Routine-App/go-docs-generator`
 
 ## Your task
 
@@ -25,7 +25,7 @@ When the user asks to "document our API using docs-generator" or similar, produc
 3. **Write `spec/index.yaml`** following §"Required structure". Start minimal — `info` + `sections` with endpoints. Add `guides`, `screens`, `events`, `theme` only if the project actually has those concerns.
 4. **Reference the schema** by adding this on line 1 of each YAML file:
    ```yaml
-   # yaml-language-server: $schema=https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/schemas/spec.schema.json
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
    ```
 5. **Validate.** If the user has the `docs-gen` binary installed:
    ```bash
@@ -87,7 +87,7 @@ Only subdirectories containing `index.yaml` become projects.
 Minimum viable spec:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/schemas/spec.schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
 info:
   title: <API Name>
   version: <semver or date string>
@@ -362,7 +362,7 @@ In CI (GitHub Actions example):
 
 ```yaml
 - name: Validate spec
-  run: go run github.com/rhyanz46/go-docs-generator/cmd/server@latest validate ./spec/index.yaml
+  run: go run github.com/Go-Routine-App/go-docs-generator/cmd/server@latest validate ./spec/index.yaml
 ```
 
 If the binary is unavailable, you can still validate structurally against the JSON Schema using any Draft 2020-12 validator (e.g. `ajv`, `jsonschema` Python, etc.) by checking `./spec/index.yaml` (after YAML → JSON conversion) against `schemas/spec.schema.json`.
@@ -387,11 +387,11 @@ If you need more context beyond this file, fetch these (they are versioned along
 
 | Resource | URL | What's there |
 |----------|-----|--------------|
-| JSON Schema | `https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/schemas/spec.schema.json` | Authoritative field-level schema (Draft 2020-12) |
-| Field reference | `https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/SPEC.md` | Auto-generated tables of every field |
-| Narrative guide | `https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/docs/writing-specs.md` | Worked examples, FAQ, edge cases (Indonesian prose, but structure is cross-language) |
-| Full example | `https://github.com/rhyanz46/go-docs-generator/tree/main/examples/museum` | A complete spec for a real project |
-| Changelog | `https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/CHANGELOG.md` | Breaking changes between versions |
+| JSON Schema | `https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json` | Authoritative field-level schema (Draft 2020-12) |
+| Field reference | `https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/SPEC.md` | Auto-generated tables of every field |
+| Narrative guide | `https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/docs/writing-specs.md` | Worked examples, FAQ, edge cases (Indonesian prose, but structure is cross-language) |
+| Full example | `https://github.com/Go-Routine-App/go-docs-generator/tree/main/examples/museum` | A complete spec for a real project |
+| Changelog | `https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/CHANGELOG.md` | Breaking changes between versions |
 
 ---
 

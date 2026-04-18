@@ -201,7 +201,7 @@ docs-gen prompt
 curl https://your-docs-host/docs/agents
 
 # Option 3 — fetch directly from GitHub (stable raw URL):
-curl https://raw.githubusercontent.com/rhyanz46/go-docs-generator/main/AGENTS.md
+curl https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/AGENTS.md
 ```
 
 ## License
