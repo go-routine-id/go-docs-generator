@@ -34,6 +34,7 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `flow_diagram_nodes` | array<[`FlowNodeInfo`](#flownodeinfo)> | no | Nodes for the ReactFlow architecture diagram. |
 | `flow_diagram_edges` | array<[`FlowEdgeInfo`](#flowedgeinfo)> | no | Edges for the ReactFlow architecture diagram. |
 | `api_tester_defaults` | [`APITesterDefaultsInfo`](#apitesterdefaultsinfo) | no | Defaults for the in-browser API tester (HTTP methods, auth modes). |
+| `events` | array<[`EventChannel`](#eventchannel)> | no | Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks). |
 
 ## Nested types
 
@@ -107,6 +108,27 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `body` | array<[`BodyField`](#bodyfield)> | no | — |
 | `example_body` | `string` | no | — |
 | `example_response` | `string` | no | — |
+
+### `EventChannel`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | **yes** | Stable identifier used for anchor links. |
+| `title` | `string` | **yes** | — |
+| `description` | `string` | no | — |
+| `protocol` | `string` | no | Transport: kafka, amqp, mqtt, nats, webhook, sse, websocket, … |
+| `address` | `string` | no | Protocol-specific address — topic name, queue name, URL. |
+| `operations` | array<[`EventOperation`](#eventoperation)> | no | — |
+
+### `EventOperation`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | `string` | **yes** | publish or subscribe (from the documented service's perspective). |
+| `summary` | `string` | no | — |
+| `description` | `string` | no | — |
+| `payload` | array<[`BodyField`](#bodyfield)> | no | — |
+| `example` | `string` | no | — |
 
 ### `FlowAction`
 

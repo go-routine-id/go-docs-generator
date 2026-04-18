@@ -212,6 +212,68 @@
         "description"
       ]
     },
+    "EventChannel": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier used for anchor links."
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string",
+          "description": "Transport: kafka, amqp, mqtt, nats, webhook, sse, websocket, …"
+        },
+        "address": {
+          "type": "string",
+          "description": "Protocol-specific address — topic name, queue name, URL."
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/EventOperation"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "EventOperation": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "publish or subscribe (from the documented service's perspective)."
+        },
+        "summary": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "payload": {
+          "items": {
+            "$ref": "#/$defs/BodyField"
+          },
+          "type": "array"
+        },
+        "example": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
     "FlowAction": {
       "properties": {
         "type": {
@@ -737,6 +799,13 @@
     "api_tester_defaults": {
       "$ref": "#/$defs/APITesterDefaultsInfo",
       "description": "Defaults for the in-browser API tester (HTTP methods, auth modes)."
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/EventChannel"
+      },
+      "type": "array",
+      "description": "Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks)."
     }
   },
   "additionalProperties": false,

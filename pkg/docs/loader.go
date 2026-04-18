@@ -32,11 +32,17 @@ func loadSpecFromPath(path string) (*APISpec, error) {
 	return loadFileSpec(path)
 }
 
-// loadFileSpec loads a single YAML file into APISpec.
+// loadFileSpec loads a single YAML file into APISpec. When the file is
+// detected as an OpenAPI document, it is projected through the OpenAPI
+// importer instead.
 func loadFileSpec(path string) (*APISpec, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read spec file %s: %w", path, err)
+	}
+
+	if isOpenAPIDocument(data) {
+		return LoadOpenAPISpec(path)
 	}
 
 	var spec APISpec
@@ -45,6 +51,26 @@ func loadFileSpec(path string) (*APISpec, error) {
 	}
 
 	return &spec, nil
+}
+
+// isOpenAPIDocument heuristically detects an OpenAPI 3.x document by looking
+// for the `openapi:` (YAML) or `"openapi":` (JSON) top-level key.
+func isOpenAPIDocument(data []byte) bool {
+	head := data
+	if len(head) > 4096 {
+		head = head[:4096]
+	}
+	return bytesContainsLine(head, "openapi:") || bytesContainsLine(head, `"openapi"`)
+}
+
+func bytesContainsLine(data []byte, needle string) bool {
+	n := []byte(needle)
+	for i := 0; i+len(n) <= len(data); i++ {
+		if (i == 0 || data[i-1] == '\n') && string(data[i:i+len(n)]) == needle {
+			return true
+		}
+	}
+	return false
 }
 
 // loadDirSpec loads index.yaml from directory and merges all other .yaml files.

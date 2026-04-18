@@ -79,6 +79,51 @@ func TestSectionUsesGlobal(t *testing.T) {
 	}
 }
 
+// TestRender_Events verifies that async EventChannel entries show up in both
+// the sidebar and the main content area.
+func TestRender_Events(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Event-Driven Service
+events:
+  - id: user-signup
+    title: User Signup
+    description: Fired when a user completes registration
+    protocol: kafka
+    address: user.signup.v1
+    operations:
+      - type: publish
+        summary: New user signed up
+        payload:
+          - name: user_id
+            type: string
+            required: true
+`)
+	h, err := NewHandler(dir+"/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+
+	checks := []string{
+		"📡 Events",             // sidebar header
+		"User Signup",           // title
+		"user.signup.v1",        // address rendered
+		`id="panel-event-0"`,    // panel id for first event
+		"publish",               // operation type shown
+	}
+	for _, needle := range checks {
+		if !strings.Contains(got, needle) {
+			t.Errorf("expected output to contain %q", needle)
+		}
+	}
+}
+
 // TestRender_PerSectionBaseURL renders an end-to-end spec where two sections
 // have different base URLs and verifies the rendered HTML carries both.
 func TestRender_PerSectionBaseURL(t *testing.T) {

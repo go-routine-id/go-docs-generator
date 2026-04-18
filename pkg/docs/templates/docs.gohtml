@@ -100,6 +100,22 @@
             </div>
             {{end}}
 
+            <!-- Events -->
+            {{if .Events}}
+            <div class="nav-item has-children">
+                <div class="nav-item-header" onclick="toggleCollapse(this)">
+                    <span class="nav-item-header-content">📡 Events</span>
+                </div>
+                <div class="nav-children">
+                    {{range $ei, $ev := .Events}}
+                    <a class="nav-child-item" data-target="panel-event-{{$ei}}">
+                        {{$ev.Title}}
+                    </a>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+
             <!-- Credentials -->
             <div class="nav-item">
                 <div class="nav-item-header" data-target="panel-credentials">
@@ -463,6 +479,51 @@
                     </div>
                     {{end}}
                 </div>
+            </div>
+            {{end}}
+
+            <!-- Event Panels -->
+            {{range $ei, $ev := .Events}}
+            <div class="content-panel" id="panel-event-{{$ei}}">
+                <div class="content-header">
+                    <h1>📡 {{$ev.Title}}</h1>
+                    <p>{{$ev.Description}}</p>
+                </div>
+
+                <div class="endpoint-detail" style="background:var(--card-bg); padding:1.5rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--card-shadow); margin-bottom:1.5rem;">
+                    {{if $ev.Protocol}}<div style="margin-bottom:0.5rem;"><strong>Protocol:</strong> <code>{{$ev.Protocol}}</code></div>{{end}}
+                    {{if $ev.Address}}<div style="margin-bottom:0.5rem;"><strong>Address:</strong> <code>{{$ev.Address}}</code></div>{{end}}
+                </div>
+
+                {{range $oi, $op := $ev.Operations}}
+                <div class="endpoint-detail" style="background:var(--card-bg); padding:1.5rem; border-radius:12px; border:1px solid var(--border); box-shadow:var(--card-shadow); margin-bottom:1rem;">
+                    <h3 class="section-title" style="margin-top:0;">
+                        <span class="method {{lower $op.Type}}">{{$op.Type}}</span>
+                        {{if $op.Summary}}{{$op.Summary}}{{end}}
+                    </h3>
+                    {{if $op.Description}}<p>{{$op.Description}}</p>{{end}}
+
+                    {{if $op.Payload}}
+                    <h4 style="margin-top:1rem;">Payload</h4>
+                    <table>
+                        <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+                        {{range $op.Payload}}
+                        <tr>
+                            <td><code>{{.Name}}</code></td>
+                            <td>{{.Type}}</td>
+                            <td>{{if .Required}}<span class="badge required">yes</span>{{else}}<span class="badge optional">no</span>{{end}}</td>
+                            <td>{{.Description}}</td>
+                        </tr>
+                        {{end}}
+                    </table>
+                    {{end}}
+
+                    {{if $op.Example}}
+                    <h4 style="margin-top:1rem;">Example</h4>
+                    <pre><code>{{$op.Example}}</code></pre>
+                    {{end}}
+                </div>
+                {{end}}
             </div>
             {{end}}
 

@@ -241,8 +241,20 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
 	router.GET(prefix+"/spec", h.ServeSpec)
 	router.GET(prefix+"/specs", h.ServeProjectList)
 	router.GET(prefix+"/yaml", h.ServeYAML)
+	router.GET(prefix+"/openapi", h.ServeOpenAPI)
 	router.GET(prefix+"/echo", h.ServeEcho)
 	router.POST(prefix+"/echo", h.ServeEcho)
+}
+
+// ServeOpenAPI exports the current spec as an OpenAPI 3.0 JSON document so
+// downstream tools (Postman, Insomnia, Redocly) can consume it.
+func (h *Handler) ServeOpenAPI(c *gin.Context) {
+	if err := h.ReloadSpec(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	spec := h.getSpec(c.Query("p"))
+	c.JSON(http.StatusOK, ExportOpenAPI(spec))
 }
 
 // ServeEcho echoes back the received headers and request info for debugging

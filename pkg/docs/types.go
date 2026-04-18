@@ -18,6 +18,27 @@ type APISpec struct {
 	FlowDiagramNodes  []FlowNodeInfo        `yaml:"flow_diagram_nodes,omitempty" json:"flow_diagram_nodes,omitempty" jsonschema_description:"Nodes for the ReactFlow architecture diagram."`
 	FlowDiagramEdges  []FlowEdgeInfo        `yaml:"flow_diagram_edges,omitempty" json:"flow_diagram_edges,omitempty" jsonschema_description:"Edges for the ReactFlow architecture diagram."`
 	APITesterDefaults APITesterDefaultsInfo `yaml:"api_tester_defaults,omitempty" json:"api_tester_defaults,omitempty" jsonschema_description:"Defaults for the in-browser API tester (HTTP methods, auth modes)."`
+	Events            []EventChannel        `yaml:"events,omitempty" json:"events,omitempty" jsonschema_description:"Async channels/topics the service publishes or consumes (Kafka, AMQP, MQTT, webhooks)."`
+}
+
+// EventChannel documents an async messaging channel — a Kafka topic, AMQP
+// queue, MQTT topic, webhook endpoint, or any pub/sub surface a service exposes.
+type EventChannel struct {
+	ID          string           `yaml:"id" json:"id" jsonschema_description:"Stable identifier used for anchor links."`
+	Title       string           `yaml:"title" json:"title"`
+	Description string           `yaml:"description,omitempty" json:"description,omitempty"`
+	Protocol    string           `yaml:"protocol,omitempty" json:"protocol,omitempty" jsonschema_description:"Transport: kafka, amqp, mqtt, nats, webhook, sse, websocket, …"`
+	Address     string           `yaml:"address,omitempty" json:"address,omitempty" jsonschema_description:"Protocol-specific address — topic name, queue name, URL."`
+	Operations  []EventOperation `yaml:"operations,omitempty" json:"operations,omitempty"`
+}
+
+// EventOperation is a single publish or subscribe action on an EventChannel.
+type EventOperation struct {
+	Type        string      `yaml:"type" json:"type" jsonschema_description:"publish or subscribe (from the documented service's perspective)."`
+	Summary     string      `yaml:"summary,omitempty" json:"summary,omitempty"`
+	Description string      `yaml:"description,omitempty" json:"description,omitempty"`
+	Payload     []BodyField `yaml:"payload,omitempty" json:"payload,omitempty"`
+	Example     string      `yaml:"example,omitempty" json:"example,omitempty"`
 }
 
 // OverviewCard represents a feature card on the overview page
