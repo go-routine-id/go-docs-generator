@@ -11,10 +11,12 @@ import (
 
 var updateGolden = flag.Bool("update-golden", false, "overwrite golden files with current render output")
 
-// TestRender_Museum renders the default project and compares to a stored golden HTML file.
+// TestRender_Museum renders the Museum example project and compares to a stored
+// golden HTML file. The fixture lives under testdata/ so it is decoupled from
+// examples/ (which users may freely edit or delete).
 // Regenerate the golden with: go test ./pkg/docs -run TestRender -update-golden
 func TestRender_Museum(t *testing.T) {
-	h, err := NewHandler("../../spec/index.yaml", false)
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestRender_Museum(t *testing.T) {
 // TestRender_StructuralInvariants guards core structural expectations that must
 // hold regardless of spec content — ensures we never ship broken HTML.
 func TestRender_StructuralInvariants(t *testing.T) {
-	h, err := NewHandler("../../spec/index.yaml", false)
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

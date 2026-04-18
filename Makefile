@@ -32,18 +32,11 @@ deps:
 
 # Build Docker image
 docker-build:
-	docker build -t museum-docs:latest .
+	docker build -t docs-generator:latest .
 
-# Run Docker container
+# Run Docker container against ./spec
 docker-run:
-	docker run -p 8080:8080 -v $(PWD)/api-spec.yaml:/root/api-spec.yaml museum-docs:latest
-
-# Install systemd service (requires sudo)
-install-systemd:
-	sudo cp museum-docs.service /etc/systemd/system/
-	sudo systemctl daemon-reload
-	sudo systemctl enable museum-docs
-	sudo systemctl start museum-docs
+	docker run --rm -p 8080:8080 -v $(PWD)/spec:/app/spec docs-generator:latest
 
 # Show help
 help:

@@ -1,310 +1,65 @@
-# Museum Service API Specification
-# Single source of truth untuk dokumentasi
+# yaml-language-server: $schema=../schemas/spec.schema.json
+#
+# Starter spec for docs-generator.
+# Edit these values, then run: go run ./cmd/server -spec ./spec/index.yaml
+#
+# For a fuller example with multiple sections, guides, screens, and events,
+# see examples/ in this repository.
 
 info:
-  title: Museum Service API
+  title: My API
   version: "1.0.0"
-  description: API untuk Museum Digital Indonesia - Single Museum Pattern
-  base_url: https://museumdigi.id
+  description: Replace this with your own API description.
   base_urls:
     - label: Production
-      url: https://museumdigi.id
+      url: https://api.example.com
       default: true
     - label: Staging
-      url: https://staging.museumdigi.id
+      url: https://staging.api.example.com
     - label: Local
       url: http://localhost:8080
-  overview_cards:
-    - icon: "🚀"
-      title: "REST API"
-      description: "API untuk Museum Digital Indonesia - Single Museum Pattern"
-      content: |
-        Museum Service API menggunakan arsitektur RESTful. Semua komunikasi dilakukan melalui HTTP request dengan response format JSON.
-
-        **Base URL:** Semua endpoint diakses melalui base URL yang bisa dipilih (Production / Staging / Local).
-
-        **HTTP Methods:**
-        - `GET` — Membaca data
-        - `POST` — Membuat data baru atau melakukan aksi
-        - `PATCH` — Update sebagian data
-        - `DELETE` — Menghapus data
-
-        **Response Format:**
-        Semua response menggunakan format JSON. Response berhasil mengembalikan data yang diminta, sedangkan error mengembalikan object dengan pesan error.
-
-        **Status Codes:**
-        - `200 OK` — Request berhasil
-        - `201 Created` — Data berhasil dibuat
-        - `400 Bad Request` — Parameter tidak valid
-        - `401 Unauthorized` — Auth token tidak valid atau tidak ada
-        - `403 Forbidden` — Tidak punya permission
-        - `404 Not Found` — Resource tidak ditemukan
-        - `500 Internal Server Error` — Error di server
-
-    - icon: "📚"
-      title: "Multiple Endpoints"
-      description: "Comprehensive API endpoints for all your needs"
-      content: |
-        API menyediakan endpoint-endpoint untuk mengelola semua resource Museum Digital:
-
-        **Museum:**
-        - Get, Update, Delete museum milik organization
-        - Update museum image
-
-        **Artifacts:**
-        - List artifacts (public/authenticated)
-        - Create, Get, Update, Delete artifact
-        - Update artifact image dan 3D model
-
-        **Articles (CMS):**
-        - List articles dengan filter dan pagination
-        - Get article by slug (public) atau by ID
-        - Create, Update, Delete, Restore article
-
-        **File Upload:**
-        - Upload via Media Service (terpisah)
-        - Simpan URL ke museum/artifact
-
-    - icon: "📖"
-      title: "Interactive Docs"
-      description: "Test API directly from this documentation"
-      content: |
-        Dokumentasi ini dilengkapi dengan API Tester built-in di setiap endpoint.
-
-        **Cara menggunakan:**
-        1. Klik endpoint yang ingin di-test di sidebar
-        2. Klik tombol "Try It" di bawah detail endpoint
-        3. Pilih metode autentikasi (JWT Bearer / API Key / Public)
-        4. Edit request body jika diperlukan
-        5. Klik "Send" untuk mengirim request
-
-        **Fitur:**
-        - Pilih environment (Production / Staging / Local)
-        - Request body pre-filled dari example
-        - Response dengan syntax highlighting
-        - Status code indicator (success/error)
-
-        **Credentials:**
-        Simpan token di halaman "Credentials" — tersimpan per environment di browser localStorage.
-
-    - icon: "🔐"
-      title: "Secure Auth"
-      description: "Bearer JWT, API Key authentication support"
-      content: |
-        Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode:
-
-        **1. Bearer JWT**
-        - Login ke Account Service untuk mendapatkan JWT token
-        - Kirim via header: `Authorization: Bearer <token>`
-        - Token berisi: account_id, organization_id, permissions
-
-        **2. API Key**
-        - Dapatkan API Key dari Account Service
-        - Kirim via header: `X-API-Key: <api_key>`
-        - Backend otomatis exchange API Key ke JWT (cached 1 jam)
-        - Cocok untuk service-to-service, CLI, atau background jobs
-
-        **Permissions:**
-        Setiap endpoint dilindungi oleh permission tertentu (misal: `museum:write`, `artifact:delete`). Permission tersemat di dalam JWT token.
 
 authentication:
   methods:
     - type: Bearer JWT
       header: Authorization
       format: "Bearer <token>"
-      source: Account Service
-      description: Untuk user login yang sudah autentikasi
-      token_contains:
-        - account_id
-        - organization_id
-        - permissions
-    - type: API Key
-      header: X-API-Key
-      format: "<api_key>"
-      source: Account Service (via token exchange)
-      description: Untuk service-to-service, CLI, atau background jobs
-      note: Backend akan otomatis exchange API Key menjadi JWT dan cache hasilnya
+      description: Obtain a JWT from your auth provider and send it on every request.
 
-flow_overview:
-  methods:
-    - type: Bearer JWT
-      steps:
-        - title: "Login ke Account Service"
-          detail: "Autentikasi menggunakan email/password ke Account Service. Response berisi JWT token yang berisi account_id, organization_id, dan permissions."
-        - title: "Simpan token"
-          detail: "Simpan JWT token di localStorage browser atau secure storage di aplikasi client."
-        - title: "Kirim token di setiap request"
-          detail: "Tambahkan header Authorization: Bearer <token> di setiap API request yang membutuhkan autentikasi."
-        - title: "Museum di-identifikasi dari JWT"
-          detail: "org_id yang ada di JWT token digunakan untuk mengidentifikasi museum. Tidak perlu museum_id di URL path."
-    - type: API Key
-      steps:
-        - title: "Dapatkan API Key"
-          detail: "Minta API Key dari Account Service. Biasanya digunakan untuk service-to-service, CLI, atau background jobs."
-        - title: "Kirim API Key di setiap request"
-          detail: "Tambahkan header X-API-Key: <api_key> di setiap API request."
-        - title: "Backend exchange API Key ke JWT"
-          detail: "Backend otomatis exchange API Key menjadi JWT dengan caching 1 jam (3600 detik) untuk mengurangi pemanggilan ke Account Service."
-        - title: "JWT digunakan untuk autentikasi"
-          detail: "JWT hasil exchange digunakan sama seperti Bearer JWT biasa untuk autentikasi dan otorisasi endpoint."
-  note: "Semua endpoint yang membutuhkan autentikasi bisa menggunakan salah satu metode (JWT atau X-API-Key)"
-
-permissions:
-  - name: museum:read
-    description: Baca museum
-  - name: museum:write
-    description: Create/update museum
-  - name: museum:delete
-    description: Delete museum
-  - name: artifact:read
-    description: Baca artifact
-  - name: artifact:write
-    description: Create/update artifact
-  - name: artifact:delete
-    description: Delete artifact
-  - name: media:upload
-    description: Upload file ke Media Service
-  - name: media:download
-    description: Download file dari Media Service
-
-constraints:
-  - One Organization = One Museum (satu org hanya bisa punya satu museum)
-  - JWT token (dari Bearer atau X-API-Key exchange) wajib ada organization_id
-  - File upload harus melalui Media Service
-  - X-API-Key akan di-exchange menjadi JWT dengan expiry 1 jam (3600 detik)
-  - JWT hasil exchange di-cache di backend untuk mengurangi pemanggilan ke Account Service
-
-flow_diagram_nodes:
-  - id: account
-    label: "👤 Account Service\n(Organization)"
-    type: service
-    color: "#4f46e5"
-    position: { x: 350, y: 20 }
-  - id: museum
-    label: "🏛️ Museum\n(One per Org)"
-    type: museum
-    color: "#06b6d4"
-    position: { x: 350, y: 130 }
-  - id: artifact1
-    label: "🏺 Artifact 1"
-    type: artifact
-    color: "#8b5cf6"
-    position: { x: 150, y: 260 }
-  - id: artifact2
-    label: "🏺 Artifact 2"
-    type: artifact
-    color: "#8b5cf6"
-    position: { x: 370, y: 260 }
-  - id: artifact3
-    label: "🏺 Artifact N..."
-    type: artifact
-    color: "#8b5cf6"
-    position: { x: 590, y: 260 }
-  - id: media
-    label: "📸 Media Service\n(Upload/Get URL)"
-    type: service
-    color: "#10b981"
-    position: { x: 650, y: 400 }
-  - id: org_data
-    label: "org_id"
-    type: data
-    color: "#f59e0b"
-    position: { x: 550, y: 25 }
-  - id: museum_data
-    label: "museum_id\norg_id"
-    type: data
-    color: "#f59e0b"
-    position: { x: 550, y: 135 }
-  - id: media_id
-    label: "media_id"
-    type: data
-    color: "#f59e0b"
-    position: { x: 750, y: 300 }
-  - id: article_news
-    label: "📰 Article\n(News)"
-    type: article
-    color: "#ec4899"
-    position: { x: 100, y: 400 }
-  - id: article_detail
-    label: "📄 Article\n(Artifact Detail)"
-    type: article
-    color: "#ec4899"
-    position: { x: 300, y: 400 }
-
-flow_diagram_edges:
-  - source: account
-    target: museum
-    label: "1:1"
-    animated: true
-    color: "#4f46e5"
-  - source: museum
-    target: artifact1
-    label: "1:N"
-    animated: false
-    color: "#06b6d4"
-  - source: museum
-    target: artifact2
-    label: "1:N"
-    animated: false
-    color: "#06b6d4"
-  - source: museum
-    target: artifact3
-    label: "1:N"
-    animated: false
-    color: "#06b6d4"
-  - source: artifact2
-    target: media
-    label: "upload file"
-    animated: true
-    color: "#f59e0b"
-  - source: media
-    target: media_id
-    label: "return"
-    animated: true
-    color: "#10b981"
-  - source: media_id
-    target: artifact2
-    label: "attach to artifact"
-    animated: true
-    style: dashed
-    color: "#f59e0b"
-  - source: account
-    target: org_data
-    label: "has"
-    color: "#64748b"
-  - source: museum
-    target: museum_data
-    label: "belongs to"
-    color: "#64748b"
-  - source: museum
-    target: article_news
-    label: "has many"
-    animated: false
-    color: "#ec4899"
-  - source: museum
-    target: article_detail
-    label: "has many"
-    animated: false
-    color: "#ec4899"
-  - source: artifact2
-    target: article_detail
-    label: "referenced by"
-    animated: true
-    style: dashed
-    color: "#ec4899"
+sections:
+  - id: hello
+    title: Hello
+    description: A sample endpoint group — rename or replace.
+    endpoints:
+      - name: Ping
+        method: GET
+        path: /ping
+        auth: none
+        description: Liveness check.
+      - name: Create item
+        method: POST
+        path: /items
+        auth: JWT
+        description: Create a new item.
+        body:
+          - name: name
+            type: string
+            required: true
+            description: Human-readable name.
+          - name: quantity
+            type: integer
+            required: false
+            description: Initial quantity.
+        example_body: |
+          {
+            "name": "Widget",
+            "quantity": 10
+          }
 
 api_tester_defaults:
-  methods:
-    - GET
-    - POST
-    - PATCH
-    - DELETE
+  methods: [GET, POST, PATCH, DELETE]
   auth_modes:
     - name: JWT Bearer
       header: Authorization
       prefix: "Bearer "
       placeholder: YOUR_JWT_TOKEN_HERE
-    - name: API Key
-      header: X-API-Key
-      prefix: ""
-      placeholder: YOUR_API_KEY_HERE

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Verify generated artifacts are up-to-date
+        run: |
+          go run ./cmd/gendocs
+          git diff --exit-code -- SPEC.md schemas/spec.schema.json \
+            || (echo "SPEC.md or spec.schema.json is stale — run 'make generate'" && exit 1)
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+      - name: Validate starter spec
+        run: go run ./cmd/server validate ./spec/index.yaml
+      - name: Validate Museum example
+        run: go run ./cmd/server validate ./examples/museum/index.yaml

@@ -1,198 +1,186 @@
-# Museum Docs Generator
+# docs-generator
 
-> Dynamic API Documentation Generator for Museum Digital Indonesia
+Interactive API documentation generator — point it at a YAML spec, get a single-page site with live tester, architecture diagrams, flows, and screens.
 
-Standalone service yang menghasilkan dokumentasi HTML interaktif dari YAML specification. Dirancang untuk AI agents dan frontend developers.
+Works for **monoliths and microservices**. Per-section base URLs let one documentation page describe many backends (e.g. `account-service` and `storage-service` with different hosts). Accepts both a native YAML format and OpenAPI 3.x.
 
 ## Features
 
-- **YAML-based** - Single source of truth, multi-file modular spec
-- **Interactive UI** - ReactFlow architecture diagrams, flow steps, guide panels
-- **API Tester** - Test endpoints langsung dari browser (JWT & API Key auth)
-- **AI-ready** - JSON/YAML endpoint untuk AI agent consumption
-- **Hot-reload** - Auto-refresh saat development mode
-- **Multi-environment** - Support multiple base URLs (production, staging, dll)
-- **Screen Documentation** - Dokumentasi screen/frontend pages
+- **YAML-based** — single source of truth, multi-file merging, no build step.
+- **OpenAPI 3.x compatible** — point at your existing `swagger.yaml` and it just works.
+- **Interactive API tester** — send requests from the browser, per-environment credentials in `localStorage`.
+- **Architecture diagrams** — ReactFlow nodes & edges; auto-layout via dagre when positions aren't set.
+- **Per-section base URL** — mix services with different backends on one page.
+- **Events/async docs** — document Kafka topics, webhooks, and pub/sub channels alongside HTTP endpoints.
+- **Theming** — override title, logo, primary color, favicon without touching the template.
+- **Hot reload** in dev mode.
+- **AI-ready endpoints** — `/docs/spec` (JSON), `/docs/openapi` (OpenAPI), `/docs/yaml` (raw).
 
-## Quick Start
+## Quick start
 
 ```bash
-# Clone
-git clone git@github.com:Go-Routine-App/go-docs-generator.git
+git clone <this-repo>
 cd docs-generator
-
-# Dependencies
 go mod tidy
 
-# Run (default: spec/index.yaml, port 8080)
-go run cmd/server/main.go
+# Scaffold a minimal spec
+go run ./cmd/server init myspec
 
-# Development mode (hot-reload)
-go run cmd/server/main.go -dev
+# Serve it (defaults: port 8080, prefix /docs)
+go run ./cmd/server -spec ./myspec/index.yaml
 
-# Custom spec & port
-go run cmd/server/main.go -spec ./spec/index.yaml -port 9090
+# Open http://localhost:8080/docs
 ```
 
-## Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `/docs` | HTML Documentation |
-| `/docs?p=<project>` | Project-specific docs |
-| `/api/docs/spec` | API Spec as JSON (for AI) |
-| `/api/docs/specs` | List available projects |
-| `/api/docs/yaml` | Download raw YAML |
-| `/api/docs/echo` | Debug - echo request headers |
-| `/health` | Health check |
-
-## Project Structure
-
-```
-docs-generator/
-├── cmd/server/main.go       # Entry point
-├── pkg/docs/
-│   ├── types.go             # YAML struct definitions
-│   ├── handler.go           # HTTP handlers
-│   ├── loader.go            # Multi-file YAML loader
-│   └── template.go          # HTML template (embedded)
-├── spec/
-│   ├── index.yaml           # Main spec (entry point)
-│   ├── sections/            # Modular endpoint sections
-│   │   ├── museum.yaml
-│   │   ├── artifacts.yaml
-│   │   └── articles.yaml
-│   ├── guides/              # Guide documentation
-│   │   └── file_upload.yaml
-│   └── screens/             # Screen documentation
-│       └── museum_screens.yaml
-├── Dockerfile
-├── Makefile
-└── README.md
-```
-
-## Deployment with PM2
-
-### Build & Start
+Prefer your existing OpenAPI file?
 
 ```bash
-cd /home/dev/museum/docs-generator
-
-# Build binary
-make build
-
-# Start with PM2
-pm2 start ./docs-generator --name docs-generator -- -spec ./spec/index.yaml -port 8080
-
-# Save config (persist across reboots)
-pm2 save
+go run ./cmd/server -spec ./swagger.yaml
 ```
 
-### Update & Redeploy
+The server auto-detects OpenAPI documents and projects them onto the internal model.
 
-```bash
-cd /home/dev/museum/docs-generator
+## CLI
 
-# Pull latest code
-git pull
-
-# Rebuild
-make build
-
-# Restart
-pm2 restart docs-generator
-
-# Verify
-pm2 logs docs-generator --lines 20
-curl http://localhost:8080/health
+```
+docs-gen                       start the HTTP server (default)
+docs-gen serve [flags...]      explicit server mode
+docs-gen validate <path>       verify a spec, exit 1 on failure (CI-friendly)
+docs-gen init [dir]            scaffold a minimal spec/ directory
 ```
 
-### PM2 Auto-start on Reboot
-
-```bash
-# Generate startup script (run once)
-pm2 startup systemd -u dev --hp /home/dev
-
-# Save current process list
-pm2 save
-
-# Verify startup is configured
-systemctl status pm2-dev
-```
-
-### PM2 Commands
-
-```bash
-pm2 status                     # List all processes
-pm2 logs docs-generator        # View logs
-pm2 restart docs-generator     # Restart
-pm2 stop docs-generator        # Stop
-pm2 delete docs-generator      # Remove from PM2
-pm2 show docs-generator        # Show process details
-```
-
-## Nginx Configuration
-
-Docs generator di-proxy melalui nginx:
-
-```nginx
-# Documentation page
-location = /docs {
-    proxy_pass http://127.0.0.1:8080/docs;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
-# Docs API endpoints (spec, yaml, echo)
-location /api/docs {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-## Spec Format
-
-Spec menggunakan format multi-file YAML. Entry point: `spec/index.yaml`.
-
-Setiap file YAML di `spec/` directory (termasuk sub-directory) akan otomatis di-merge ke dalam spec utama.
-
-Contoh `spec/index.yaml`:
-```yaml
-info:
-  title: Museum Service API
-  version: "1.0.0"
-  base_url: https://museumdigi.id
-
-authentication:
-  methods:
-    - type: Bearer JWT
-      header: Authorization
-      format: "Bearer <token>"
-```
-
-## Command Line Flags
+### Server flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-spec` | `./spec/index.yaml` | Path to spec file or directory |
-| `-port` | `8080` | Server port |
-| `-dev` | `false` | Enable hot-reload mode |
+| `-spec` | `./spec/index.yaml` | File or directory. Directories are scanned for `index.yaml` and auto-merged. |
+| `-port` | `8080` | HTTP port. |
+| `-prefix` | `/docs` | URL prefix (route under a reverse proxy). |
+| `-dev` | `false` | Hot-reload when spec files change. |
+| `-log-format` | auto | `text` or `json` (auto-picks JSON when `GIN_MODE=release`). |
 
-## For AI Agents
+## HTTP endpoints
+
+| Path | Purpose |
+|------|---------|
+| `/docs` | HTML documentation |
+| `/docs?p=<project>` | Specific project (multi-project mode) |
+| `/docs/spec` | Internal spec as JSON (for AI agents and tooling) |
+| `/docs/specs` | List available projects |
+| `/docs/yaml` | Raw YAML download |
+| `/docs/openapi` | Export as OpenAPI 3.0 JSON |
+| `/docs/echo` | Debug: echo request headers |
+| `/health` | Health check |
+
+## Spec format
+
+The spec schema is documented in [SPEC.md](SPEC.md) and published as JSON Schema Draft 2020-12 in [schemas/spec.schema.json](schemas/spec.schema.json). Reference it from your YAML for IDE autocomplete:
+
+```yaml
+# yaml-language-server: $schema=./schemas/spec.schema.json
+```
+
+### Multi-file specs
+
+Point `-spec` at a directory and every `.yaml` file inside is merged:
+
+```
+spec/
+├── index.yaml          # global info + authentication
+├── sections/
+│   ├── account.yaml    # sections: [ ... ]
+│   └── storage.yaml    # sections: [ ... ]
+└── guides/
+    └── upload.yaml     # guides: [ ... ]
+```
+
+Merge rules:
+
+- **Slices** are appended (every file contributes).
+- **Nested objects** are merged per-field (overlay non-zero values win).
+- **Scalars** are overridden when overlay is non-zero.
+
+### Multi-project mode
+
+Subdirectories with their own `index.yaml` become separate projects accessible at `/docs?p=<name>`:
+
+```
+projects/
+├── index.yaml              # default project
+├── account/index.yaml      # /docs?p=account
+└── storage/index.yaml      # /docs?p=storage
+```
+
+### Per-section base URL
+
+Document several services in one page — each section can override the document-level base URL:
+
+```yaml
+sections:
+  - id: account
+    title: Account Service
+    base_url: https://account.example.com
+    base_urls:
+      - label: Prod
+        url: https://account.example.com
+        default: true
+      - label: Staging
+        url: https://staging.account.example.com
+    endpoints:
+      - name: Login
+        method: POST
+        path: /v1/login
+        description: ...
+  - id: storage
+    title: Storage Service
+    base_url: https://storage.example.com
+    endpoints:
+      - name: Upload
+        method: POST
+        path: /v1/files
+        description: ...
+```
+
+Sections without their own `base_url(s)` inherit from `info.base_urls` and follow the global environment selector.
+
+## Examples
+
+- [`examples/museum/`](examples/museum/) — full-featured spec with sections, guides, screens, flow diagrams, and multi-environment base URLs.
+- [`spec/`](spec/) — minimal starter.
+
+## Deployment
+
+### Build
 
 ```bash
-# Get JSON spec
-curl https://museumdigi.id/api/docs/spec
+make build
+./docs-generator -spec ./spec/index.yaml -port 8080
+```
 
-# Download YAML
-curl -O https://museumdigi.id/api/docs/yaml
+### Docker
+
+```bash
+make docker-build
+docker run -p 8080:8080 \
+  -v $(pwd)/spec:/spec \
+  docs-generator:latest -spec /spec/index.yaml
+```
+
+### Reverse proxy (nginx)
+
+```nginx
+location = /docs       { proxy_pass http://127.0.0.1:8080/docs; }
+location  /docs/       { proxy_pass http://127.0.0.1:8080; }
+```
+
+## Development
+
+```bash
+make dev              # hot-reload server
+make test             # run all tests
+make generate         # regenerate SPEC.md and schemas/spec.schema.json
 ```
 
 ## License
 
-MIT License - Museum Digital Indonesia
+MIT
