@@ -117,25 +117,47 @@ guides:
 	}
 }
 
-// TestMergeSpec_ScalarOverrideFromOverlay documents current merge semantics:
-// non-empty Info in overlay REPLACES base.Info (not field-wise merge).
-func TestMergeSpec_ScalarOverrideFromOverlay(t *testing.T) {
+// TestMergeSpec_ScalarFieldwiseOverride documents the merge contract:
+// overlay scalars override per-field when non-zero; zero scalars don't touch base.
+func TestMergeSpec_ScalarFieldwiseOverride(t *testing.T) {
 	base := &APISpec{}
 	base.Info.Title = "Original"
 	base.Info.Version = "1.0"
 
 	overlay := &APISpec{}
-	overlay.Info.Title = "Replaced"
-	// Note: overlay.Info.Version is empty but still overrides because the
-	// current contract is "overlay.Info wins if overlay.Info.Title != """.
+	overlay.Info.Title = "Replaced" // wins (non-zero)
+	// overlay.Info.Version is "" — must NOT clobber base.
 
 	mergeSpec(base, overlay)
 
 	if base.Info.Title != "Replaced" {
 		t.Errorf("Title = %q, want Replaced", base.Info.Title)
 	}
-	if base.Info.Version != "" {
-		t.Errorf("Version = %q, want empty (overlay replaces whole Info)", base.Info.Version)
+	if base.Info.Version != "1.0" {
+		t.Errorf("Version = %q, want 1.0 (zero overlay must not clobber base)", base.Info.Version)
+	}
+}
+
+// TestMergeSpec_NoDuplicateNestedArrays is a regression guard for a bug in the
+// prior hand-written mergeSpec that caused Info.OverviewCards to be duplicated
+// whenever overlay had both Info and OverviewCards set.
+func TestMergeSpec_NoDuplicateNestedArrays(t *testing.T) {
+	base := &APISpec{}
+	base.Info.Title = "A"
+	base.Info.OverviewCards = []OverviewCard{{Title: "base-card"}}
+
+	overlay := &APISpec{}
+	overlay.Info.Title = "B"
+	overlay.Info.OverviewCards = []OverviewCard{{Title: "overlay-card"}}
+
+	mergeSpec(base, overlay)
+
+	if len(base.Info.OverviewCards) != 2 {
+		t.Fatalf("cards = %d, want 2 (base + overlay, no duplication). got: %+v", len(base.Info.OverviewCards), base.Info.OverviewCards)
+	}
+	titles := []string{base.Info.OverviewCards[0].Title, base.Info.OverviewCards[1].Title}
+	if titles[0] != "base-card" || titles[1] != "overlay-card" {
+		t.Errorf("unexpected merge order: %v", titles)
 	}
 }
 

@@ -1,0 +1,744 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "APITesterDefaultsInfo": {
+      "properties": {
+        "methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "auth_modes": {
+          "items": {
+            "$ref": "#/$defs/AuthMode"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "methods",
+        "auth_modes"
+      ]
+    },
+    "AuthMethod": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "token_contains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "header",
+        "format",
+        "source",
+        "description"
+      ]
+    },
+    "AuthMode": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "placeholder": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "header",
+        "prefix",
+        "placeholder"
+      ]
+    },
+    "AuthenticationInfo": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "token_contains": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/AuthMethod"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "header",
+        "source",
+        "token_contains",
+        "methods"
+      ]
+    },
+    "BaseURL": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "default": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "url"
+      ]
+    },
+    "BodyField": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "example": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "required"
+      ]
+    },
+    "Endpoint": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "query_params": {
+          "items": {
+            "$ref": "#/$defs/QueryParam"
+          },
+          "type": "array"
+        },
+        "body": {
+          "items": {
+            "$ref": "#/$defs/BodyField"
+          },
+          "type": "array"
+        },
+        "example_body": {
+          "type": "string"
+        },
+        "example_response": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "method",
+        "path",
+        "auth",
+        "description"
+      ]
+    },
+    "FlowAction": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "description",
+        "endpoint"
+      ]
+    },
+    "FlowEdgeInfo": {
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "animated": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "source",
+        "target",
+        "color"
+      ]
+    },
+    "FlowEndpoint": {
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "content_type": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/BodyField"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "method",
+        "path",
+        "service",
+        "auth",
+        "permission"
+      ]
+    },
+    "FlowMethodSteps": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/FlowOverviewStep"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "steps"
+      ]
+    },
+    "FlowNodeInfo": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "type",
+        "color",
+        "position"
+      ]
+    },
+    "FlowOverviewInfo": {
+      "properties": {
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/FlowMethodSteps"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "methods"
+      ]
+    },
+    "FlowOverviewStep": {
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title"
+      ]
+    },
+    "FlowStep": {
+      "properties": {
+        "step": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "endpoint": {
+          "$ref": "#/$defs/FlowEndpoint"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/FlowAction"
+          },
+          "type": "array"
+        },
+        "curl_example": {
+          "type": "string"
+        },
+        "curl_example_jwt": {
+          "type": "string"
+        },
+        "curl_example_api_key": {
+          "type": "string"
+        },
+        "response_example": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "step",
+        "title"
+      ]
+    },
+    "Guide": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "flow": {
+          "items": {
+            "$ref": "#/$defs/FlowStep"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "description",
+        "flow"
+      ]
+    },
+    "InfoInfo": {
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "base_url": {
+          "type": "string"
+        },
+        "base_urls": {
+          "items": {
+            "$ref": "#/$defs/BaseURL"
+          },
+          "type": "array"
+        },
+        "overview_cards": {
+          "items": {
+            "$ref": "#/$defs/OverviewCard"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title",
+        "version",
+        "description",
+        "base_url",
+        "base_urls",
+        "overview_cards"
+      ]
+    },
+    "OverviewCard": {
+      "properties": {
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "icon",
+        "title",
+        "description"
+      ]
+    },
+    "PermissionInfo": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "description"
+      ]
+    },
+    "Position": {
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "QueryParam": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "required",
+        "description"
+      ]
+    },
+    "Screen": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "platform": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "calls": {
+          "items": {
+            "$ref": "#/$defs/ScreenCall"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "description",
+        "calls"
+      ]
+    },
+    "ScreenCall": {
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "auth": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "method",
+        "path",
+        "purpose"
+      ]
+    },
+    "SectionInfo": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "base_url": {
+          "type": "string"
+        },
+        "base_urls": {
+          "items": {
+            "$ref": "#/$defs/BaseURL"
+          },
+          "type": "array"
+        },
+        "endpoints": {
+          "items": {
+            "$ref": "#/$defs/Endpoint"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "description"
+      ]
+    }
+  },
+  "properties": {
+    "info": {
+      "$ref": "#/$defs/InfoInfo",
+      "description": "Document metadata (title, version, base URLs, overview cards)."
+    },
+    "authentication": {
+      "$ref": "#/$defs/AuthenticationInfo",
+      "description": "Authentication methods accepted by the API."
+    },
+    "flow_overview": {
+      "$ref": "#/$defs/FlowOverviewInfo",
+      "description": "High-level auth/flow walkthrough shown on the overview page."
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/SectionInfo"
+      },
+      "type": "array",
+      "description": "Endpoint groupings. Each section may override the document-level base URL."
+    },
+    "guides": {
+      "items": {
+        "$ref": "#/$defs/Guide"
+      },
+      "type": "array",
+      "description": "Step-by-step flows that span multiple endpoints (e.g. file upload)."
+    },
+    "screens": {
+      "items": {
+        "$ref": "#/$defs/Screen"
+      },
+      "type": "array",
+      "description": "Frontend/mobile screens and the API calls they make."
+    },
+    "permissions": {
+      "items": {
+        "$ref": "#/$defs/PermissionInfo"
+      },
+      "type": "array",
+      "description": "Permission names and descriptions referenced by endpoints."
+    },
+    "constraints": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "Free-form rules or invariants of the API."
+    },
+    "flow_diagram_nodes": {
+      "items": {
+        "$ref": "#/$defs/FlowNodeInfo"
+      },
+      "type": "array",
+      "description": "Nodes for the ReactFlow architecture diagram."
+    },
+    "flow_diagram_edges": {
+      "items": {
+        "$ref": "#/$defs/FlowEdgeInfo"
+      },
+      "type": "array",
+      "description": "Edges for the ReactFlow architecture diagram."
+    },
+    "api_tester_defaults": {
+      "$ref": "#/$defs/APITesterDefaultsInfo",
+      "description": "Defaults for the in-browser API tester (HTTP methods, auth modes)."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object"
+}

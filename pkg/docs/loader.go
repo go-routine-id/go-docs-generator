@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -82,43 +83,42 @@ func loadDirSpec(dir string) (*APISpec, error) {
 	return base, nil
 }
 
-// mergeSpec merges overlay into base.
-// Array fields are appended, scalar/struct fields are overridden.
+// mergeSpec merges overlay into base using generic, reflection-driven rules:
+//   - slice fields are APPENDED (additive — every overlay file contributes)
+//   - nested struct fields RECURSE (field-by-field merge)
+//   - scalar fields are OVERRIDDEN when overlay is non-zero
+//
+// This contract means new top-level or nested fields in APISpec do NOT require
+// updating this function — adding a field to the struct is enough.
 func mergeSpec(base, overlay *APISpec) {
-	// Override scalars/structs only if overlay has content
-	if overlay.Info.Title != "" {
-		base.Info = overlay.Info
-	}
-	if len(overlay.Authentication.Methods) > 0 {
-		base.Authentication = overlay.Authentication
-	}
-	if len(overlay.FlowOverview.Methods) > 0 {
-		base.FlowOverview = overlay.FlowOverview
-	}
-	if overlay.APITesterDefaults.Methods != nil || overlay.APITesterDefaults.AuthModes != nil {
-		base.APITesterDefaults = overlay.APITesterDefaults
-	}
+	mergeStruct(reflect.ValueOf(base).Elem(), reflect.ValueOf(overlay).Elem())
+}
 
-	// Append arrays
-	base.Sections = append(base.Sections, overlay.Sections...)
-	base.Guides = append(base.Guides, overlay.Guides...)
-	base.Permissions = append(base.Permissions, overlay.Permissions...)
-	base.Constraints = append(base.Constraints, overlay.Constraints...)
-	base.FlowDiagramNodes = append(base.FlowDiagramNodes, overlay.FlowDiagramNodes...)
-	base.FlowDiagramEdges = append(base.FlowDiagramEdges, overlay.FlowDiagramEdges...)
-	base.Screens = append(base.Screens, overlay.Screens...)
-
-	// Append nested arrays from Info
-	if len(overlay.Info.OverviewCards) > 0 {
-		base.Info.OverviewCards = append(base.Info.OverviewCards, overlay.Info.OverviewCards...)
+// mergeStruct walks each field of two struct values of the same type and
+// applies the merge rules above. base must be addressable.
+func mergeStruct(base, overlay reflect.Value) {
+	for i := 0; i < base.NumField(); i++ {
+		mergeField(base.Field(i), overlay.Field(i))
 	}
-	if len(overlay.Info.BaseURLs) > 0 {
-		base.Info.BaseURLs = append(base.Info.BaseURLs, overlay.Info.BaseURLs...)
-	}
+}
 
-	// Append nested arrays from FlowOverview
-	if len(overlay.FlowOverview.Methods) > 0 {
-		base.FlowOverview.Methods = append(base.FlowOverview.Methods, overlay.FlowOverview.Methods...)
+func mergeField(base, overlay reflect.Value) {
+	switch base.Kind() {
+	case reflect.Slice:
+		if overlay.Len() > 0 {
+			base.Set(reflect.AppendSlice(base, overlay))
+		}
+	case reflect.Struct:
+		mergeStruct(base, overlay)
+	case reflect.Pointer:
+		if !overlay.IsNil() {
+			base.Set(overlay)
+		}
+	default:
+		// scalar (string, int, bool, float, …): overlay wins when non-zero.
+		if !overlay.IsZero() {
+			base.Set(overlay)
+		}
 	}
 }
 

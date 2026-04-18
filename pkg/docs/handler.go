@@ -61,8 +61,11 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			s = strings.ReplaceAll(s, "\r", "")
 			return s
 		},
-		"add": func(a, b int) int { return a + b },
-		"md":  mdToHTML,
+		"add":                 func(a, b int) int { return a + b },
+		"md":                  mdToHTML,
+		"sectionBaseURLs":     sectionBaseURLs,
+		"sectionDefaultURL":   sectionDefaultURL,
+		"sectionUsesGlobal":   sectionUsesGlobal,
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")

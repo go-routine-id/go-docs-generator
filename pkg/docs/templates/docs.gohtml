@@ -302,13 +302,14 @@
                                     {{range $mi, $m := $.APITesterDefaults.Methods}}<option value="{{$m}}"{{if eq $ep.Method $m}} selected{{end}}>{{$m}}</option>
                                     {{end}}
                                 </select>
-                                {{if $.Info.BaseURLs}}
-                                <select class="base-url-select inline-base-url" data-section="{{$si}}" data-endpoint="{{$ei}}" onchange="updateEndpointBaseURL({{$si}}, {{$ei}})">
-                                    {{range $bi, $bu := $.Info.BaseURLs}}<option value="{{$bu.URL}}" {{if $bu.Default}}selected{{end}}>{{$bu.Label}}</option>
+                                {{$effective := sectionBaseURLs $section $.Info}}
+                                {{if $effective}}
+                                <select class="base-url-select inline-base-url" data-section="{{$si}}" data-endpoint="{{$ei}}" data-uses-global="{{sectionUsesGlobal $section}}" onchange="updateEndpointBaseURL({{$si}}, {{$ei}})">
+                                    {{range $bi, $bu := $effective}}<option value="{{$bu.URL}}" {{if $bu.Default}}selected{{end}}>{{$bu.Label}}</option>
                                     {{end}}
                                 </select>
                                 {{end}}
-                                <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{$.Info.BaseURL}}{{$ep.Path}}" data-path="{{$ep.Path}}">
+                                <input type="text" class="url-input inline-url" data-section="{{$si}}" data-endpoint="{{$ei}}" value="{{sectionDefaultURL $section $.Info}}{{$ep.Path}}" data-path="{{$ep.Path}}">
                                 <button class="send-btn" onclick="sendInlineRequest({{$si}}, {{$ei}})">Send</button>
                             </div>
                             <div class="tester-tabs">

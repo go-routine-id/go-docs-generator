@@ -126,12 +126,15 @@
             }
         }
 
-        // Update all endpoint URLs when global base URL changes
+        // Update endpoint URLs when the global base URL changes.
+        // Only sections that inherit from the global scope (data-uses-global="true")
+        // follow the change — sections with their own base_urls stay independent.
         function updateGlobalBaseURL() {
             const globalSelect = document.getElementById('global-base-url');
             if (!globalSelect) return;
             const newBase = globalSelect.value;
             document.querySelectorAll('.inline-base-url').forEach(sel => {
+                if (sel.dataset.usesGlobal !== 'true') return;
                 sel.value = newBase;
                 const si = sel.dataset.section;
                 const ei = sel.dataset.endpoint;

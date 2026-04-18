@@ -1,18 +1,23 @@
 package docs
 
-// APISpec represents the complete API specification from YAML
+//go:generate go run ../../cmd/gendocs
+
+// APISpec represents the complete API specification from YAML.
+// Top-level fields are all optional at the file level — each overlay file in a
+// multi-file spec directory typically only populates a subset. The merged
+// document must ultimately have `info`, but any individual file may omit it.
 type APISpec struct {
-	Info              InfoInfo              `yaml:"info" json:"info"`
-	Authentication    AuthenticationInfo    `yaml:"authentication" json:"authentication"`
-	FlowOverview      FlowOverviewInfo      `yaml:"flow_overview" json:"flow_overview"`
-	Sections          []SectionInfo         `yaml:"sections" json:"sections"`
-	Guides            []Guide               `yaml:"guides" json:"guides"`
-	Screens           []Screen              `yaml:"screens" json:"screens"`
-	Permissions       []PermissionInfo      `yaml:"permissions" json:"permissions"`
-	Constraints       []string              `yaml:"constraints" json:"constraints"`
-	FlowDiagramNodes  []FlowNodeInfo        `yaml:"flow_diagram_nodes" json:"flow_diagram_nodes"`
-	FlowDiagramEdges  []FlowEdgeInfo        `yaml:"flow_diagram_edges" json:"flow_diagram_edges"`
-	APITesterDefaults APITesterDefaultsInfo `yaml:"api_tester_defaults" json:"api_tester_defaults"`
+	Info              InfoInfo              `yaml:"info,omitempty" json:"info,omitempty" jsonschema_description:"Document metadata (title, version, base URLs, overview cards)."`
+	Authentication    AuthenticationInfo    `yaml:"authentication,omitempty" json:"authentication,omitempty" jsonschema_description:"Authentication methods accepted by the API."`
+	FlowOverview      FlowOverviewInfo      `yaml:"flow_overview,omitempty" json:"flow_overview,omitempty" jsonschema_description:"High-level auth/flow walkthrough shown on the overview page."`
+	Sections          []SectionInfo         `yaml:"sections,omitempty" json:"sections,omitempty" jsonschema_description:"Endpoint groupings. Each section may override the document-level base URL."`
+	Guides            []Guide               `yaml:"guides,omitempty" json:"guides,omitempty" jsonschema_description:"Step-by-step flows that span multiple endpoints (e.g. file upload)."`
+	Screens           []Screen              `yaml:"screens,omitempty" json:"screens,omitempty" jsonschema_description:"Frontend/mobile screens and the API calls they make."`
+	Permissions       []PermissionInfo      `yaml:"permissions,omitempty" json:"permissions,omitempty" jsonschema_description:"Permission names and descriptions referenced by endpoints."`
+	Constraints       []string              `yaml:"constraints,omitempty" json:"constraints,omitempty" jsonschema_description:"Free-form rules or invariants of the API."`
+	FlowDiagramNodes  []FlowNodeInfo        `yaml:"flow_diagram_nodes,omitempty" json:"flow_diagram_nodes,omitempty" jsonschema_description:"Nodes for the ReactFlow architecture diagram."`
+	FlowDiagramEdges  []FlowEdgeInfo        `yaml:"flow_diagram_edges,omitempty" json:"flow_diagram_edges,omitempty" jsonschema_description:"Edges for the ReactFlow architecture diagram."`
+	APITesterDefaults APITesterDefaultsInfo `yaml:"api_tester_defaults,omitempty" json:"api_tester_defaults,omitempty" jsonschema_description:"Defaults for the in-browser API tester (HTTP methods, auth modes)."`
 }
 
 // OverviewCard represents a feature card on the overview page
@@ -79,7 +84,12 @@ type SectionInfo struct {
 	ID          string     `yaml:"id" json:"id"`
 	Title       string     `yaml:"title" json:"title"`
 	Description string     `yaml:"description" json:"description"`
-	Endpoints   []Endpoint `yaml:"endpoints,omitempty" json:"endpoints,omitempty"`
+	// BaseURL overrides Info.BaseURL for endpoints in this section.
+	// Useful when a section describes a different service (e.g. account vs storage).
+	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+	// BaseURLs overrides Info.BaseURLs for this section's API tester environment selector.
+	BaseURLs  []BaseURL  `yaml:"base_urls,omitempty" json:"base_urls,omitempty"`
+	Endpoints []Endpoint `yaml:"endpoints,omitempty" json:"endpoints,omitempty"`
 }
 
 // Guide represents a custom flow/guide (e.g. file upload flow)

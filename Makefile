@@ -1,8 +1,12 @@
-.PHONY: build run dev clean test docker-build docker-run
+.PHONY: build run dev clean test generate docker-build docker-run
 
 # Build the binary
 build:
 	go build -o docs-generator cmd/server/main.go
+
+# Regenerate JSON Schema + SPEC.md from Go structs
+generate:
+	go run ./cmd/gendocs
 
 # Run the server
 run: build
@@ -49,6 +53,7 @@ help:
 	@echo "  dev           - Run in development mode (hot-reload)"
 	@echo "  clean         - Remove build artifacts"
 	@echo "  test          - Run tests"
+	@echo "  generate      - Regenerate schemas/spec.schema.json and SPEC.md"
 	@echo "  deps          - Download dependencies"
 	@echo "  docker-build  - Build Docker image"
 	@echo "  docker-run    - Run Docker container"
