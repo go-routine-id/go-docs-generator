@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -65,9 +65,9 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 		"md":  mdToHTML,
 	}
 
-	tmpl, err := template.New("docs").Funcs(funcMap).Parse(docsTemplate)
+	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse template: %w", err)
+		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 	h.template = tmpl
 
@@ -138,6 +138,17 @@ func (h *Handler) ReloadSpec() error {
 	return h.loadAllSpecs()
 }
 
+// Render produces the HTML documentation for a given project (empty string = default).
+// Exposed for testability (golden tests) and reuse outside HTTP context.
+func (h *Handler) Render(project string) ([]byte, error) {
+	spec := h.getSpec(project)
+	var buf bytes.Buffer
+	if err := h.template.ExecuteTemplate(&buf, "docs.gohtml", spec); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 // ServeHTML serves the generated HTML documentation
 func (h *Handler) ServeHTML(c *gin.Context) {
 	// In dev mode, reload specs on each request
@@ -148,17 +159,14 @@ func (h *Handler) ServeHTML(c *gin.Context) {
 		}
 	}
 
-	project := c.Query("p")
-	spec := h.getSpec(project)
-
-	var buf bytes.Buffer
-	if err := h.template.Execute(&buf, spec); err != nil {
+	out, err := h.Render(c.Query("p"))
+	if err != nil {
 		c.String(http.StatusInternalServerError, "Failed to generate documentation: "+err.Error())
 		return
 	}
 
 	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, buf.String())
+	c.String(http.StatusOK, string(out))
 }
 
 // ServeSpec serves the API spec as JSON for AI agents
@@ -253,14 +261,13 @@ func (h *Handler) ServeEcho(c *gin.Context) {
 
 // watchSpecFile watches the spec file/directory for changes and reloads automatically
 func (h *Handler) watchSpecFile() {
-	log.Println("🔄 Dev mode: Watching spec for changes...")
+	slog.Info("dev mode: watching spec for changes", "path", h.specRoot)
 
 	var lastModTime int64
 	for {
 		var currentMod int64
 
 		if h.isDirMode() {
-			// Walk directory to find latest mod time
 			filepath.WalkDir(h.specRoot, func(path string, d os.DirEntry, err error) error {
 				if err != nil || d.IsDir() {
 					return nil
@@ -277,7 +284,7 @@ func (h *Handler) watchSpecFile() {
 		} else {
 			info, err := os.Stat(h.specRoot)
 			if err != nil {
-				log.Printf("⚠️  Failed to stat spec: %v", err)
+				slog.Warn("failed to stat spec", "path", h.specRoot, "err", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -286,11 +293,11 @@ func (h *Handler) watchSpecFile() {
 
 		if currentMod != lastModTime {
 			if lastModTime != 0 { // Skip first check
-				log.Println("📝 Spec changed, reloading...")
+				slog.Info("spec changed, reloading")
 				if err := h.ReloadSpec(); err != nil {
-					log.Printf("❌ Failed to reload spec: %v", err)
+					slog.Error("failed to reload spec", "err", err)
 				} else {
-					log.Println("✅ Spec reloaded successfully")
+					slog.Info("spec reloaded successfully")
 				}
 			}
 			lastModTime = currentMod

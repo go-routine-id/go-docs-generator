@@ -1,0 +1,195 @@
+package docs
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// writeYAML creates a YAML file at the given relative path inside dir.
+func writeYAML(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", p, err)
+	}
+	return p
+}
+
+func TestLoadFileSpec_Minimal(t *testing.T) {
+	dir := t.TempDir()
+	p := writeYAML(t, dir, "spec.yaml", `
+info:
+  title: Test API
+  version: "1.0"
+sections:
+  - id: s1
+    title: Section 1
+`)
+	spec, err := loadFileSpec(p)
+	if err != nil {
+		t.Fatalf("loadFileSpec: %v", err)
+	}
+	if spec.Info.Title != "Test API" {
+		t.Errorf("title = %q, want %q", spec.Info.Title, "Test API")
+	}
+	if len(spec.Sections) != 1 || spec.Sections[0].ID != "s1" {
+		t.Errorf("sections = %+v", spec.Sections)
+	}
+}
+
+func TestLoadFileSpec_InvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	// Indentation that YAML parser rejects: child indented less than parent.
+	p := writeYAML(t, dir, "bad.yaml", "info:\n  title: x\n y: z\n")
+	if _, err := loadFileSpec(p); err == nil {
+		t.Fatal("expected error for malformed YAML indentation, got nil")
+	}
+}
+
+// TestLoadSpecFromPath_IndexAutoInclude verifies that pointing at index.yaml
+// triggers directory mode (sibling files get merged).
+func TestLoadSpecFromPath_IndexAutoInclude(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Root
+sections:
+  - id: root
+    title: Root section
+`)
+	writeYAML(t, dir, "sections/extra.yaml", `
+sections:
+  - id: extra
+    title: Extra section
+`)
+	spec, err := loadSpecFromPath(filepath.Join(dir, "index.yaml"))
+	if err != nil {
+		t.Fatalf("loadSpecFromPath: %v", err)
+	}
+	if len(spec.Sections) != 2 {
+		t.Errorf("sections = %d, want 2 (merged). got: %+v", len(spec.Sections), spec.Sections)
+	}
+}
+
+func TestLoadDirSpec_MergesArraysAppends(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Merged
+sections:
+  - id: a
+    title: A
+guides:
+  - id: g1
+    title: Guide 1
+    flow: []
+permissions:
+  - name: p:read
+    description: read
+`)
+	writeYAML(t, dir, "sections/b.yaml", `
+sections:
+  - id: b
+    title: B
+`)
+	writeYAML(t, dir, "guides/g2.yaml", `
+guides:
+  - id: g2
+    title: Guide 2
+    flow: []
+`)
+	spec, err := loadDirSpec(dir)
+	if err != nil {
+		t.Fatalf("loadDirSpec: %v", err)
+	}
+	if len(spec.Sections) != 2 {
+		t.Errorf("sections = %d, want 2", len(spec.Sections))
+	}
+	if len(spec.Guides) != 2 {
+		t.Errorf("guides = %d, want 2", len(spec.Guides))
+	}
+	if len(spec.Permissions) != 1 {
+		t.Errorf("permissions = %d, want 1", len(spec.Permissions))
+	}
+}
+
+// TestMergeSpec_ScalarOverrideFromOverlay documents current merge semantics:
+// non-empty Info in overlay REPLACES base.Info (not field-wise merge).
+func TestMergeSpec_ScalarOverrideFromOverlay(t *testing.T) {
+	base := &APISpec{}
+	base.Info.Title = "Original"
+	base.Info.Version = "1.0"
+
+	overlay := &APISpec{}
+	overlay.Info.Title = "Replaced"
+	// Note: overlay.Info.Version is empty but still overrides because the
+	// current contract is "overlay.Info wins if overlay.Info.Title != """.
+
+	mergeSpec(base, overlay)
+
+	if base.Info.Title != "Replaced" {
+		t.Errorf("Title = %q, want Replaced", base.Info.Title)
+	}
+	if base.Info.Version != "" {
+		t.Errorf("Version = %q, want empty (overlay replaces whole Info)", base.Info.Version)
+	}
+}
+
+func TestMergeSpec_EmptyOverlayIsNoOp(t *testing.T) {
+	base := &APISpec{}
+	base.Info.Title = "Kept"
+	base.Sections = []SectionInfo{{ID: "x"}}
+
+	mergeSpec(base, &APISpec{})
+
+	if base.Info.Title != "Kept" {
+		t.Errorf("empty overlay should not touch Info.Title, got %q", base.Info.Title)
+	}
+	if len(base.Sections) != 1 {
+		t.Errorf("empty overlay should not affect sections, got %d", len(base.Sections))
+	}
+}
+
+func TestDiscoverProjects_SubdirWithIndex(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Default
+`)
+	writeYAML(t, dir, "account/index.yaml", `
+info:
+  title: Account
+`)
+	writeYAML(t, dir, "storage/index.yaml", `
+info:
+  title: Storage
+`)
+	// A sub-directory without index.yaml should NOT become a project.
+	writeYAML(t, dir, "notes/readme.yaml", `
+info:
+  title: ignored
+`)
+
+	projects, err := discoverProjects(dir)
+	if err != nil {
+		t.Fatalf("discoverProjects: %v", err)
+	}
+
+	// Expect: "" (default) + "account" + "storage". "notes" should be absent.
+	if _, ok := projects[""]; !ok {
+		t.Error("missing default project")
+	}
+	if p, ok := projects["account"]; !ok || p.Info.Title != "Account" {
+		t.Errorf("account project missing or wrong: %+v", p)
+	}
+	if p, ok := projects["storage"]; !ok || p.Info.Title != "Storage" {
+		t.Errorf("storage project missing or wrong: %+v", p)
+	}
+	if _, ok := projects["notes"]; ok {
+		t.Error("notes should not be a project (no index.yaml)")
+	}
+}

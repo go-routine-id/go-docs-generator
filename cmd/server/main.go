@@ -1,10 +1,11 @@
-// Museum Docs Generator - Standalone Documentation Service
-// This service generates dynamic HTML documentation from YAML spec
+// Docs Generator - Standalone API Documentation Service
+// Generates dynamic HTML documentation from YAML specification files.
 package main
 
 import (
 	"flag"
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -15,12 +16,15 @@ import (
 
 func main() {
 	var (
-		specPath = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory")
-		port     = flag.String("port", "8080", "Server port")
-		prefix   = flag.String("prefix", "/docs", "URL prefix for documentation routes")
-		devMode  = flag.Bool("dev", false, "Development mode (hot-reload)")
+		specPath  = flag.String("spec", "./spec/index.yaml", "Path to spec file or directory")
+		port      = flag.String("port", "8080", "Server port")
+		prefix    = flag.String("prefix", "/docs", "URL prefix for documentation routes")
+		devMode   = flag.Bool("dev", false, "Development mode (hot-reload)")
+		logFormat = flag.String("log-format", defaultLogFormat(), "Log format: text or json")
 	)
 	flag.Parse()
+
+	setupLogging(*logFormat)
 
 	// Normalize prefix (ensure leading /, no trailing /)
 	*prefix = "/" + strings.Trim(*prefix, "/")
@@ -30,16 +34,14 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	log.Println("🏛️  Museum Docs Generator")
-	log.Println("═══════════════════════════════════════")
+	printBanner(*specPath, *devMode, *prefix, *port)
 
-	// Create docs handler
 	handler, err := docs.NewHandler(*specPath, *devMode)
 	if err != nil {
-		log.Fatalf("❌ Failed to initialize docs handler: %v", err)
+		slog.Error("failed to initialize docs handler", "err", err)
+		os.Exit(1)
 	}
 
-	// Create router
 	router := gin.Default()
 
 	// Enable CORS - needed for API tester to work cross-origin
@@ -54,10 +56,8 @@ func main() {
 		c.Next()
 	})
 
-	// Register routes
 	handler.RegisterRoutes(router, *prefix)
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":    "ok",
@@ -67,22 +67,57 @@ func main() {
 		})
 	})
 
-	// Print info
-	log.Printf("📄 Spec path: %s", *specPath)
-	log.Printf("🔄 Dev mode: %v", *devMode)
-	log.Printf("🔗 Prefix: %s", *prefix)
-	log.Println("")
-	log.Println("📚 Endpoints:")
-	log.Printf("   - http://localhost:%s%s              - HTML Documentation", *port, *prefix)
-	log.Printf("   - http://localhost:%s%s?p=<project>   - Project docs", *port, *prefix)
-	log.Printf("   - http://localhost:%s%s/spec           - AI Spec (JSON)", *port, *prefix)
-	log.Printf("   - http://localhost:%s%s/specs          - List projects", *port, *prefix)
-	log.Printf("   - http://localhost:%s%s/yaml           - Download YAML", *port, *prefix)
-	log.Printf("   - http://localhost:%s/health           - Health check", *port)
-	log.Println("")
-
-	// Start server
+	slog.Info("server starting", "port", *port, "prefix", *prefix, "dev", *devMode)
 	if err := router.Run(":" + *port); err != nil {
-		log.Fatalf("❌ Failed to start server: %v", err)
+		slog.Error("server stopped with error", "err", err)
+		os.Exit(1)
 	}
+}
+
+// setupLogging configures slog with the requested handler.
+func setupLogging(format string) {
+	level := slog.LevelInfo
+	if lv := os.Getenv("LOG_LEVEL"); lv != "" {
+		switch strings.ToLower(lv) {
+		case "debug":
+			level = slog.LevelDebug
+		case "warn":
+			level = slog.LevelWarn
+		case "error":
+			level = slog.LevelError
+		}
+	}
+	opts := &slog.HandlerOptions{Level: level}
+	var h slog.Handler
+	if strings.EqualFold(format, "json") {
+		h = slog.NewJSONHandler(os.Stderr, opts)
+	} else {
+		h = slog.NewTextHandler(os.Stderr, opts)
+	}
+	slog.SetDefault(slog.New(h))
+}
+
+// defaultLogFormat picks JSON for non-dev environments, text for humans otherwise.
+func defaultLogFormat() string {
+	if os.Getenv("GIN_MODE") == "release" || os.Getenv("LOG_FORMAT") == "json" {
+		return "json"
+	}
+	return "text"
+}
+
+// printBanner is kept as plain stderr output — it is presentation, not a log event.
+func printBanner(specPath string, devMode bool, prefix, port string) {
+	fmt.Fprintln(os.Stderr, "Docs Generator")
+	fmt.Fprintln(os.Stderr, "===========================================")
+	fmt.Fprintf(os.Stderr, "Spec:   %s\n", specPath)
+	fmt.Fprintf(os.Stderr, "Dev:    %v\n", devMode)
+	fmt.Fprintf(os.Stderr, "Prefix: %s\n", prefix)
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Endpoints:")
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/spec\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/specs\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/yaml\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s/health\n", port)
+	fmt.Fprintln(os.Stderr, "")
 }

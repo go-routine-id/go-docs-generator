@@ -1,0 +1,52 @@
+{{define "flow_diagram"}}
+    <script type="text/babel">
+        const ReactFlow = window.ReactFlow.ReactFlow || window.ReactFlow.default;
+
+        const nodes = [
+            {{range .FlowDiagramNodes}}
+            {
+                id: '{{.ID}}',
+                data: { label: '{{.Label | js}}' },
+                position: { x: {{.Position.X}}, y: {{.Position.Y}} },
+                style: {
+                    background: '{{.Color}}',
+                    color: 'white',
+                    border: '1px solid {{.Color}}',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                }
+            },
+            {{end}}
+        ];
+
+        const edges = [
+            {{range .FlowDiagramEdges}}
+            {
+                id: '{{.Source}}-{{.Target}}',
+                source: '{{.Source}}',
+                target: '{{.Target}}',
+                label: '{{.Label | js}}',
+                animated: {{.Animated}},
+                style: { stroke: '{{.Color}}' }
+            },
+            {{end}}
+        ];
+
+        function FlowDiagram() {
+            return React.createElement('div', { style: { width: '100%', height: '100%' } },
+                React.createElement(ReactFlow, {
+                    nodes: nodes,
+                    edges: edges,
+                    fitView: true,
+                    nodesDraggable: true,
+                    nodesConnectable: false
+                })
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('flow-diagram-container'));
+        root.render(React.createElement(FlowDiagram));
+    </script>
+{{end}}

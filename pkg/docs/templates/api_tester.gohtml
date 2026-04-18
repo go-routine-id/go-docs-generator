@@ -1,0 +1,291 @@
+{{define "api_tester"}}
+    <script>
+        // Credentials Management - per environment
+        const CREDENTIALS_KEY_PREFIX = 'api_credentials_v4_';
+        const baseUrlsConfig = JSON.parse({{.Info.BaseURLs | json}});
+        const authModesConfig = JSON.parse({{.APITesterDefaults.AuthModes | json}});
+
+        function getActiveBaseURL() {
+            const envSelect = document.getElementById('cred-env-select');
+            if (envSelect) return envSelect.value;
+            const globalSelect = document.getElementById('global-base-url');
+            if (globalSelect) return globalSelect.value;
+            return '';
+        }
+
+        function getCredKey() {
+            return CREDENTIALS_KEY_PREFIX + getActiveBaseURL();
+        }
+
+        function loadCredentials() {
+            const stored = localStorage.getItem(getCredKey());
+            const creds = stored ? JSON.parse(stored) : {};
+            authModesConfig.forEach((mode, idx) => {
+                const input = document.getElementById('cred-' + idx);
+                if (input) input.value = creds[mode.name] || '';
+            });
+        }
+
+        function saveCurrentCredential(modeName, value) {
+            const stored = localStorage.getItem(getCredKey());
+            const creds = stored ? JSON.parse(stored) : {};
+            creds[modeName] = value;
+            localStorage.setItem(getCredKey(), JSON.stringify(creds));
+        }
+
+        function switchCredEnvironment() {
+            loadCredentials();
+        }
+
+        function getCredentialsForBaseURL(baseUrl) {
+            const stored = localStorage.getItem(CREDENTIALS_KEY_PREFIX + baseUrl);
+            return stored ? JSON.parse(stored) : {};
+        }
+
+        // Toggle password visibility
+        function toggleVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // Load saved tokens
+        document.addEventListener('DOMContentLoaded', function() {
+            loadCredentials();
+
+            // Highlight all static JSON blocks
+            document.querySelectorAll('pre.json-highlight code').forEach(el => {
+                try {
+                    var parsed = JSON.parse(el.textContent);
+                    el.innerHTML = syntaxHighlightJSON(parsed);
+                } catch(e) {}
+            });
+
+            // Setup panel switching for nav items
+            document.querySelectorAll('.nav-item-header[data-target]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const target = this.getAttribute('data-target');
+                    showPanel(target);
+                });
+            });
+
+            document.querySelectorAll('.nav-child-item[data-target]').forEach(el => {
+                el.addEventListener('click', function() {
+                    const target = this.getAttribute('data-target');
+                    showPanel(target);
+                });
+            });
+        });
+
+        // Panel switching
+        function showPanel(targetId) {
+            // Hide all panels
+            document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
+            // Show target
+            document.getElementById(targetId).classList.add('active');
+
+            // Update sidebar active state
+            document.querySelectorAll('.nav-item-header').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-child-item').forEach(el => el.classList.remove('active'));
+
+            const activeNav = document.querySelector('[data-target="' + targetId + '"]');
+            if (activeNav) activeNav.classList.add('active');
+
+            // Close mobile sidebar
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        // Sidebar collapse toggle
+        function toggleCollapse(el) {
+            const navItem = el.closest('.nav-item');
+            navItem.classList.toggle('open');
+        }
+
+        // Flow step detail toggle
+        function toggleStepDetail(el) {
+            el.classList.toggle('open');
+        }
+
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('mobile-open');
+            document.querySelector('.sidebar-overlay').classList.toggle('visible');
+        }
+
+        // Open inline tester
+        function openTester(sectionIdx, endpointIdx) {
+            const testerId = 'tester-endpoint-' + sectionIdx + '-' + endpointIdx;
+            const tester = document.getElementById(testerId);
+
+            if (tester.style.display === 'none') {
+                tester.style.display = 'block';
+                updateAuthDisplay(sectionIdx, endpointIdx);
+            } else {
+                tester.style.display = 'none';
+            }
+        }
+
+        // Update all endpoint URLs when global base URL changes
+        function updateGlobalBaseURL() {
+            const globalSelect = document.getElementById('global-base-url');
+            if (!globalSelect) return;
+            const newBase = globalSelect.value;
+            document.querySelectorAll('.inline-base-url').forEach(sel => {
+                sel.value = newBase;
+                const si = sel.dataset.section;
+                const ei = sel.dataset.endpoint;
+                const urlInput = document.querySelector('.inline-url[data-section="'+si+'"][data-endpoint="'+ei+'"]');
+                if (urlInput) {
+                    urlInput.value = newBase + (urlInput.dataset.path || '');
+                }
+            });
+        }
+
+        // Update single endpoint URL when its base URL dropdown changes
+        function updateEndpointBaseURL(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const baseSelect = tester.querySelector('.inline-base-url');
+            const urlInput = tester.querySelector('.inline-url');
+            if (baseSelect && urlInput) {
+                urlInput.value = baseSelect.value + (urlInput.dataset.path || '');
+            }
+        }
+
+        // Update auth display di tester
+        function updateAuthDisplay(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const authMethod = tester.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
+            const displayDiv = document.getElementById('auth-display-' + sectionIdx + '-' + endpointIdx);
+            const labelSpan = tester.querySelector('.auth-type-label');
+            const previewInput = tester.querySelector('.inline-auth-preview');
+
+            if (authMethod === 'none') {
+                displayDiv.style.display = 'none';
+                return;
+            }
+
+            displayDiv.style.display = 'block';
+            const modeConfig = authModesConfig.find(m => m.name === authMethod);
+
+            // Get credentials for the active base URL of this tester
+            const baseSelect = tester.querySelector('.inline-base-url');
+            const activeBase = baseSelect ? baseSelect.value : getActiveBaseURL();
+            const envCreds = getCredentialsForBaseURL(activeBase);
+            const credValue = modeConfig ? (envCreds[modeConfig.name] || '') : '';
+
+            labelSpan.textContent = modeConfig ? modeConfig.name : authMethod;
+            previewInput.value = credValue ? maskToken(credValue) : '(not set - configure in Credentials panel)';
+        }
+
+        // Mask token untuk display
+        function maskToken(token) {
+            if (!token || token.length < 15) return token || '';
+            return token.substring(0, 12) + '...' + token.substring(token.length - 4);
+        }
+
+        // JSON syntax highlighting
+        function syntaxHighlightJSON(json) {
+            if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        // Toggle inline auth method (deprecated, keeping for compatibility)
+        function toggleInlineAuthMethod(sectionIdx, endpointIdx) {
+            updateAuthDisplay(sectionIdx, endpointIdx);
+        }
+
+        // Switch inline tab
+        function switchInlineTab(sectionIdx, endpointIdx, tabName) {
+            var container = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            container.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            document.getElementById('tab-' + tabName + '-' + sectionIdx + '-' + endpointIdx).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Send inline request
+        async function sendInlineRequest(sectionIdx, endpointIdx) {
+            const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
+            const method = tester.querySelector('.inline-method').value;
+            let url = tester.querySelector('.inline-url').value;
+            const authMethod = tester.querySelector('input[name="auth-method-' + sectionIdx + '-' + endpointIdx + '"]:checked').value;
+            const body = tester.querySelector('.inline-body').value;
+            const statusEl = tester.querySelector('.inline-status');
+            const responseEl = tester.querySelector('.inline-response');
+
+            // Build headers from credentials for active base URL
+            const headers = {};
+
+            if (authMethod !== 'none') {
+                const modeConfig = authModesConfig.find(m => m.name === authMethod);
+                if (modeConfig) {
+                    const baseSelect = tester.querySelector('.inline-base-url');
+                    const activeBase = baseSelect ? baseSelect.value : getActiveBaseURL();
+                    const envCreds = getCredentialsForBaseURL(activeBase);
+                    const credValue = envCreds[modeConfig.name] || '';
+                    if (credValue) {
+                        headers[modeConfig.header] = modeConfig.prefix + credValue;
+                    }
+                }
+            }
+
+            const options = { method: method, headers: headers };
+
+            if (method !== 'GET' && body) {
+                headers['Content-Type'] = 'application/json';
+                options.body = body;
+            }
+
+            responseEl.innerHTML = '<code>Sending...</code>';
+            statusEl.className = 'status-badge inline-status';
+
+            try {
+                const response = await fetch(url, options);
+                const contentType = response.headers.get('content-type');
+                let data;
+
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    data = await response.text();
+                }
+
+                statusEl.textContent = response.status + ' ' + response.statusText;
+                statusEl.className = 'status-badge inline-status ' + (response.ok ? 'status-success' : 'status-error');
+
+                if (typeof data === 'object') {
+                    responseEl.innerHTML = '<code>' + syntaxHighlightJSON(data) + '</code>';
+                } else {
+                    // Try to parse and highlight if it looks like JSON
+                    try {
+                        var parsed = JSON.parse(data);
+                        responseEl.innerHTML = '<code>' + syntaxHighlightJSON(parsed) + '</code>';
+                    } catch(e) {
+                        responseEl.innerHTML = '<code>' + data + '</code>';
+                    }
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error';
+                statusEl.className = 'status-badge inline-status status-error';
+                responseEl.innerHTML = '<code>Error: ' + error.message + '</code>';
+            }
+        }
+    </script>
+{{end}}
