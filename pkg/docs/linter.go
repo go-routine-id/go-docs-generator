@@ -16,9 +16,9 @@ const (
 
 // Diagnostic is a single lint finding.
 type Diagnostic struct {
-	Severity Severity
-	Path     string // dotted path into the spec, e.g. ".sections[2].endpoints[0]"
-	Message  string
+	Severity Severity `json:"severity"`
+	Path     string   `json:"path"` // dotted path into the spec, e.g. ".sections[2].endpoints[0]"
+	Message  string   `json:"message"`
 }
 
 func (d Diagnostic) String() string {

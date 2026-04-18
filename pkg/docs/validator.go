@@ -20,9 +20,9 @@ var embeddedSchemaJSON []byte
 // ValidationError carries a single schema-level violation, with enough context
 // (file + JSON path) for a human to find the offending line.
 type ValidationError struct {
-	File    string
-	Path    string // e.g. ".sections[0].endpoints[1].method"
-	Message string
+	File    string `json:"file,omitempty"`
+	Path    string `json:"path,omitempty"` // e.g. ".sections[0].endpoints[1].method"
+	Message string `json:"message"`
 }
 
 func (e ValidationError) Error() string {

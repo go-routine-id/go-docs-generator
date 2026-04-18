@@ -351,7 +351,38 @@ The server auto-detects (by `openapi:` key) and projects it onto the internal mo
 
 ## Validation
 
-Two levels, run both:
+Three access paths, same two layers underneath (JSON Schema + semantic linter). Pick whichever is easiest in your environment.
+
+### Option 1 — HTTP endpoint (zero install, best for sandboxed AI agents)
+
+If *any* docs-generator instance is reachable from your environment, POST the spec body and get a JSON response:
+
+```bash
+curl -sf -X POST https://<docs-host>/docs/validate \
+  -H 'Content-Type: text/yaml' \
+  --data-binary @./spec/index.yaml
+```
+
+Response shape (stable, `snake_case`):
+
+```json
+{
+  "ok": true,
+  "schema_errors": [],
+  "diagnostics": [
+    { "severity": "warning", "path": ".sections[0]", "message": "section has no description" }
+  ],
+  "summary": { "schema_errors": 0, "lint_errors": 0, "lint_warnings": 1 }
+}
+```
+
+- `ok` is `true` only when `schema_errors` is empty AND no diagnostic has `severity: "error"`. Warnings do not flip `ok`.
+- Body accepted: YAML (`Content-Type: text/yaml`, `application/yaml`, `application/x-yaml`, `text/plain`) or JSON (`application/json`). Max 1 MiB.
+- Endpoint is idempotent and carries no side effects — safe to call from AI loops.
+
+**Multi-file specs:** concatenate all files into a single merged YAML before posting (e.g. `cat spec/**/*.yaml`). The endpoint validates one document at a time; it doesn't do directory merge for you.
+
+### Option 2 — CLI (best when a local binary is installed)
 
 ```bash
 # Level 1 — parse, multi-file merge, and JSON Schema conformance
@@ -365,7 +396,7 @@ docs-gen lint ./spec/index.yaml
 # → exit 0 on warnings, exit 1 on errors; use `-strict` to fail on warnings
 ```
 
-In CI (GitHub Actions example):
+### Option 3 — CI
 
 ```yaml
 - name: Validate + lint spec
@@ -374,7 +405,9 @@ In CI (GitHub Actions example):
     go run github.com/Go-Routine-App/go-docs-generator/cmd/server@latest lint -strict ./spec/index.yaml
 ```
 
-If the binary is unavailable, you can still validate structurally against the JSON Schema using any Draft 2020-12 validator (e.g. `ajv`, `jsonschema` Python, etc.) by checking `./spec/index.yaml` (after YAML → JSON conversion) against `schemas/spec.schema.json`.
+### Fallback — pure JSON Schema validation
+
+No binary, no reachable server? Use any Draft 2020-12 validator (`ajv`, Python `jsonschema`, `jv`, …) against `schemas/spec.schema.json` after converting YAML → JSON. This gives you Level 1 only — semantic checks (duplicate ids, dangling anchors) still need Option 1 or 2.
 
 ---
 
@@ -411,8 +444,7 @@ Before telling the user "spec is ready", confirm:
 
 - [ ] Every endpoint in the spec corresponds to an actual route handler in the code.
 - [ ] At least one `base_url` is set (either in `info.base_urls` or in every section).
-- [ ] `docs-gen validate` exits 0 (schema-valid).
-- [ ] `docs-gen lint` reports no errors (warnings OK to leave for later).
+- [ ] Validation passed: either `docs-gen validate` + `docs-gen lint` exit 0, OR `POST /docs/validate` returns `"ok": true`. Warnings OK to leave for later; errors must be fixed.
 - [ ] If the project has distinct services with different hosts, each is a separate section with its own `base_url`.
 - [ ] The spec, when served via `docs-gen -spec ...`, opens at `/docs` without a template error.
 - [ ] The schema comment on line 1 (`# yaml-language-server: $schema=...`) is present for IDE support.

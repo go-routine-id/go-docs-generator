@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,7 +15,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
+
+// yamlUnmarshal is a local alias so the body of handler.go reads naturally;
+// keeps the direct dependency on yaml.v3 contained to the import block.
+func yamlUnmarshal(data []byte, v any) error { return yaml.Unmarshal(data, v) }
 
 // projectInfo is a lightweight project descriptor for listing
 type projectInfo struct {
@@ -242,8 +248,114 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
 	router.GET(prefix+"/specs", h.ServeProjectList)
 	router.GET(prefix+"/yaml", h.ServeYAML)
 	router.GET(prefix+"/openapi", h.ServeOpenAPI)
+	router.POST(prefix+"/validate", h.ServeValidate)
 	router.GET(prefix+"/echo", h.ServeEcho)
 	router.POST(prefix+"/echo", h.ServeEcho)
+}
+
+// ValidateResponse is the JSON body returned by POST /{prefix}/validate.
+// schema_errors come from JSON Schema validation; diagnostics come from the
+// semantic linter. `ok` is true only when both lists are empty of errors
+// (warnings are allowed).
+type ValidateResponse struct {
+	OK           bool              `json:"ok"`
+	SchemaErrors []ValidationError `json:"schema_errors,omitempty"`
+	Diagnostics  []Diagnostic      `json:"diagnostics,omitempty"`
+	Summary      ValidateSummary   `json:"summary"`
+}
+
+// ValidateSummary counts errors vs warnings for quick client-side branching.
+type ValidateSummary struct {
+	SchemaErrors  int `json:"schema_errors"`
+	LintErrors    int `json:"lint_errors"`
+	LintWarnings  int `json:"lint_warnings"`
+}
+
+// ServeValidate accepts a spec in the request body, parses it, and returns
+// the combined output of the schema validator and the semantic linter as
+// JSON. Intended for AI agents and tooling that need to verify a spec
+// without running a binary locally.
+//
+// Body content types accepted:
+//   - application/yaml, text/yaml, application/x-yaml, text/plain — raw YAML
+//   - application/json — JSON-encoded spec
+//
+// Size cap: 1 MiB.
+func (h *Handler) ServeValidate(c *gin.Context) {
+	const maxBody = 1 << 20 // 1 MiB
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBody)
+
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "body too large or unreadable: " + err.Error()})
+		return
+	}
+	if len(raw) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "empty body — send the spec as request body (YAML or JSON)"})
+		return
+	}
+
+	spec, parseErr := parseSpecBody(raw, c.ContentType())
+	if parseErr != nil {
+		// Parse failures ARE validation failures — surface them in the usual
+		// response shape so clients only need one error path.
+		c.JSON(http.StatusOK, ValidateResponse{
+			OK:           false,
+			SchemaErrors: []ValidationError{{Message: parseErr.Error()}},
+			Summary:      ValidateSummary{SchemaErrors: 1},
+		})
+		return
+	}
+
+	schemaErrs := ValidateSpec(spec, "")
+	diags := Lint(spec)
+
+	lintErrs, lintWarns := 0, 0
+	for _, d := range diags {
+		if d.Severity == SeverityError {
+			lintErrs++
+		} else {
+			lintWarns++
+		}
+	}
+
+	c.JSON(http.StatusOK, ValidateResponse{
+		OK:           len(schemaErrs) == 0 && lintErrs == 0,
+		SchemaErrors: schemaErrs,
+		Diagnostics:  diags,
+		Summary: ValidateSummary{
+			SchemaErrors: len(schemaErrs),
+			LintErrors:   lintErrs,
+			LintWarnings: lintWarns,
+		},
+	})
+}
+
+// parseSpecBody converts a YAML or JSON request body into an APISpec.
+// Content-Type is consulted as a hint but YAML is tried as a fallback because
+// YAML is a JSON superset.
+func parseSpecBody(raw []byte, contentType string) (*APISpec, error) {
+	if isOpenAPIDocument(raw) {
+		// Reject OpenAPI here — we want to validate OUR spec format, not project
+		// OpenAPI onto it. Clients can hit /docs/openapi to export instead.
+		return nil, fmt.Errorf("body looks like an OpenAPI document — this endpoint validates docs-generator specs only")
+	}
+
+	ct := strings.ToLower(contentType)
+	if strings.Contains(ct, "application/json") {
+		var spec APISpec
+		if err := json.Unmarshal(raw, &spec); err != nil {
+			return nil, fmt.Errorf("json parse: %w", err)
+		}
+		return &spec, nil
+	}
+
+	// Default: YAML (also parses JSON — yaml.v3 accepts both).
+	var spec APISpec
+	if err := yamlUnmarshal(raw, &spec); err != nil {
+		return nil, fmt.Errorf("yaml parse: %w", err)
+	}
+	return &spec, nil
 }
 
 // ServeOpenAPI exports the current spec as an OpenAPI 3.0 JSON document so

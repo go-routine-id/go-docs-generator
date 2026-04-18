@@ -303,6 +303,7 @@ func printBanner(specPath string, devMode bool, prefix, port string) {
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/specs\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/yaml\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/openapi\n", port, prefix)
+	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/validate  (POST)\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/agents\n", port, prefix)
 	fmt.Fprintf(os.Stderr, "  http://localhost:%s%s/health\n", port, prefix)
 	fmt.Fprintln(os.Stderr, "")
