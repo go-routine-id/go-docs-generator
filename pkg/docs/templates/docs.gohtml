@@ -319,7 +319,8 @@
                             </div>
                             <div class="tester-row">
                                 <select class="method-select inline-method" data-section="{{$si}}" data-endpoint="{{$ei}}">
-                                    {{range $mi, $m := testerMethods $.APITesterDefaults.Methods}}<option value="{{$m}}"{{if eq $ep.Method $m}} selected{{end}}>{{$m}}</option>
+                                    {{$allMethods := testerMethodsWith $.APITesterDefaults.Methods $ep.Method}}
+                                    {{range $mi, $m := $allMethods}}<option value="{{$m}}"{{if eq $ep.Method $m}} selected{{end}}>{{$m}}</option>
                                     {{end}}
                                 </select>
                                 {{$effective := sectionBaseURLs $section $.Info}}

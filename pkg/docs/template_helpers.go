@@ -1,5 +1,7 @@
 package docs
 
+import "strings"
+
 // sectionBaseURLs returns the BaseURLs selection the section's API tester
 // should offer. Section-level BaseURLs take precedence; otherwise the
 // document-wide Info.BaseURLs is used.
@@ -46,6 +48,19 @@ func testerMethods(methods []string) []string {
 		return methods
 	}
 	return []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+}
+
+// testerMethodsWith returns the configured methods plus the endpoint's own
+// method if it isn't already in the list. This ensures every dropdown always
+// shows the endpoint's actual method as a selectable option.
+func testerMethodsWith(methods []string, endpointMethod string) []string {
+	base := testerMethods(methods)
+	for _, m := range base {
+		if strings.EqualFold(m, endpointMethod) {
+			return base
+		}
+	}
+	return append(base, strings.ToUpper(endpointMethod))
 }
 
 func defaultOrFirst(urls []BaseURL) string {
