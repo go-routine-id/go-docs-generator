@@ -254,13 +254,17 @@ flow_diagram_edges:
     color: "#4f46e5"
     style: dashed                 # empty = solid
 
-api_tester_defaults:
-  methods: [GET, POST, PATCH, DELETE, PUT]
+api_tester_defaults:               # configures the in-page API tester
+  methods: [GET, POST, PATCH, DELETE, PUT]  # MUST include every method used by any endpoint
   auth_modes:
-    - name: JWT Bearer
-      header: Authorization
-      prefix: "Bearer "
+    - name: JWT Bearer             # MUST match the `auth` field on endpoints (case-sensitive)
+      header: Authorization        # HTTP header name for the credential
+      prefix: "Bearer "            # prepended to the credential value — use "" for bare tokens/keys
       placeholder: YOUR_JWT_TOKEN_HERE
+    - name: API Key                # second mode example
+      header: X-API-Key
+      prefix: ""                   # empty string — key is sent as-is, no prefix
+      placeholder: YOUR_API_KEY_HERE
 
 theme:                            # branding — all fields optional
   title: string                   # overrides Info.Title in UI
@@ -269,6 +273,31 @@ theme:                            # branding — all fields optional
   primary_color: "#ff6600"
   favicon: /favicon.ico
 ```
+
+### How fields connect (read this before writing)
+
+Several fields must **match** each other for the docs page to work correctly. Memorize these rules:
+
+| Field A | Field B | Rule |
+|---------|---------|------|
+| `sections[].endpoints[].auth` | `api_tester_defaults.auth_modes[].name` | **Case-sensitive match.** The tester uses the endpoint's `auth` value to look up which auth mode to apply. If they don't match, the tester won't attach credentials. |
+| `sections[].endpoints[].method` | `api_tester_defaults.methods` | Every HTTP method used by any endpoint **must** appear in `methods`. Missing methods = empty dropdown. Safe default: `[GET, POST, PUT, PATCH, DELETE]`. |
+| `api_tester_defaults.auth_modes[].prefix` | (credential value) | `prefix` is prepended to the user's credential. For `Authorization: Bearer <token>` use `prefix: "Bearer "` (note the trailing space). For raw API keys in a custom header like `X-API-Key`, use `prefix: ""`. **Never omit `prefix`** — always set it explicitly to `""` when no prefix is needed, otherwise the page may render `undefined` before the key. |
+| `authentication.methods[].type` | `flow_overview.methods[].type` | These describe the auth mechanism for the documentation reader. They do **not** affect the tester — only `api_tester_defaults` does. Keep labels consistent across all three for clarity, but only `api_tester_defaults.auth_modes[].name` is technically linked. |
+
+**Minimal `api_tester_defaults`** (include this even for a simple API):
+
+```yaml
+api_tester_defaults:
+  methods: [GET, POST, PUT, PATCH, DELETE]
+  auth_modes:
+    - name: JWT Bearer
+      header: Authorization
+      prefix: "Bearer "
+      placeholder: YOUR_JWT_TOKEN_HERE
+```
+
+If your API uses only one auth method, one entry is fine. If it supports both JWT and API Key, add both (see the full cheat sheet above).
 
 ---
 
@@ -595,6 +624,9 @@ Before telling the user "spec is ready", confirm:
 - [ ] At least one `base_url` is set (either in `info.base_urls` or in every section).
 - [ ] Validation passed: either `docs-gen validate` + `docs-gen lint` exit 0, OR `POST /docs/validate` returns `"ok": true`. Warnings OK to leave for later; errors must be fixed.
 - [ ] If the project has distinct services with different hosts, each is a separate section with its own `base_url`.
+- [ ] Every endpoint's `method` appears in `api_tester_defaults.methods`.
+- [ ] Every endpoint's `auth` value exactly matches an `api_tester_defaults.auth_modes[].name`.
+- [ ] Every `auth_modes` entry has `prefix` explicitly set (`"Bearer "` or `""` — never omitted).
 - [ ] The spec, when served via `docs-gen -spec ...`, opens at `/docs` without a template error.
 - [ ] The schema comment on line 1 (`# yaml-language-server: $schema=...`) is present for IDE support.
 - [ ] No invented endpoints, no placeholder lorem ipsum, no leaked secrets.
