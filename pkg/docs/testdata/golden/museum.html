@@ -5396,7 +5396,7 @@
                     const envCreds = getCredentialsForBaseURL(activeBase);
                     const credValue = envCreds[modeConfig.name] || '';
                     if (credValue) {
-                        headers[modeConfig.header] = modeConfig.prefix + credValue;
+                        headers[modeConfig.header] = (modeConfig.prefix || '') + credValue;
                     }
                 }
             }
