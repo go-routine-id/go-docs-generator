@@ -39,6 +39,15 @@ func sectionUsesGlobal(section SectionInfo) bool {
 	return section.BaseURL == "" && len(section.BaseURLs) == 0
 }
 
+// testerMethods returns the configured methods for the API tester dropdown,
+// falling back to the standard set when the spec does not define any.
+func testerMethods(methods []string) []string {
+	if len(methods) > 0 {
+		return methods
+	}
+	return []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
+}
+
 func defaultOrFirst(urls []BaseURL) string {
 	for _, b := range urls {
 		if b.Default {

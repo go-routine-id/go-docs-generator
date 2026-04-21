@@ -74,6 +74,7 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 		"sectionBaseURLs":     sectionBaseURLs,
 		"sectionDefaultURL":   sectionDefaultURL,
 		"sectionUsesGlobal":   sectionUsesGlobal,
+		"testerMethods":       testerMethods,
 		"assetURL":            func(file string) string { return h.prefix + "/assets/vendor/" + file },
 		"docPath":             func(sub string) string { return h.prefix + "/" + sub },
 	}
