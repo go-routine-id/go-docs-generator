@@ -35,7 +35,7 @@
                 {{if .Theme.Title}}{{.Theme.Title}}{{else}}{{.Info.Title}}{{end}}
             </div>
             <div class="sidebar-version">v{{.Info.Version}}</div>
-            <a href="/api/docs/yaml" class="sidebar-download" download>📥 Download YAML</a>
+            <a href="{{docPath "yaml"}}" class="sidebar-download" download>📥 Download YAML</a>
         </div>
 
         <nav class="sidebar-nav">
@@ -630,8 +630,8 @@
             <p style="margin-top: 0.5rem;">
                 <a href="/swagger/index.html">Swagger UI</a> •
                 <a href="/swagger/doc.json">OpenAPI JSON</a> •
-                <a href="/api/docs/yaml" download>📥 YAML</a> •
-                <a href="/api/docs/spec">🤖 JSON</a>
+                <a href="{{docPath "yaml"}}" download>📥 YAML</a> •
+                <a href="{{docPath "spec"}}">🤖 JSON</a>
             </p>
         </footer>
     </main>
