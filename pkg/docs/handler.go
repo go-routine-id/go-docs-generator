@@ -148,6 +148,34 @@ func (h *Handler) isDirMode() bool {
 	return info.IsDir()
 }
 
+// isMergedMode reports whether the in-memory spec was produced by merging
+// multiple source files. True when specRoot is a directory, or when specRoot
+// is an index.yaml with at least one sibling YAML file (the loader's
+// auto-include trigger). In that case the raw bytes of specRoot alone would
+// under-represent the spec, so /yaml must serve the marshalled merged view.
+func (h *Handler) isMergedMode() bool {
+	if h.isDirMode() {
+		return true
+	}
+	if !strings.EqualFold(filepath.Base(h.specRoot), "index.yaml") {
+		return false
+	}
+	parent := filepath.Dir(h.specRoot)
+	hasSibling := false
+	filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || path == h.specRoot {
+			return nil
+		}
+		lower := strings.ToLower(path)
+		if strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml") {
+			hasSibling = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return hasSibling
+}
+
 // ReloadSpec reloads all specs from disk
 func (h *Handler) ReloadSpec() error {
 	return h.loadAllSpecs()
@@ -209,7 +237,7 @@ func (h *Handler) ServeYAML(c *gin.Context) {
 	// comments, ordering, and their preferred formatting are preserved.
 	// Anything else returns the merged effective spec (marshalled), since a
 	// partial overlay file on its own would be misleading.
-	if !h.isDirMode() {
+	if !h.isMergedMode() {
 		data, err := os.ReadFile(h.specRoot)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "read spec: "+err.Error())

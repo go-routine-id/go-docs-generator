@@ -3,10 +3,13 @@ package docs
 import (
 	"bytes"
 	"flag"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "overwrite golden files with current render output")
@@ -86,6 +89,49 @@ func TestRender_StructuralInvariants(t *testing.T) {
 		if !inv.check(out) {
 			t.Errorf("invariant failed: %s", inv.name)
 		}
+	}
+}
+
+// TestServeYAML_IndexWithSiblings guards against a regression where /yaml
+// downloaded only index.yaml when specRoot pointed at an index.yaml file whose
+// parent directory held overlay YAMLs. The loader merges those overlays into
+// memory, so the download must reflect the merged view too.
+func TestServeYAML_IndexWithSiblings(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h.RegisterRoutes(router, "/docs")
+
+	req := httptest.NewRequest("GET", "/docs/yaml", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200. body=%s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+
+	// Content from sibling files must be present in the download. Each probe
+	// is a string that lives in an overlay file, not in index.yaml.
+	probes := map[string]string{
+		"sections/museum.yaml":        "My Museum (Single Museum Pattern)",
+		"sections/artifacts.yaml":     "id: artifacts",
+		"sections/articles.yaml":      "Articles (CMS)",
+		"guides/file_upload.yaml":     "id: file_upload",
+		"screens/museum_screens.yaml": "Museum Dashboard",
+	}
+	for file, needle := range probes {
+		if !strings.Contains(body, needle) {
+			t.Errorf("download is missing content from %s (needle %q not found)", file, needle)
+		}
+	}
+
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/yaml") {
+		t.Errorf("Content-Type = %q, want text/yaml…", ct)
 	}
 }
 
