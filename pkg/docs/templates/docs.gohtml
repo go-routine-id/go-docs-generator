@@ -306,7 +306,7 @@
                                         </div>
                                         {{end}}
                                         <div class="auth-option">
-                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" onchange="updateAuthDisplay({{$si}}, {{$ei}})">
+                                            <input type="radio" name="auth-method-{{$si}}-{{$ei}}" value="none" id="auth-none-{{$si}}-{{$ei}}" {{if not $.APITesterDefaults.AuthModes}}checked{{end}} onchange="updateAuthDisplay({{$si}}, {{$ei}})">
                                             <label for="auth-none-{{$si}}-{{$ei}}">Public</label>
                                         </div>
                                     </div>

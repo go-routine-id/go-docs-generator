@@ -2,8 +2,11 @@
     <script>
         // Credentials Management - per environment
         const CREDENTIALS_KEY_PREFIX = 'api_credentials_v4_';
-        const baseUrlsConfig = JSON.parse({{.Info.BaseURLs | json}});
-        const authModesConfig = JSON.parse({{.APITesterDefaults.AuthModes | json}});
+        // `|| []` guards: a spec without `base_urls` or `auth_modes` marshals to
+        // `null`, and `null.forEach`/`.find` would crash the page. An empty
+        // array is the right default — the tester just renders fewer controls.
+        const baseUrlsConfig = JSON.parse({{.Info.BaseURLs | json}}) || [];
+        const authModesConfig = JSON.parse({{.APITesterDefaults.AuthModes | json}}) || [];
 
         function getActiveBaseURL() {
             const envSelect = document.getElementById('cred-env-select');

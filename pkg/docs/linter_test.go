@@ -141,6 +141,50 @@ func TestLint_OrphanPermission(t *testing.T) {
 	}
 }
 
+func TestLint_AuthModesEmptyButReferenced(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "X"},
+		Sections: []SectionInfo{
+			{ID: "s", Title: "S", Description: "x", Endpoints: []Endpoint{
+				{Name: "a", Method: "GET", Path: "/a", Auth: "JWT Bearer", Description: "d"},
+			}},
+		},
+		// APITesterDefaults.AuthModes intentionally empty — this is the
+		// "validator passed, runtime crashed" trap we're guarding against.
+	}
+	ds := Lint(spec)
+	if !HasErrors(ds) {
+		t.Fatal("expected error: endpoint references auth but auth_modes is empty")
+	}
+	found := false
+	for _, d := range ds {
+		if d.Severity == SeverityError && strings.Contains(d.Message, "auth_modes is empty") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'auth_modes is empty' error, got: %+v", ds)
+	}
+}
+
+func TestLint_AuthModesEmptyButOnlyPublicEndpoints(t *testing.T) {
+	// auth_modes empty is fine when no endpoint claims an auth mode.
+	spec := &APISpec{
+		Info: InfoInfo{Title: "X"},
+		Sections: []SectionInfo{
+			{ID: "s", Title: "S", Description: "x", Endpoints: []Endpoint{
+				{Name: "a", Method: "GET", Path: "/a", Auth: "none", Description: "d"},
+				{Name: "b", Method: "GET", Path: "/b", Description: "d"},
+			}},
+		},
+	}
+	for _, d := range Lint(spec) {
+		if d.Severity == SeverityError && strings.Contains(d.Message, "auth_modes is empty") {
+			t.Errorf("public-only spec should not trigger auth_modes error: %+v", d)
+		}
+	}
+}
+
 // TestValidate_ExampleMuseum ensures the shipped example stays schema-valid —
 // it's our canary if we change types.go without updating overrides.
 func TestValidate_ExampleMuseum(t *testing.T) {

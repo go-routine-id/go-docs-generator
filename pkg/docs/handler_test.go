@@ -92,6 +92,48 @@ func TestRender_StructuralInvariants(t *testing.T) {
 	}
 }
 
+// TestRender_EmptyAuthModes guards against the runtime crash reported when a
+// spec omits api_tester_defaults.auth_modes — `JSON.parse("null").forEach(...)`
+// would blow up loadCredentials before the page finished rendering. The render
+// must produce defensive guards (`|| []`) and a default-checked radio so the
+// in-page tester can mount without throwing.
+func TestRender_EmptyAuthModes(t *testing.T) {
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "spec.yaml")
+	yaml := `info:
+  title: Demo
+  version: "1.0"
+  base_urls:
+    - { label: Local, url: http://localhost:3000, default: true }
+sections:
+  - id: hello
+    title: Hello
+    description: greeting
+    endpoints:
+      - { name: Ping, method: GET, path: /ping, auth: none, description: liveness }
+`
+	if err := os.WriteFile(specPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("write spec: %v", err)
+	}
+	h, err := NewHandler(specPath, false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	got, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	out := string(got)
+
+	if !strings.Contains(out, `JSON.parse("null") || []`) {
+		t.Errorf("missing `JSON.parse(\"null\") || []` defensive guard — page would crash on load")
+	}
+	if !strings.Contains(out, `value="none" id="auth-none-0-0" checked`) {
+		t.Errorf("Public radio is not default-checked when auth_modes is empty — `:checked.value` would crash")
+	}
+}
+
 // TestServeYAML_IndexWithSiblings guards against a regression where /yaml
 // downloaded only index.yaml when specRoot pointed at an index.yaml file whose
 // parent directory held overlay YAMLs. The loader merges those overlays into

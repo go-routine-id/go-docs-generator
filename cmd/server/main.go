@@ -122,6 +122,12 @@ func runServe() {
 		c.Data(200, "text/markdown; charset=utf-8", []byte(agentsPrompt))
 	})
 
+	// Quiet the inevitable browser /favicon.ico request. Without this gin
+	// returns 404 and consumers see noisy log lines on every page load.
+	// 204 No Content is the standard "I have no favicon, don't ask again"
+	// response.
+	router.GET("/favicon.ico", func(c *gin.Context) { c.Status(204) })
+
 	router.GET(*prefix+"/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":    "ok",

@@ -43,6 +43,7 @@ func Lint(spec *APISpec) []Diagnostic {
 	out = append(out, checkFlowAnchorRefs(spec)...)
 	out = append(out, checkPermissionRefs(spec)...)
 	out = append(out, checkAuthLabelConsistency(spec)...)
+	out = append(out, checkAuthModesPresent(spec)...)
 	out = append(out, checkEmptyDescriptions(spec)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
@@ -333,6 +334,32 @@ func firstToken(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// checkAuthModesPresent fails the lint when at least one endpoint claims an
+// auth mode (anything other than empty or "none") but the API tester has no
+// `api_tester_defaults.auth_modes` to back it. Without this check the spec
+// passes validation but the rendered tester runs `null.forEach` / `null.find`
+// at page load — silent crash for the consumer.
+func checkAuthModesPresent(spec *APISpec) []Diagnostic {
+	if len(spec.APITesterDefaults.AuthModes) > 0 {
+		return nil
+	}
+	for si, sec := range spec.Sections {
+		for ei, ep := range sec.Endpoints {
+			label := strings.TrimSpace(ep.Auth)
+			if label == "" || strings.EqualFold(label, "none") {
+				continue
+			}
+			return []Diagnostic{{
+				Severity: SeverityError,
+				Path:     fmt.Sprintf(".sections[%d].endpoints[%d].auth", si, ei),
+				Message: fmt.Sprintf("endpoint claims auth %q but api_tester_defaults.auth_modes is empty — "+
+					"tester cannot attach credentials and the page will crash on load", label),
+			}}
+		}
+	}
+	return nil
 }
 
 // checkEmptyDescriptions warns for endpoints and sections without a description —

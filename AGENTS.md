@@ -285,13 +285,13 @@ Several fields must **match** each other for the docs page to work correctly. Me
 | `api_tester_defaults.auth_modes[].prefix` | (credential value) | `prefix` is prepended to the user's credential. For `Authorization: Bearer <token>` use `prefix: "Bearer "` (note the trailing space). For raw API keys in a custom header like `X-API-Key`, use `prefix: ""`. **Never omit `prefix`** — always set it explicitly to `""` when no prefix is needed, otherwise the page may render `undefined` before the key. |
 | `authentication.methods[].type` | `flow_overview.methods[].type` | These describe the auth mechanism for the documentation reader. They do **not** affect the tester — only `api_tester_defaults` does. Keep labels consistent across all three for clarity, but only `api_tester_defaults.auth_modes[].name` is technically linked. |
 
-**Minimal `api_tester_defaults`** (include this even for a simple API):
+**Minimal `api_tester_defaults`** — `auth_modes` is **required** whenever any endpoint declares an `auth` value other than `none`/empty. If you skip it, the rendered tester crashes with `Cannot read properties of null (reading 'forEach')` at page load and the lint check fails. The only spec that may omit `auth_modes` is one whose endpoints are all `auth: none`.
 
 ```yaml
 api_tester_defaults:
   methods: [GET, POST, PUT, PATCH, DELETE]
   auth_modes:
-    - name: JWT Bearer
+    - name: JWT Bearer            # MUST exactly match every non-public endpoint's `auth` value
       header: Authorization
       prefix: "Bearer "
       placeholder: YOUR_JWT_TOKEN_HERE
