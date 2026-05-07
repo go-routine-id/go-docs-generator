@@ -204,6 +204,30 @@ curl https://your-docs-host/docs/agents
 curl https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/AGENTS.md
 ```
 
+### Claude Code skill (recommended for Claude users)
+
+If you use Claude Code, this repo ships a skill at [`.claude/skills/docs-gen-spec/`](.claude/skills/docs-gen-spec/SKILL.md) that auto-loads the authoring rules whenever you work on a docs-generator spec — no need to remember to fetch `AGENTS.md` first. The skill triggers on phrases like "edit api-spec.yaml", "tester crashes", "auth_modes", and similar.
+
+**Install once per machine** (clone this repo, then run from its root):
+
+```bash
+make install-skill
+```
+
+That symlinks `.claude/skills/docs-gen-spec/` into `~/.claude/skills/`, so the skill is active in **every** Claude Code session — including when you are working in another project that consumes docs-generator. `git pull` automatically picks up updates because it is a symlink, not a copy.
+
+To verify the link, open a new Claude Code session anywhere and ask it to edit any `api-spec.yaml`; it should run `docs-gen prompt` (or fetch `/docs/agents`) before touching the file. To remove:
+
+```bash
+make uninstall-skill
+```
+
+If you cannot use `make`, the same effect:
+
+```bash
+ln -sfn "$PWD/.claude/skills/docs-gen-spec" ~/.claude/skills/docs-gen-spec
+```
+
 ## License
 
 MIT

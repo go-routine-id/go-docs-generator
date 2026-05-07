@@ -1,4 +1,4 @@
-.PHONY: build run dev clean test generate docker-build docker-run
+.PHONY: build run dev clean test generate docker-build docker-run install-skill uninstall-skill
 
 # Build the binary
 build:
@@ -39,6 +39,18 @@ docker-build:
 docker-run:
 	docker run --rm -p 8080:8080 -v $(PWD)/spec:/app/spec docs-generator:latest
 
+# Link the docs-gen-spec Claude skill into ~/.claude/skills/ so it auto-loads
+# whenever the user works on a docs-generator spec — even from other projects.
+# Symlink (not copy) so `git pull` keeps the skill up-to-date.
+install-skill:
+	@mkdir -p $(HOME)/.claude/skills
+	@ln -sfn "$(CURDIR)/.claude/skills/docs-gen-spec" "$(HOME)/.claude/skills/docs-gen-spec"
+	@echo "linked: $(HOME)/.claude/skills/docs-gen-spec -> $(CURDIR)/.claude/skills/docs-gen-spec"
+
+uninstall-skill:
+	@rm -f "$(HOME)/.claude/skills/docs-gen-spec"
+	@echo "removed: $(HOME)/.claude/skills/docs-gen-spec"
+
 # Show help
 help:
 	@echo "Available targets:"
@@ -51,3 +63,5 @@ help:
 	@echo "  deps          - Download dependencies"
 	@echo "  docker-build  - Build Docker image"
 	@echo "  docker-run    - Run Docker container"
+	@echo "  install-skill - Link docs-gen-spec Claude Code skill globally"
+	@echo "  uninstall-skill - Remove the linked skill"
