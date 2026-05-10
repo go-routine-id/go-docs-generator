@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
+#
+# Example 01 — public-only API.
+# Use this shape when no endpoint requires authentication.
+# `api_tester_defaults` may be omitted entirely; the lint check only mandates
+# `auth_modes` once at least one endpoint declares a non-`none` auth value.
+
+info:
+  title: Public Read-Only API
+  version: "1.0.0"
+  description: Liveness and weather endpoints. No authentication.
+  base_urls:
+    - { label: Production, url: https://api.example.com, default: true }
+    - { label: Staging, url: https://staging.api.example.com }
+
+sections:
+  - id: health
+    title: Health
+    description: Liveness probes for monitoring and load balancers.
+    endpoints:
+      - name: Ping
+        method: GET
+        path: /ping
+        auth: none
+        description: Returns 200 OK with the literal body `pong` when the service is up.
+
+  - id: weather
+    title: Weather
+    description: Current weather observations sourced from public stations.
+    endpoints:
+      - name: Get Current Weather
+        method: GET
+        path: /v1/weather/current
+        auth: none
+        description: Returns the latest observation for the supplied city.
+        query_params:
+          - { name: city, type: string, required: true, description: City name (case-insensitive) }
+        example_response: |
+          { "city": "Jakarta", "temp_c": 31, "humidity": 0.78 }

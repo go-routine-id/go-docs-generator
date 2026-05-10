@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
+#
+# Example 03 — multi-auth API: per-user JWT + service-to-service API Key.
+# Use this shape when different endpoints take different credentials.
+# Each `auth_modes[]` entry MUST have an exactly-matching `auth` value somewhere
+# in the spec; mismatched names mean the tester silently fails to attach creds.
+
+info:
+  title: Multi-Auth API
+  version: "1.0.0"
+  description: Public API supporting both per-user JWT and service-to-service API Key.
+  base_urls:
+    - { label: Production, url: https://api.example.com, default: true }
+    - { label: Staging, url: https://staging.api.example.com }
+
+authentication:
+  methods:
+    - type: Bearer JWT
+      header: Authorization
+      format: "Bearer <token>"
+      source: auth-service
+      description: Per-user JWT bearer token. Used by browser/mobile clients.
+    - type: API Key
+      header: X-API-Key
+      format: "<api_key>"
+      source: admin console
+      description: Service-to-service API key. Long-lived, scoped to a single integration.
+
+sections:
+  - id: account
+    title: Account
+    description: Per-user endpoints. Always require a JWT.
+    endpoints:
+      - name: Get Me
+        method: GET
+        path: /v1/me
+        auth: JWT Bearer
+        description: Returns the authenticated user's profile.
+
+  - id: admin
+    title: Admin
+    description: Service-to-service endpoints. Always require an API Key.
+    endpoints:
+      - name: List All Users
+        method: GET
+        path: /v1/admin/users
+        auth: API Key
+        description: Returns every user in the tenant. Restricted to backend integrations.
+        query_params:
+          - { name: cursor, type: string, required: false, description: Opaque pagination cursor }
+
+      - name: Create User
+        method: POST
+        path: /v1/admin/users
+        auth: API Key
+        description: Provisions a new user record without an email round-trip.
+        body:
+          - { name: email, type: string, required: true, description: User email (unique) }
+          - { name: display_name, type: string, required: false, description: Public display name }
+
+api_tester_defaults:
+  methods: [GET, POST, PUT, PATCH, DELETE]
+  auth_modes:
+    - name: JWT Bearer
+      header: Authorization
+      prefix: "Bearer "
+      placeholder: YOUR_JWT_TOKEN_HERE
+    - name: API Key
+      header: X-API-Key
+      prefix: ""                  # bare key, no prefix — empty string is REQUIRED, not omitted
+      placeholder: YOUR_API_KEY_HERE

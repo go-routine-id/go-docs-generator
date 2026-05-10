@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -182,6 +183,36 @@ func TestLint_AuthModesEmptyButOnlyPublicEndpoints(t *testing.T) {
 		if d.Severity == SeverityError && strings.Contains(d.Message, "auth_modes is empty") {
 			t.Errorf("public-only spec should not trigger auth_modes error: %+v", d)
 		}
+	}
+}
+
+// TestSkillExamples_LintClean locks in the contract that every spec shipped
+// alongside the docs-gen-spec Claude skill stays both schema-valid and lint-
+// clean (errors only). The examples are the gold-standard shapes the skill
+// instructs Claude to copy when scaffolding from scratch — if a future change
+// to the schema or lint rules would silently break them, this test fails first.
+func TestSkillExamples_LintClean(t *testing.T) {
+	matches, err := filepath.Glob("../../.claude/skills/docs-gen-spec/examples/*.yaml")
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	if len(matches) == 0 {
+		t.Fatal("no skill examples found — expected .claude/skills/docs-gen-spec/examples/*.yaml")
+	}
+	for _, path := range matches {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			if errs := ValidateFile(path); len(errs) > 0 {
+				t.Errorf("schema validation failed:")
+				for _, e := range errs {
+					t.Errorf("  %s", e.Error())
+				}
+			}
+			for _, d := range LintFile(path) {
+				if d.Severity == SeverityError {
+					t.Errorf("lint error: %s", d.String())
+				}
+			}
+		})
 	}
 }
 

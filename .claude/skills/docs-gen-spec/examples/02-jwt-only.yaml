@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Go-Routine-App/go-docs-generator/main/schemas/spec.schema.json
+#
+# Example 02 — single-auth API (JWT Bearer).
+# Use this shape when every protected endpoint shares ONE auth method.
+# Note how the endpoint `auth` value MUST exactly match `auth_modes[].name`.
+
+info:
+  title: Single-Auth API
+  version: "1.0.0"
+  description: User-facing API protected by a JWT bearer token issued by the auth service.
+  base_urls:
+    - { label: Production, url: https://api.example.com, default: true }
+    - { label: Staging, url: https://staging.api.example.com }
+
+authentication:
+  methods:
+    - type: Bearer JWT
+      header: Authorization
+      format: "Bearer <token>"
+      source: auth-service
+      description: JWT bearer token. Lifetime 1 hour, refresh via /v1/auth/refresh.
+
+sections:
+  - id: account
+    title: Account
+    description: Authenticated account-management endpoints.
+    endpoints:
+      - name: Get Me
+        method: GET
+        path: /v1/me
+        auth: JWT Bearer
+        description: Returns the profile of the authenticated user.
+        example_response: |
+          { "id": "u_123", "email": "alice@example.com" }
+
+      - name: Update Me
+        method: PATCH
+        path: /v1/me
+        auth: JWT Bearer
+        description: Updates a subset of the authenticated user's profile fields.
+        body:
+          - { name: display_name, type: string, required: false, description: Public display name }
+          - { name: locale, type: string, required: false, description: BCP-47 locale code }
+
+api_tester_defaults:
+  methods: [GET, POST, PUT, PATCH, DELETE]
+  auth_modes:
+    - name: JWT Bearer            # MUST exactly match every protected endpoint's `auth`
+      header: Authorization
+      prefix: "Bearer "           # trailing space is intentional
+      placeholder: YOUR_JWT_TOKEN_HERE
