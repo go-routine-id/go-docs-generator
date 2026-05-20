@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -668,12 +669,33 @@ func mdInline(s string) template.HTML {
 	return template.HTML(inlineFmt(strings.TrimSpace(s)))
 }
 
-// inlineFmt handles inline formatting: **bold**, *italic*, `code`
+// mdLinkRe matches `[text](url)`. The URL stops at the first ')' or whitespace
+// — good enough for the project-internal links and external URLs we encounter
+// in spec descriptions; exotic URLs containing literal ')' need to be raw.
+var mdLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)\s]+)\)`)
+
+// inlineFmt handles inline formatting: [text](url), **bold**, *italic*, `code`.
+// Order matters: link substitution runs FIRST so the link text passes through
+// the subsequent bold/italic/code passes (so `[**important**](/x)` works).
 func inlineFmt(s string) string {
-	// Escape HTML
+	// Escape HTML first — neutralises any literal '<', '>' the user wrote.
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
+
+	// Markdown links: [text](url). Reject schemes that can execute script
+	// (javascript:, data:) — those fall through as literal `[text](url)`.
+	s = mdLinkRe.ReplaceAllStringFunc(s, func(m string) string {
+		parts := mdLinkRe.FindStringSubmatch(m)
+		text, url := parts[1], parts[2]
+		if !isSafeURL(url) {
+			return m
+		}
+		// HTML-escape happened above, so `&` is already `&amp;`. Only the
+		// double-quote needs attribute-escaping for safe insertion into href.
+		url = strings.ReplaceAll(url, `"`, "&quot;")
+		return `<a href="` + url + `">` + text + `</a>`
+	})
 
 	// Bold: **text**
 	s = replacePair(s, "**", "<strong>", "</strong>")
@@ -683,6 +705,24 @@ func inlineFmt(s string) string {
 	s = replacePair(s, "`", "<code>", "</code>")
 
 	return s
+}
+
+// isSafeURL whitelists URL schemes that can't execute arbitrary script when
+// inserted into an href. Everything outside the list is treated as literal
+// text (the [text](url) substitution falls through unchanged).
+func isSafeURL(u string) bool {
+	lower := strings.ToLower(u)
+	switch {
+	case strings.HasPrefix(lower, "http://"),
+		strings.HasPrefix(lower, "https://"),
+		strings.HasPrefix(lower, "mailto:"),
+		strings.HasPrefix(lower, "/"),
+		strings.HasPrefix(lower, "#"),
+		strings.HasPrefix(lower, "./"),
+		strings.HasPrefix(lower, "../"):
+		return true
+	}
+	return false
 }
 
 // replacePair replaces paired delimiters like **text** → <strong>text</strong>

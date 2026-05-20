@@ -222,3 +222,73 @@ sections:
 		}
 	}
 }
+
+// TestInlineFmt_MarkdownLinks asserts the `[text](url)` shorthand becomes a
+// real anchor in all rendered descriptions and overview cards. Before this
+// support was added the brackets and parens leaked into the page verbatim —
+// the exact bug a multi-project hub spec hit when listing its sub-services.
+func TestInlineFmt_MarkdownLinks(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string // a substring that MUST appear in the output
+	}{
+		{
+			"absolute internal path",
+			`See [Account Service](/docs?p=account) for details`,
+			`<a href="/docs?p=account">Account Service</a>`,
+		},
+		{
+			"https URL",
+			`Hosted at [example](https://example.com).`,
+			`<a href="https://example.com">example</a>`,
+		},
+		{
+			"anchor link",
+			`Jump to [overview](#overview).`,
+			`<a href="#overview">overview</a>`,
+		},
+		{
+			"mailto link",
+			`Email [us](mailto:dev@example.com)`,
+			`<a href="mailto:dev@example.com">us</a>`,
+		},
+		{
+			"bold inside link text",
+			`[**urgent** patch](https://example.com)`,
+			`<a href="https://example.com"><strong>urgent</strong> patch</a>`,
+		},
+		{
+			"multiple links in one line",
+			`[A](/a) and [B](/b)`,
+			`<a href="/a">A</a> and <a href="/b">B</a>`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if !strings.Contains(got, c.want) {
+				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestInlineFmt_LinkXSSGuard makes sure scheme whitelisting actually blocks
+// the obvious attack vectors. javascript: and data: URLs must NOT produce an
+// anchor — the original bracketed text is preserved verbatim so the author
+// notices.
+func TestInlineFmt_LinkXSSGuard(t *testing.T) {
+	rejects := []string{
+		`[click](javascript:alert(1))`,
+		`[xss](JaVaScRiPt:alert(1))`,
+		`[evil](data:text/html,<script>alert(1)</script>)`,
+		`[also evil](vbscript:msgbox)`,
+	}
+	for _, in := range rejects {
+		got := string(mdInline(in))
+		if strings.Contains(got, "<a ") {
+			t.Errorf("expected NO anchor tag for unsafe URL — input %q produced: %s", in, got)
+		}
+	}
+}
