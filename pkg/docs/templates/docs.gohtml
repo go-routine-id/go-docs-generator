@@ -54,7 +54,10 @@
                 </ul>
             </details>
             {{end}}
-            <a href="{{docPath "yaml"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}" class="sidebar-download" download>📥 Download YAML</a>
+            <div class="sidebar-download-row">
+                <a href="{{docPath "yaml"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}" class="sidebar-download" download>📥 Download YAML</a>
+                <button type="button" class="sidebar-copy-link" data-copy-href="{{docPath "yaml"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}" title="Copy download link" aria-label="Copy download link">🔗</button>
+            </div>
         </div>
 
         <nav class="sidebar-nav">

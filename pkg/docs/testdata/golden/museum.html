@@ -203,15 +203,45 @@
             margin-bottom: 0.75rem;
         }
 
+        .sidebar-download-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         .sidebar-download {
             font-size: 0.875rem;
             color: var(--primary);
             text-decoration: none;
             font-weight: 500;
+            flex: 1;
         }
 
         .sidebar-download:hover {
             text-decoration: underline;
+        }
+
+         
+        .sidebar-copy-link {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            transition: background 0.15s ease, color 0.15s ease;
+            line-height: 1;
+        }
+
+        .sidebar-copy-link:hover {
+            background: var(--sidebar-hover);
+            color: var(--text);
+        }
+
+        .sidebar-copy-link.copied {
+            color: var(--primary);
+            border-color: var(--primary);
         }
 
          
@@ -1328,7 +1358,10 @@
             </div>
             <div class="sidebar-version">v1.0.0</div>
             
-            <a href="/yaml" class="sidebar-download" download>📥 Download YAML</a>
+            <div class="sidebar-download-row">
+                <a href="/yaml" class="sidebar-download" download>📥 Download YAML</a>
+                <button type="button" class="sidebar-copy-link" data-copy-href="/yaml" title="Copy download link" aria-label="Copy download link">🔗</button>
+            </div>
         </div>
 
         <nav class="sidebar-nav">
@@ -5387,6 +5420,44 @@
                 handle.addEventListener('pointercancel', onUp);
             });
         })();
+
+        
+        
+        
+        
+        
+        
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.sidebar-copy-link');
+            if (!btn) return;
+            e.preventDefault();
+            const rel = btn.getAttribute('data-copy-href') || '';
+            const url = new URL(rel, window.location.href).toString();
+            const done = function(ok) {
+                const original = btn.innerHTML;
+                btn.classList.add('copied');
+                btn.innerHTML = ok ? '✓' : '✗';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = original;
+                }, 1200);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() { done(true); }, function() { done(false); });
+                return;
+            }
+            
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            document.body.removeChild(ta);
+            done(ok);
+        });
 
         
         document.addEventListener('DOMContentLoaded', function() {

@@ -223,6 +223,34 @@ sections:
 	})
 }
 
+// TestRender_CopyLinkButton checks the copy-link affordance next to Download
+// YAML. The button must exist, carry the same href the download link does
+// (project-aware), and the inline JS handler must be wired to it.
+func TestRender_CopyLinkButton(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	if !strings.Contains(body, `class="sidebar-copy-link"`) {
+		t.Error("copy-link button missing from sidebar")
+	}
+	if !strings.Contains(body, `data-copy-href="/yaml"`) {
+		t.Error("copy-link button must carry data-copy-href matching the download link (single-project museum spec)")
+	}
+	if !strings.Contains(body, `navigator.clipboard.writeText`) {
+		t.Error("clipboard handler missing — copy button is wired to nothing")
+	}
+	if !strings.Contains(body, `'.sidebar-copy-link'`) {
+		t.Error("delegated click handler selector for copy-link missing")
+	}
+}
+
 // TestRender_SidebarResizable locks in the user-resizable sidebar contract:
 // a drag handle on the right edge that adjusts --sidebar-width and persists
 // the chosen width in localStorage. The test asserts the surface markers an

@@ -197,15 +197,47 @@
             margin-bottom: 0.75rem;
         }
 
+        .sidebar-download-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
         .sidebar-download {
             font-size: 0.875rem;
             color: var(--primary);
             text-decoration: none;
             font-weight: 500;
+            flex: 1;
         }
 
         .sidebar-download:hover {
             text-decoration: underline;
+        }
+
+        /* Compact icon button next to Download YAML — copies the absolute URL
+           to the clipboard so it can be pasted into chat, docs, etc. JS swaps
+           the icon to ✓ briefly on success. */
+        .sidebar-copy-link {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            transition: background 0.15s ease, color 0.15s ease;
+            line-height: 1;
+        }
+
+        .sidebar-copy-link:hover {
+            background: var(--sidebar-hover);
+            color: var(--text);
+        }
+
+        .sidebar-copy-link.copied {
+            color: var(--primary);
+            border-color: var(--primary);
         }
 
         /* Project switcher — only renders when the spec exposes >1 project.

@@ -98,6 +98,44 @@
             });
         })();
 
+        // Copy-link button next to Download YAML. Resolves the relative href
+        // on data-copy-href to an absolute URL (so the pasted link works in
+        // chat/docs anywhere) and writes it to the clipboard. Falls back to a
+        // textarea + execCommand path for browsers/contexts without the async
+        // clipboard API (e.g. http:// origins). Brief visual feedback on the
+        // button itself; no toast plumbing needed.
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.sidebar-copy-link');
+            if (!btn) return;
+            e.preventDefault();
+            const rel = btn.getAttribute('data-copy-href') || '';
+            const url = new URL(rel, window.location.href).toString();
+            const done = function(ok) {
+                const original = btn.innerHTML;
+                btn.classList.add('copied');
+                btn.innerHTML = ok ? '✓' : '✗';
+                setTimeout(function() {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = original;
+                }, 1200);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() { done(true); }, function() { done(false); });
+                return;
+            }
+            // Fallback for non-secure contexts.
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            document.body.removeChild(ta);
+            done(ok);
+        });
+
         // Load saved tokens
         document.addEventListener('DOMContentLoaded', function() {
             loadCredentials();
