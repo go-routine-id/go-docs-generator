@@ -92,6 +92,119 @@ func TestRender_StructuralInvariants(t *testing.T) {
 	}
 }
 
+// TestRender_ProjectSwitcher exercises the multi-project dropdown that lives
+// in the sidebar header. It must render only when at least two projects are
+// loaded, link each entry through `?p=<name>` (with the default project
+// linking to the bare prefix), and mark the current project as active.
+func TestRender_ProjectSwitcher(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+
+	// Default project at root.
+	mustWrite("index.yaml", `info:
+  title: Portal Default
+  version: "1.0.0"
+  base_urls: [{ label: Production, url: https://api.example.com, default: true }]
+sections:
+  - id: home
+    title: Home
+    description: greeting
+    endpoints:
+      - { name: Ping, method: GET, path: /ping, auth: none, description: liveness }
+`)
+	// Two named projects.
+	mustWrite("alpha/index.yaml", `info:
+  title: Alpha Service
+  version: "2.0.0"
+  base_urls: [{ label: Production, url: https://alpha.example.com, default: true }]
+sections:
+  - id: home
+    title: Home
+    description: greeting
+    endpoints:
+      - { name: Ping, method: GET, path: /ping, auth: none, description: liveness }
+`)
+	mustWrite("beta/index.yaml", `info:
+  title: Beta Service
+  version: "0.3.0"
+  base_urls: [{ label: Production, url: https://beta.example.com, default: true }]
+sections:
+  - id: home
+    title: Home
+    description: greeting
+    endpoints:
+      - { name: Ping, method: GET, path: /ping, auth: none, description: liveness }
+`)
+
+	h, err := NewHandler(dir, false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	// Mirror what RegisterRoutes does so the switcher links carry a prefix.
+	h.prefix = "/docs"
+
+	t.Run("default project marks itself active", func(t *testing.T) {
+		out, err := h.Render("")
+		if err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+		body := string(out)
+		if !strings.Contains(body, `<details class="sidebar-project-switcher"`) {
+			t.Fatal("switcher missing — dropdown should render with 3 projects loaded")
+		}
+		// Default project entry: link must be just the prefix, no ?p=.
+		if !strings.Contains(body, `href="/docs" class="active"`) {
+			t.Errorf("default project link should be `/docs` with active marker; not found")
+		}
+		// Named projects: link must carry ?p=.
+		for _, name := range []string{"alpha", "beta"} {
+			needle := `href="/docs?p=` + name + `"`
+			if !strings.Contains(body, needle) {
+				t.Errorf("expected link %s for project %q, not found", needle, name)
+			}
+			// And they must NOT be marked active when default is current.
+			activeNeedle := `href="/docs?p=` + name + `" class="active"`
+			if strings.Contains(body, activeNeedle) {
+				t.Errorf("project %q should not be active when rendering default", name)
+			}
+		}
+		// Current label visible at the top of the dropdown.
+		if !strings.Contains(body, `<span class="project-switcher-current">default</span>`) {
+			t.Errorf("current-project label should read `default`")
+		}
+	})
+
+	t.Run("alpha selected marks alpha active", func(t *testing.T) {
+		out, err := h.Render("alpha")
+		if err != nil {
+			t.Fatalf("Render alpha: %v", err)
+		}
+		body := string(out)
+		if !strings.Contains(body, `href="/docs?p=alpha" class="active"`) {
+			t.Errorf("alpha link should carry active class when rendering alpha")
+		}
+		if !strings.Contains(body, `<span class="project-switcher-current">alpha</span>`) {
+			t.Errorf("current-project label should read `alpha`")
+		}
+		// Spec content also switched (Alpha title rendered in the main body).
+		if !strings.Contains(body, "Alpha Service") {
+			t.Errorf("expected Alpha Service title in rendered body")
+		}
+		// Download YAML link must preserve the current project.
+		if !strings.Contains(body, `href="/docs/yaml?p=alpha"`) {
+			t.Errorf("Download YAML link should preserve ?p=alpha")
+		}
+	})
+}
+
 // TestRender_NavChildrenNotClipped guards against a regression where the
 // sidebar's expanding nav-children panel had a hard `max-height: 2000px` cap.
 // Once a section had ~50+ endpoints, the combined height exceeded the cap and

@@ -35,7 +35,26 @@
                 {{if .Theme.Title}}{{.Theme.Title}}{{else}}{{.Info.Title}}{{end}}
             </div>
             <div class="sidebar-version">v{{.Info.Version}}</div>
-            <a href="{{docPath "yaml"}}" class="sidebar-download" download>📥 Download YAML</a>
+            {{if .Projects}}
+            <details class="sidebar-project-switcher">
+                <summary>
+                    <span class="project-switcher-label">Project:</span>
+                    <span class="project-switcher-current">{{if eq .CurrentProject ""}}default{{else}}{{.CurrentProject}}{{end}}</span>
+                    <span class="project-switcher-caret">▾</span>
+                </summary>
+                <ul class="project-switcher-list">
+                    {{range .Projects}}
+                    <li>
+                        <a href="{{$.Prefix}}{{if .Name}}?p={{.Name}}{{end}}" {{if eq .Name $.CurrentProject}}class="active" aria-current="true"{{end}}>
+                            <span class="project-switcher-name">{{if eq .Name ""}}default{{else}}{{.Name}}{{end}}</span>
+                            {{if .Title}}<span class="project-switcher-title">{{.Title}}</span>{{end}}
+                        </a>
+                    </li>
+                    {{end}}
+                </ul>
+            </details>
+            {{end}}
+            <a href="{{docPath "yaml"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}" class="sidebar-download" download>📥 Download YAML</a>
         </div>
 
         <nav class="sidebar-nav">

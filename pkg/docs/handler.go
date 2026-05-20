@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -139,6 +140,39 @@ func (h *Handler) getProjectNames() []string {
 	return names
 }
 
+// projectListForSwitcher returns the full picker list shown in the sidebar
+// dropdown, or nil when fewer than two projects exist (single-project users
+// get no chrome). The default project (key "") is included first when it has
+// any content, labelled by its info.title; named projects follow in sorted
+// order, each carrying its own title for friendlier display than the bare
+// directory name.
+func (h *Handler) projectListForSwitcher() []projectInfo {
+	if len(h.specs) < 2 {
+		return nil
+	}
+	names := make([]string, 0, len(h.specs))
+	for name := range h.specs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]projectInfo, 0, len(names))
+	for _, name := range names {
+		spec := h.specs[name]
+		if spec == nil {
+			continue
+		}
+		// Name is the URL key (empty = default project; the switcher template
+		// substitutes a friendly label when rendering). Keep it raw so the
+		// `?p=<Name>` link round-trips through getSpec correctly.
+		out = append(out, projectInfo{
+			Name:    name,
+			Title:   spec.Info.Title,
+			Version: spec.Info.Version,
+		})
+	}
+	return out
+}
+
 // isDirMode returns true if spec is loaded from a directory
 func (h *Handler) isDirMode() bool {
 	info, err := os.Stat(h.specRoot)
@@ -181,12 +215,29 @@ func (h *Handler) ReloadSpec() error {
 	return h.loadAllSpecs()
 }
 
+// renderData is the template payload. APISpec is embedded so every existing
+// `{{.Info...}}`, `{{.Sections}}`, etc. keeps working unchanged. New fields
+// carry render-only context (which projects exist, which one is selected,
+// the URL prefix the router is mounted under) without polluting APISpec.
+type renderData struct {
+	*APISpec
+	Projects       []projectInfo // empty when only the default project exists
+	CurrentProject string        // "" = default project
+	Prefix         string        // e.g. "/docs"
+}
+
 // Render produces the HTML documentation for a given project (empty string = default).
 // Exposed for testability (golden tests) and reuse outside HTTP context.
 func (h *Handler) Render(project string) ([]byte, error) {
 	spec := h.getSpec(project)
+	data := &renderData{
+		APISpec:        spec,
+		Projects:       h.projectListForSwitcher(),
+		CurrentProject: project,
+		Prefix:         h.prefix,
+	}
 	var buf bytes.Buffer
-	if err := h.template.ExecuteTemplate(&buf, "docs.gohtml", spec); err != nil {
+	if err := h.template.ExecuteTemplate(&buf, "docs.gohtml", data); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
