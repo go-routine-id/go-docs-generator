@@ -155,6 +155,33 @@
             overflow: hidden;
         }
 
+         
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            width: 6px;
+            cursor: ew-resize;
+            z-index: 270;
+            user-select: none;
+            background: transparent;
+            transition: background 0.15s ease;
+        }
+
+        .sidebar-resize-handle:hover,
+        .sidebar-resize-handle.dragging {
+            background: var(--primary);
+            opacity: 0.25;
+        }
+
+         
+        body.sidebar-resizing,
+        body.sidebar-resizing * {
+            cursor: ew-resize !important;
+            user-select: none !important;
+        }
+
         .sidebar-header {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border);
@@ -1250,6 +1277,10 @@
                 margin-top: 64px;
             }
 
+            .sidebar-resize-handle {
+                display: none;
+            }
+
             .content-panels {
                 padding: 1rem;
             }
@@ -1498,6 +1529,7 @@
                 </div>
             </div>
         </nav>
+        <div class="sidebar-resize-handle" aria-hidden="true" title="Drag to resize"></div>
     </aside>
 
     
@@ -5308,6 +5340,53 @@
             const input = document.getElementById(inputId);
             input.type = input.type === 'password' ? 'text' : 'password';
         }
+
+        
+        
+        
+        
+        
+        
+        (function setupSidebarResize() {
+            const KEY = 'docs_sidebar_width_px';
+            const MIN = 200, MAX = 600, MOBILE_BP = 768;
+            const root = document.documentElement;
+
+            const saved = parseInt(localStorage.getItem(KEY), 10);
+            if (!isNaN(saved) && saved >= MIN && saved <= MAX) {
+                root.style.setProperty('--sidebar-width', saved + 'px');
+            }
+
+            const handle = document.querySelector('.sidebar-resize-handle');
+            if (!handle) return;
+
+            handle.addEventListener('pointerdown', function(e) {
+                if (window.innerWidth <= MOBILE_BP) return;
+                e.preventDefault();
+                handle.setPointerCapture(e.pointerId);
+                handle.classList.add('dragging');
+                document.body.classList.add('sidebar-resizing');
+
+                function onMove(ev) {
+                    const w = Math.min(MAX, Math.max(MIN, ev.clientX));
+                    root.style.setProperty('--sidebar-width', w + 'px');
+                }
+                function onUp() {
+                    try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+                    handle.classList.remove('dragging');
+                    document.body.classList.remove('sidebar-resizing');
+                    handle.removeEventListener('pointermove', onMove);
+                    handle.removeEventListener('pointerup', onUp);
+                    handle.removeEventListener('pointercancel', onUp);
+                    const cur = getComputedStyle(root).getPropertyValue('--sidebar-width').trim();
+                    const px = parseInt(cur, 10);
+                    if (!isNaN(px)) localStorage.setItem(KEY, String(px));
+                }
+                handle.addEventListener('pointermove', onMove);
+                handle.addEventListener('pointerup', onUp);
+                handle.addEventListener('pointercancel', onUp);
+            });
+        })();
 
         
         document.addEventListener('DOMContentLoaded', function() {

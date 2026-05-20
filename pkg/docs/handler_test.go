@@ -205,6 +205,39 @@ sections:
 	})
 }
 
+// TestRender_SidebarResizable locks in the user-resizable sidebar contract:
+// a drag handle on the right edge that adjusts --sidebar-width and persists
+// the chosen width in localStorage. The test asserts the surface markers an
+// integrator (or another script) might rely on — handle element, body
+// dragging class, storage key, and the bounds the JS clamps to.
+func TestRender_SidebarResizable(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	checks := []struct {
+		needle string
+		why    string
+	}{
+		{`class="sidebar-resize-handle"`, "drag handle DOM node missing"},
+		{`'docs_sidebar_width_px'`, "localStorage key must be stable across versions"},
+		{`--sidebar-width`, "CSS variable name the JS writes to"},
+		{`sidebar-resizing`, "body class that suppresses cursor flicker mid-drag"},
+		{`MOBILE_BP = 768`, "mobile breakpoint guard must match @media rule"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(body, c.needle) {
+			t.Errorf("missing %q — %s", c.needle, c.why)
+		}
+	}
+}
+
 // TestRender_NavChildrenNotClipped guards against a regression where the
 // sidebar's expanding nav-children panel had a hard `max-height: 2000px` cap.
 // Once a section had ~50+ endpoints, the combined height exceeded the cap and

@@ -143,6 +143,39 @@
             overflow: hidden;
         }
 
+        /* Drag handle on the sidebar's right edge. Pointer events on this
+           strip update the --sidebar-width CSS variable in real-time; the
+           layout already keys off that variable so main-content reflows
+           automatically. Width is persisted to localStorage.
+           On mobile (<=768px) the sidebar becomes an overlay and the handle
+           is hidden — resize doesn't apply to the overlay form. */
+        .sidebar-resize-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            width: 6px;
+            cursor: ew-resize;
+            z-index: 270;
+            user-select: none;
+            background: transparent;
+            transition: background 0.15s ease;
+        }
+
+        .sidebar-resize-handle:hover,
+        .sidebar-resize-handle.dragging {
+            background: var(--primary);
+            opacity: 0.25;
+        }
+
+        /* While dragging, force the resize cursor on every element so the
+           pointer doesn't flicker as it crosses content boundaries. */
+        body.sidebar-resizing,
+        body.sidebar-resizing * {
+            cursor: ew-resize !important;
+            user-select: none !important;
+        }
+
         .sidebar-header {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border);
@@ -1238,6 +1271,10 @@
             .main-content {
                 margin-left: 0;
                 margin-top: 64px;
+            }
+
+            .sidebar-resize-handle {
+                display: none;
             }
 
             .content-panels {
