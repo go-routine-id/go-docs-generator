@@ -92,6 +92,30 @@ func TestRender_StructuralInvariants(t *testing.T) {
 	}
 }
 
+// TestRender_NavChildrenNotClipped guards against a regression where the
+// sidebar's expanding nav-children panel had a hard `max-height: 2000px` cap.
+// Once a section had ~50+ endpoints, the combined height exceeded the cap and
+// `overflow: hidden` silently clipped the bottom rows. Fix: toggleCollapse
+// computes `scrollHeight` at click time and sets it inline, so the panel
+// always grows to fit.
+func TestRender_NavChildrenNotClipped(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	got, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	out := string(got)
+	if strings.Contains(out, "max-height: 2000px") {
+		t.Error("regression: hard `max-height: 2000px` cap on nav-children — long endpoint lists will be clipped")
+	}
+	if !strings.Contains(out, "children.scrollHeight") {
+		t.Error("toggleCollapse must set inline max-height to scrollHeight on open — without it, the cap regression returns")
+	}
+}
+
 // TestRender_EmptyAuthModes guards against the runtime crash reported when a
 // spec omits api_tester_defaults.auth_modes — `JSON.parse("null").forEach(...)`
 // would blow up loadCredentials before the page finished rendering. The render

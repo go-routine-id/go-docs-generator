@@ -99,10 +99,20 @@
             }
         }
 
-        // Sidebar collapse toggle
+        // Sidebar collapse toggle.
+        // The CSS uses `max-height` for the open/close transition; a hard
+        // ceiling there clips long endpoint lists. Compute the real content
+        // height on each open so the panel grows to fit, no matter how many
+        // endpoints the spec declares. Clearing the inline style on close
+        // falls back to the CSS default (0) and re-runs the transition.
         function toggleCollapse(el) {
             const navItem = el.closest('.nav-item');
-            navItem.classList.toggle('open');
+            const children = navItem.querySelector(':scope > .nav-children');
+            if (navItem.classList.toggle('open')) {
+                if (children) children.style.maxHeight = children.scrollHeight + 'px';
+            } else {
+                if (children) children.style.maxHeight = '';
+            }
         }
 
         // Flow step detail toggle

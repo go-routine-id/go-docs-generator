@@ -233,15 +233,12 @@
             transform: rotate(45deg);
         }
 
-        /* Nav Children */
+        /* Nav Children — collapsed by default; toggleCollapse() sets inline
+           max-height to scrollHeight on open so long endpoint lists never clip. */
         .nav-children {
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.3s ease;
-        }
-
-        .nav-item.open .nav-children {
-            max-height: 2000px;
         }
 
         .nav-child-item {

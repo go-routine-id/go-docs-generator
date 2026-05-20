@@ -252,10 +252,6 @@
             transition: max-height 0.3s ease;
         }
 
-        .nav-item.open .nav-children {
-            max-height: 2000px;
-        }
-
         .nav-child-item {
             display: flex;
             align-items: center;
@@ -5271,9 +5267,19 @@
         }
 
         
+        
+        
+        
+        
+        
         function toggleCollapse(el) {
             const navItem = el.closest('.nav-item');
-            navItem.classList.toggle('open');
+            const children = navItem.querySelector(':scope > .nav-children');
+            if (navItem.classList.toggle('open')) {
+                if (children) children.style.maxHeight = children.scrollHeight + 'px';
+            } else {
+                if (children) children.style.maxHeight = '';
+            }
         }
 
         
