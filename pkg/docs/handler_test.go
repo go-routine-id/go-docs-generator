@@ -198,9 +198,27 @@ sections:
 		if !strings.Contains(body, "Alpha Service") {
 			t.Errorf("expected Alpha Service title in rendered body")
 		}
-		// Download YAML link must preserve the current project.
-		if !strings.Contains(body, `href="/docs/yaml?p=alpha"`) {
-			t.Errorf("Download YAML link should preserve ?p=alpha")
+		// Every download / spec link must preserve the current project.
+		// Sidebar Download YAML, footer YAML, footer JSON — all four cases.
+		wantLinks := []string{
+			`href="/docs/yaml?p=alpha" class="sidebar-download"`,
+			`href="/docs/yaml?p=alpha" download`,
+			`href="/docs/spec?p=alpha"`,
+		}
+		for _, want := range wantLinks {
+			if !strings.Contains(body, want) {
+				t.Errorf("expected link %q to carry ?p=alpha; not found", want)
+			}
+		}
+		// And no stray bare /docs/yaml or /docs/spec without the project.
+		badLinks := []string{
+			`href="/docs/yaml"`,
+			`href="/docs/spec"`,
+		}
+		for _, bad := range badLinks {
+			if strings.Contains(body, bad) {
+				t.Errorf("found %q — every yaml/spec link must carry ?p=alpha when alpha is current", bad)
+			}
 		}
 	})
 }

@@ -651,8 +651,8 @@
             <p style="margin-top: 0.5rem;">
                 <a href="/swagger/index.html">Swagger UI</a> •
                 <a href="/swagger/doc.json">OpenAPI JSON</a> •
-                <a href="{{docPath "yaml"}}" download>📥 YAML</a> •
-                <a href="{{docPath "spec"}}">🤖 JSON</a>
+                <a href="{{docPath "yaml"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}" download>📥 YAML</a> •
+                <a href="{{docPath "spec"}}{{if .CurrentProject}}?p={{.CurrentProject}}{{end}}">🤖 JSON</a>
             </p>
         </footer>
     </main>
