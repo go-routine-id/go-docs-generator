@@ -10,6 +10,22 @@
     <script src="{{assetURL "reactflow.umd.js"}}"></script>
     <link rel="stylesheet" href="{{assetURL "reactflow.style.css"}}" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        // No-flash theme bootstrap. Runs synchronously before <style> evaluates
+        // so the very first paint already uses the right palette. Order of
+        // precedence: explicit saved choice → system preference → light.
+        (function() {
+            try {
+                var saved = localStorage.getItem('docs_theme');
+                var theme = (saved === 'dark' || saved === 'light')
+                    ? saved
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                /* localStorage may be unavailable (private browsing); fall back to light. */
+            }
+        })();
+    </script>
 {{template "styles" .}}
 {{if .Theme.PrimaryColor}}<style>:root { --primary: {{.Theme.PrimaryColor}}; --primary-dark: {{.Theme.PrimaryColor}}; }</style>{{end}}
 </head>
@@ -34,6 +50,10 @@
                 {{if .Theme.LogoImage}}<img src="{{.Theme.LogoImage}}" alt="logo" style="height:24px; vertical-align:middle; margin-right:0.5rem;">{{else if .Theme.LogoIcon}}{{.Theme.LogoIcon}}{{else}}📖{{end}}
                 {{if .Theme.Title}}{{.Theme.Title}}{{else}}{{.Info.Title}}{{end}}
             </div>
+            <button type="button" class="sidebar-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span class="theme-icon-light">🌙</span>
+                <span class="theme-icon-dark">☀️</span>
+            </button>
             <div class="sidebar-version">v{{.Info.Version}}</div>
             {{if .Projects}}
             <details class="sidebar-project-switcher">

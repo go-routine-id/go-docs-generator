@@ -10,6 +10,22 @@
     <script src="/assets/vendor/reactflow.umd.js"></script>
     <link rel="stylesheet" href="/assets/vendor/reactflow.style.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        
+        
+        
+        (function() {
+            try {
+                var saved = localStorage.getItem('docs_theme');
+                var theme = (saved === 'dark' || saved === 'light')
+                    ? saved
+                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                 
+            }
+        })();
+    </script>
 
     <style>
         :root {
@@ -59,6 +75,71 @@
             --sidebar-text: var(--text-secondary);
             --sidebar-text-active: var(--primary);
             --sidebar-border: var(--border);
+
+             
+            --method-get-bg: #e8f0fe;     --method-get-fg: #1a73e8;
+            --method-post-bg: #e6f4ea;    --method-post-fg: #137333;
+            --method-patch-bg: #fef3e8;   --method-patch-fg: #b06000;
+            --method-delete-bg: #fce8e8;  --method-delete-fg: #c5221f;
+            --method-put-bg: #fef3e8;     --method-put-fg: #b06000;
+
+             
+            --json-key: #7c3aed;
+            --json-string: #16a34a;
+            --json-number: #2563eb;
+            --json-boolean: #d97706;
+            --json-null: #9ca3af;
+
+             
+            --status-success-bg: #e6f4ea;  --status-success-fg: #137333;
+            --status-error-bg: #fce8e8;    --status-error-fg: #c5221f;
+
+             
+            --chip-bg: #e8f0fe;
+            --chip-fg: #1967d2;
+        }
+
+         
+        [data-theme="dark"] {
+            --primary-light: rgba(138, 180, 248, 0.18);
+
+            --bg: #0f1115;
+            --bg-secondary: #181b21;
+            --bg-tertiary: #1f232b;
+
+            --card-bg: #181b21;
+            --card-shadow: 0 1px 2px 0 rgba(0,0,0,0.5), 0 1px 3px 1px rgba(0,0,0,0.35);
+            --card-shadow-hover: 0 1px 3px 0 rgba(0,0,0,0.6), 0 4px 8px 3px rgba(0,0,0,0.4);
+
+            --text: #e6e8ea;
+            --text-secondary: #b0b6bd;
+            --text-muted: #8a9099;
+
+            --border: #2c313a;
+            --border-light: #242831;
+
+            --sidebar-bg: #14171c;
+            --sidebar-hover: #1f232b;
+            --sidebar-active: rgba(138, 180, 248, 0.18);
+
+             
+            --method-get-bg: rgba(138, 180, 248, 0.18);    --method-get-fg: #8ab4f8;
+            --method-post-bg: rgba(129, 201, 149, 0.18);   --method-post-fg: #81c995;
+            --method-patch-bg: rgba(253, 214, 99, 0.18);   --method-patch-fg: #fdd663;
+            --method-delete-bg: rgba(242, 139, 130, 0.18); --method-delete-fg: #f28b82;
+            --method-put-bg: rgba(253, 214, 99, 0.18);     --method-put-fg: #fdd663;
+
+            --json-key: #c896ff;
+            --json-string: #81c995;
+            --json-number: #8ab4f8;
+            --json-boolean: #fdd663;
+            --json-null: #9aa0a6;
+
+            --status-success-bg: rgba(129, 201, 149, 0.18); --status-success-fg: #81c995;
+            --status-error-bg: rgba(242, 139, 130, 0.18);   --status-error-fg: #f28b82;
+
+            --chip-bg: rgba(138, 180, 248, 0.18);
+            --chip-fg: #8ab4f8;
         }
 
         * {
@@ -185,7 +266,32 @@
         .sidebar-header {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border);
+            position: relative;
         }
+
+         
+        .sidebar-theme-toggle {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.25rem 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            line-height: 1;
+            color: var(--text);
+            transition: background 0.15s ease;
+        }
+
+        .sidebar-theme-toggle:hover {
+            background: var(--sidebar-hover);
+        }
+
+        .sidebar-theme-toggle .theme-icon-dark { display: none; }
+        [data-theme="dark"] .sidebar-theme-toggle .theme-icon-light { display: none; }
+        [data-theme="dark"] .sidebar-theme-toggle .theme-icon-dark { display: inline; }
 
         .sidebar-title {
             font-size: 1.25rem;
@@ -448,10 +554,11 @@
             flex-shrink: 0;
         }
 
-        .nav-method.get { background: #e8f0fe; color: #1a73e8; }
-        .nav-method.post { background: #e6f4ea; color: #137333; }
-        .nav-method.patch { background: #fef3e8; color: #b06000; }
-        .nav-method.delete { background: #fce8e8; color: #c5221f; }
+        .nav-method.get { background: var(--method-get-bg); color: var(--method-get-fg); }
+        .nav-method.post { background: var(--method-post-bg); color: var(--method-post-fg); }
+        .nav-method.patch { background: var(--method-patch-bg); color: var(--method-patch-fg); }
+        .nav-method.delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
+        .nav-method.put { background: var(--method-put-bg); color: var(--method-put-fg); }
 
          
         .main-content {
@@ -589,11 +696,11 @@
         }
 
          
-        .json-key { color: #7c3aed; }
-        .json-string { color: #16a34a; }
-        .json-number { color: #2563eb; }
-        .json-boolean { color: #d97706; }
-        .json-null { color: #9ca3af; font-style: italic; }
+        .json-key { color: var(--json-key); }
+        .json-string { color: var(--json-string); }
+        .json-number { color: var(--json-number); }
+        .json-boolean { color: var(--json-boolean); }
+        .json-null { color: var(--json-null); font-style: italic; }
 
          
         .alert {
@@ -605,9 +712,9 @@
         }
 
         .alert-info {
-            background: #e8f0fe;
-            border: 1px solid #d2e3fc;
-            color: #1967d2;
+            background: var(--chip-bg);
+            border: 1px solid var(--border);
+            color: var(--chip-fg);
         }
 
          
@@ -767,10 +874,11 @@
             letter-spacing: 0.025em;
         }
 
-        .method.get { background: #e8f0fe; color: #1a73e8; }
-        .method.post { background: #e6f4ea; color: #137333; }
-        .method.patch { background: #fef3e8; color: #b06000; }
-        .method.delete { background: #fce8e8; color: #c5221f; }
+        .method.get { background: var(--method-get-bg); color: var(--method-get-fg); }
+        .method.post { background: var(--method-post-bg); color: var(--method-post-fg); }
+        .method.patch { background: var(--method-patch-bg); color: var(--method-patch-fg); }
+        .method.delete { background: var(--method-delete-bg); color: var(--method-delete-fg); }
+        .method.put { background: var(--method-put-bg); color: var(--method-put-fg); }
 
         .endpoint-path {
             font-family: 'Google Sans Mono', 'Fira Code', monospace;
@@ -792,7 +900,7 @@
             gap: 0.5rem;
             padding: 0.5rem 0.875rem;
             background: var(--primary-light);
-            border: 1px solid #d2e3fc;
+            border: 1px solid var(--border);
             border-radius: 16px;
             font-size: 0.8125rem;
             margin-bottom: 1.5rem;
@@ -842,8 +950,8 @@
         }
 
         .badge.required {
-            background: #fce8e8;
-            color: #c5221f;
+            background: var(--status-error-bg);
+            color: var(--status-error-fg);
         }
 
         .badge.optional {
@@ -1118,8 +1226,8 @@
             font-weight: 500;
         }
 
-        .status-success { background: #e6f4ea; color: #137333; }
-        .status-error { background: #fce8e8; color: #c5221f; }
+        .status-success { background: var(--status-success-bg); color: var(--status-success-fg); }
+        .status-error { background: var(--status-error-bg); color: var(--status-error-fg); }
 
          
         .form-group {
@@ -1356,6 +1464,10 @@
                 📖
                 Museum Service API
             </div>
+            <button type="button" class="sidebar-theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <span class="theme-icon-light">🌙</span>
+                <span class="theme-icon-dark">☀️</span>
+            </button>
             <div class="sidebar-version">v1.0.0</div>
             
             <div class="sidebar-download-row">
@@ -5420,6 +5532,18 @@
                 handle.addEventListener('pointercancel', onUp);
             });
         })();
+
+        
+        
+        
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.sidebar-theme-toggle');
+            if (!btn) return;
+            const root = document.documentElement;
+            const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-theme', next);
+            try { localStorage.setItem('docs_theme', next); } catch (_) {}
+        });
 
         
         

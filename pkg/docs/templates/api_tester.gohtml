@@ -98,6 +98,18 @@
             });
         })();
 
+        // Dark-mode toggle. The no-flash bootstrap in <head> already set
+        // data-theme on first paint; this handler just flips the attribute
+        // and persists the new choice. Storage key matches the bootstrap.
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.sidebar-theme-toggle');
+            if (!btn) return;
+            const root = document.documentElement;
+            const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            root.setAttribute('data-theme', next);
+            try { localStorage.setItem('docs_theme', next); } catch (_) {}
+        });
+
         // Copy-link button next to Download YAML. Resolves the relative href
         // on data-copy-href to an absolute URL (so the pasted link works in
         // chat/docs anywhere) and writes it to the clipboard. Falls back to a

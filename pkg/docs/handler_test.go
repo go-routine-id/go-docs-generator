@@ -223,6 +223,50 @@ sections:
 	})
 }
 
+// TestRender_DarkMode locks in the dark-mode contract: a toggle button in
+// the sidebar, CSS variable overrides under `[data-theme="dark"]`, and an
+// inline no-flash bootstrap that sets the theme attribute before any styles
+// evaluate. The storage key is part of the contract — changing it would
+// silently log every user out of their preference.
+func TestRender_DarkMode(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	checks := []struct {
+		needle string
+		why    string
+	}{
+		{`class="sidebar-theme-toggle"`, "toggle button missing from sidebar"},
+		{`'docs_theme'`, "localStorage key must be stable (used by both bootstrap and handler)"},
+		{`[data-theme="dark"]`, "dark theme CSS block missing"},
+		{`prefers-color-scheme: dark`, "no-flash bootstrap should fall back to system preference"},
+		{`setAttribute('data-theme'`, "bootstrap script must set data-theme before styles evaluate"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(body, c.needle) {
+			t.Errorf("missing %q — %s", c.needle, c.why)
+		}
+	}
+
+	// The no-flash script must appear BEFORE the <style> block, otherwise
+	// dark-mode users see a flash of light theme on first paint.
+	scriptIdx := strings.Index(body, "saved = localStorage.getItem('docs_theme')")
+	styleIdx := strings.Index(body, "<style>")
+	if scriptIdx == -1 || styleIdx == -1 {
+		t.Fatal("could not locate bootstrap script or <style> block")
+	}
+	if scriptIdx > styleIdx {
+		t.Errorf("no-flash bootstrap (offset %d) must come before <style> (offset %d)", scriptIdx, styleIdx)
+	}
+}
+
 // TestRender_CopyLinkButton checks the copy-link affordance next to Download
 // YAML. The button must exist, carry the same href the download link does
 // (project-aware), and the inline JS handler must be wired to it.
