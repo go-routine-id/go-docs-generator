@@ -274,6 +274,48 @@ func TestInlineFmt_MarkdownLinks(t *testing.T) {
 	}
 }
 
+// TestInlineFmt_URLWithEmphasisChars guards against a rendering bug where
+// URLs containing characters that double as Markdown emphasis delimiters
+// (`*`, `_`, backtick) were getting wrapped in <em>/<code> tags INSIDE the
+// href attribute, producing invalid HTML like
+// `<a href="https://a.com/<em>x</em>">`. The fix is to extract links to
+// placeholders before the emphasis pass.
+func TestInlineFmt_URLWithEmphasisChars(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"asterisk in URL",
+			`See [docs](https://example.com/*ref*) for more`,
+			`<a href="https://example.com/*ref*">docs</a>`,
+		},
+		{
+			"double asterisk in URL",
+			`Read [it](https://example.com/**bold**)`,
+			`<a href="https://example.com/**bold**">it</a>`,
+		},
+		{
+			"backtick in URL",
+			"Try [api](https://example.com/foo`bar)",
+			"<a href=\"https://example.com/foo`bar\">api</a>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if !strings.Contains(got, c.want) {
+				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
+			}
+			// Belt-and-brace: no emphasis tags should appear INSIDE href.
+			if strings.Contains(got, `href="`) && strings.Contains(got, `<em>`) && strings.Contains(got[strings.Index(got, `href="`):strings.Index(got, `">`)], `<em>`) {
+				t.Errorf("emphasis tag leaked into href attribute: %s", got)
+			}
+		})
+	}
+}
+
 // TestInlineFmt_LinkXSSGuard makes sure scheme whitelisting actually blocks
 // the obvious attack vectors. javascript: and data: URLs must NOT produce an
 // anchor — the original bracketed text is preserved verbatim so the author

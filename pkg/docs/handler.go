@@ -786,35 +786,55 @@ func mdInline(s string) template.HTML {
 var mdLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)\s]+)\)`)
 
 // inlineFmt handles inline formatting: [text](url), **bold**, *italic*, `code`.
-// Order matters: link substitution runs FIRST so the link text passes through
-// the subsequent bold/italic/code passes (so `[**important**](/x)` works).
+//
+// Links are extracted into placeholders BEFORE the emphasis passes so that
+// characters inside the href (`*`, `` ` ``) are not mistaken for emphasis
+// delimiters — without this, `[x](https://a/*b*)` would produce
+// `<a href="https://a/<em>b</em>">x</a>`, a broken anchor. The link text is
+// formatted separately so `[**bold**](/x)` still renders emphasis.
 func inlineFmt(s string) string {
 	// Escape HTML first — neutralises any literal '<', '>' the user wrote.
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 
-	// Markdown links: [text](url). Reject schemes that can execute script
-	// (javascript:, data:) — those fall through as literal `[text](url)`.
+	// Phase 1: extract links into placeholder tokens. \x00 is a safe sentinel
+	// since the HTML-escape pass above stripped angle brackets and entities
+	// already encode any user-supplied bytes other than \x00 itself, which
+	// has no legitimate place in a docs spec.
+	type linkTok struct{ text, href string }
+	var links []linkTok
 	s = mdLinkRe.ReplaceAllStringFunc(s, func(m string) string {
 		parts := mdLinkRe.FindStringSubmatch(m)
 		text, url := parts[1], parts[2]
 		if !isSafeURL(url) {
-			return m
+			return m // unsafe scheme — leave as literal `[text](url)`
 		}
-		// HTML-escape happened above, so `&` is already `&amp;`. Only the
-		// double-quote needs attribute-escaping for safe insertion into href.
 		url = strings.ReplaceAll(url, `"`, "&quot;")
-		return `<a href="` + url + `">` + text + `</a>`
+		links = append(links, linkTok{text: text, href: url})
+		return fmt.Sprintf("\x00%d\x00", len(links)-1)
 	})
 
-	// Bold: **text**
-	s = replacePair(s, "**", "<strong>", "</strong>")
-	// Italic: *text*
-	s = replacePair(s, "*", "<em>", "</em>")
-	// Inline code: `text`
-	s = replacePair(s, "`", "<code>", "</code>")
+	// Phase 2: emphasis + code on the outer string (link placeholders are
+	// inert under these passes).
+	s = applyEmphasis(s)
 
+	// Phase 3: substitute placeholders with formatted anchors. The link
+	// text gets its own emphasis pass so `[**bold**](/x)` still works.
+	for i, link := range links {
+		formatted := applyEmphasis(link.text)
+		s = strings.ReplaceAll(s, fmt.Sprintf("\x00%d\x00", i), `<a href="`+link.href+`">`+formatted+`</a>`)
+	}
+
+	return s
+}
+
+// applyEmphasis runs the bold / italic / code substitutions. Pulled out so
+// the link-text and outer-string passes share the same logic.
+func applyEmphasis(s string) string {
+	s = replacePair(s, "**", "<strong>", "</strong>")
+	s = replacePair(s, "*", "<em>", "</em>")
+	s = replacePair(s, "`", "<code>", "</code>")
 	return s
 }
 
