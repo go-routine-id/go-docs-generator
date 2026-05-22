@@ -106,16 +106,16 @@ func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handle
 			s = strings.ReplaceAll(s, " ", "\\u2029")
 			return s
 		},
-		"add":                 func(a, b int) int { return a + b },
-		"md":                  mdToHTML,
-		"mdi":                 mdInline,
-		"sectionBaseURLs":     sectionBaseURLs,
-		"sectionDefaultURL":   sectionDefaultURL,
-		"sectionUsesGlobal":   sectionUsesGlobal,
-		"testerMethods":       testerMethods,
-		"testerMethodsWith":   testerMethodsWith,
-		"assetURL":            func(file string) string { return h.prefix + "/assets/vendor/" + file },
-		"docPath":             func(sub string) string { return h.prefix + "/" + sub },
+		"add":               func(a, b int) int { return a + b },
+		"md":                mdToHTML,
+		"mdi":               mdInline,
+		"sectionBaseURLs":   sectionBaseURLs,
+		"sectionDefaultURL": sectionDefaultURL,
+		"sectionUsesGlobal": sectionUsesGlobal,
+		"testerMethods":     testerMethods,
+		"testerMethodsWith": testerMethodsWith,
+		"assetURL":          func(file string) string { return h.prefix + "/assets/vendor/" + file },
+		"docPath":           func(sub string) string { return h.prefix + "/" + sub },
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
@@ -524,9 +524,9 @@ type ValidateResponse struct {
 
 // ValidateSummary counts errors vs warnings for quick client-side branching.
 type ValidateSummary struct {
-	SchemaErrors  int `json:"schema_errors"`
-	LintErrors    int `json:"lint_errors"`
-	LintWarnings  int `json:"lint_warnings"`
+	SchemaErrors int `json:"schema_errors"`
+	LintErrors   int `json:"lint_errors"`
+	LintWarnings int `json:"lint_warnings"`
 }
 
 // ServeValidate accepts a spec in the request body, parses it, and returns
@@ -788,7 +788,7 @@ var mdLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)\s]+)\)`)
 // inlineFmt handles inline formatting: [text](url), **bold**, *italic*, `code`.
 //
 // Links are extracted into placeholders BEFORE the emphasis passes so that
-// characters inside the href (`*`, `` ` ``) are not mistaken for emphasis
+// characters inside the href (`*`, “ ` “) are not mistaken for emphasis
 // delimiters — without this, `[x](https://a/*b*)` would produce
 // `<a href="https://a/<em>b</em>">x</a>`, a broken anchor. The link text is
 // formatted separately so `[**bold**](/x)` still renders emphasis.

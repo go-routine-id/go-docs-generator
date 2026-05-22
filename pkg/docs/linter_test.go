@@ -125,7 +125,7 @@ func TestLint_OrphanPermission(t *testing.T) {
 		},
 		Sections: []SectionInfo{
 			{ID: "s", Title: "S", Description: "x", Endpoints: []Endpoint{
-				{Name: "a", Method: "GET", Path: "/a", Permission: "users:read", Description: "d"},  // known
+				{Name: "a", Method: "GET", Path: "/a", Permission: "users:read", Description: "d"},   // known
 				{Name: "b", Method: "POST", Path: "/b", Permission: "users:write", Description: "d"}, // orphan
 			}},
 		},
@@ -248,12 +248,12 @@ func TestLint_DuplicateEndpoints(t *testing.T) {
 
 func TestLint_FlowDiagramEdgeRefs(t *testing.T) {
 	spec := &APISpec{
-		Info: InfoInfo{Title: "x"},
+		Info:             InfoInfo{Title: "x"},
 		FlowDiagramNodes: []FlowNodeInfo{{ID: "client"}, {ID: "server"}},
 		FlowDiagramEdges: []FlowEdgeInfo{
 			{Source: "client", Target: "server"},
-			{Source: "client", Target: "ghost"},        // dangling target
-			{Source: "unknown", Target: "server"},      // dangling source
+			{Source: "client", Target: "ghost"},   // dangling target
+			{Source: "unknown", Target: "server"}, // dangling source
 		},
 	}
 	diags := Lint(spec)
@@ -278,9 +278,9 @@ func TestLint_ScreenCallRefs(t *testing.T) {
 				ID:    "home",
 				Title: "Home",
 				Calls: []ScreenCall{
-					{Method: "GET", Path: "/users"},       // documented — fine
-					{Method: "GET", Path: "/userz"},       // typo
-					{Method: "POST", Path: "/users"},      // wrong method
+					{Method: "GET", Path: "/users"},  // documented — fine
+					{Method: "GET", Path: "/userz"},  // typo
+					{Method: "POST", Path: "/users"}, // wrong method
 				},
 			},
 		},

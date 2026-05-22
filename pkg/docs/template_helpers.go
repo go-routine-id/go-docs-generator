@@ -14,12 +14,12 @@ func sectionBaseURLs(section SectionInfo, info InfoInfo) []BaseURL {
 
 // sectionDefaultURL returns the base URL string that should be used as the
 // initial "url input" value for an endpoint in this section. Precedence:
-//   1. section.BaseURL (explicit single-URL override)
-//   2. section.BaseURLs default entry
-//   3. section.BaseURLs first entry
-//   4. info.BaseURLs default entry
-//   5. info.BaseURLs first entry
-//   6. info.BaseURL
+//  1. section.BaseURL (explicit single-URL override)
+//  2. section.BaseURLs default entry
+//  3. section.BaseURLs first entry
+//  4. info.BaseURLs default entry
+//  5. info.BaseURLs first entry
+//  6. info.BaseURL
 func sectionDefaultURL(section SectionInfo, info InfoInfo) string {
 	if section.BaseURL != "" {
 		return section.BaseURL

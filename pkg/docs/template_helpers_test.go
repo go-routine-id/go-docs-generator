@@ -101,10 +101,10 @@ theme:
 	got := string(out)
 
 	checks := []string{
-		"<title>Custom Docs</title>",            // Theme.Title overrides
-		"🚀",                                    // Theme.LogoIcon
-		`href="/my-favicon.ico"`,                // Theme.Favicon
-		"--primary: #ff0099",                    // Theme.PrimaryColor CSS override
+		"<title>Custom Docs</title>", // Theme.Title overrides
+		"🚀",                          // Theme.LogoIcon
+		`href="/my-favicon.ico"`,     // Theme.Favicon
+		"--primary: #ff0099",         // Theme.PrimaryColor CSS override
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
@@ -148,11 +148,11 @@ events:
 	got := string(out)
 
 	checks := []string{
-		"📡 Events",             // sidebar header
-		"User Signup",           // title
-		"user.signup.v1",        // address rendered
-		`id="panel-event-0"`,    // panel id for first event
-		"publish",               // operation type shown
+		"📡 Events",           // sidebar header
+		"User Signup",        // title
+		"user.signup.v1",     // address rendered
+		`id="panel-event-0"`, // panel id for first event
+		"publish",            // operation type shown
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
@@ -211,10 +211,10 @@ sections:
 	got := string(out)
 
 	checks := []string{
-		`https://account.example/login`,       // section override applied to endpoint URL
-		`https://storage.example/upload`,      // second section with different base_url
-		`https://staging.account.example`,     // section-specific environment label
-		`data-uses-global="false"`,            // section-level means not global
+		`https://account.example/login`,   // section override applied to endpoint URL
+		`https://storage.example/upload`,  // second section with different base_url
+		`https://staging.account.example`, // section-specific environment label
+		`data-uses-global="false"`,        // section-level means not global
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
