@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,13 +34,22 @@ type projectInfo struct {
 	BaseURL     string `json:"base_url"`
 }
 
-// Handler handles documentation requests
+// Handler handles documentation requests.
+//
+// Concurrency: specs and the cached isMergedMode flag are guarded by mu.
+// The dev-mode file watcher and request handlers BOTH replace h.specs on
+// reload, so reads must hold the read lock and writes the write lock.
+// template and prefix are set during NewHandler/RegisterRoutes (before any
+// concurrent access starts) and treated as immutable thereafter.
 type Handler struct {
-	specRoot string              // path to spec file or directory
+	specRoot string // path to spec file or directory
 	devMode  bool
-	specs    map[string]*APISpec // key = project name, "" = default
 	template *template.Template
 	prefix   string // URL prefix under which routes are registered (e.g. "/docs")
+
+	mu         sync.RWMutex
+	specs      map[string]*APISpec // key = project name, "" = default
+	mergedMode bool                // cached: true iff specs were produced by merging multiple files
 }
 
 // NewHandler creates a new documentation handler
@@ -96,42 +106,71 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 	return h, nil
 }
 
-// loadAllSpecs loads specs based on whether specRoot is file or directory
+// loadAllSpecs loads specs based on whether specRoot is file or directory.
+// Acquires the write lock — callers must NOT already hold mu.
 func (h *Handler) loadAllSpecs() error {
 	info, err := os.Stat(h.specRoot)
 	if err != nil {
 		return fmt.Errorf("failed to stat %s: %w", h.specRoot, err)
 	}
 
+	var (
+		specs  map[string]*APISpec
+		merged bool
+	)
 	if !info.IsDir() {
 		// File mode — use loadSpecFromPath (handles index.yaml auto-include)
 		spec, err := loadSpecFromPath(h.specRoot)
 		if err != nil {
 			return err
 		}
-		h.specs = map[string]*APISpec{"": spec}
-		return nil
+		specs = map[string]*APISpec{"": spec}
+		merged = computeMergedMode(h.specRoot, false)
+	} else {
+		// Directory mode — discover all projects
+		specs, err = discoverProjects(h.specRoot)
+		if err != nil {
+			return err
+		}
+		merged = true
 	}
 
-	// Directory mode — discover all projects
-	specs, err := discoverProjects(h.specRoot)
-	if err != nil {
-		return err
-	}
+	h.mu.Lock()
 	h.specs = specs
+	h.mergedMode = merged
+	h.mu.Unlock()
 	return nil
 }
 
-// getSpec returns the spec for a given project name, or default
+// getSpec returns the spec for a given project name, or default.
+// Caller must NOT already hold mu.
 func (h *Handler) getSpec(project string) *APISpec {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	if spec, ok := h.specs[project]; ok {
 		return spec
 	}
 	return h.specs[""]
 }
 
-// getProjectNames returns a sorted list of project names (excluding default)
+// snapshotSpecs returns a shallow copy of the specs map for safe iteration
+// without holding the lock during downstream work. Each *APISpec is shared —
+// callers must treat the contents as read-only.
+func (h *Handler) snapshotSpecs() map[string]*APISpec {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make(map[string]*APISpec, len(h.specs))
+	for k, v := range h.specs {
+		out[k] = v
+	}
+	return out
+}
+
+// getProjectNames returns a sorted list of project names (excluding default).
+// Caller must NOT already hold mu.
 func (h *Handler) getProjectNames() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	names := make([]string, 0, len(h.specs))
 	for name := range h.specs {
 		if name != "" {
@@ -146,19 +185,20 @@ func (h *Handler) getProjectNames() []string {
 // get no chrome). The default project (key "") is included first when it has
 // any content, labelled by its info.title; named projects follow in sorted
 // order, each carrying its own title for friendlier display than the bare
-// directory name.
+// directory name. Caller must NOT already hold mu.
 func (h *Handler) projectListForSwitcher() []projectInfo {
-	if len(h.specs) < 2 {
+	specs := h.snapshotSpecs()
+	if len(specs) < 2 {
 		return nil
 	}
-	names := make([]string, 0, len(h.specs))
-	for name := range h.specs {
+	names := make([]string, 0, len(specs))
+	for name := range specs {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	out := make([]projectInfo, 0, len(names))
 	for _, name := range names {
-		spec := h.specs[name]
+		spec := specs[name]
 		if spec == nil {
 			continue
 		}
@@ -174,7 +214,9 @@ func (h *Handler) projectListForSwitcher() []projectInfo {
 	return out
 }
 
-// isDirMode returns true if spec is loaded from a directory
+// isDirMode returns true if spec is loaded from a directory. Used by the
+// watcher to decide whether to recurse — does not consult the cached flag
+// since it is filesystem state, not spec state.
 func (h *Handler) isDirMode() bool {
 	info, err := os.Stat(h.specRoot)
 	if err != nil {
@@ -184,21 +226,33 @@ func (h *Handler) isDirMode() bool {
 }
 
 // isMergedMode reports whether the in-memory spec was produced by merging
-// multiple source files. True when specRoot is a directory, or when specRoot
-// is an index.yaml with at least one sibling YAML file (the loader's
-// auto-include trigger). In that case the raw bytes of specRoot alone would
-// under-represent the spec, so /yaml must serve the marshalled merged view.
+// multiple source files. Cached on the handler so ServeYAML doesn't walk the
+// filesystem per request. Caller must NOT already hold mu.
 func (h *Handler) isMergedMode() bool {
-	if h.isDirMode() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.mergedMode
+}
+
+// computeMergedMode determines whether the spec at the given root would be
+// produced via the merge path. True when root is a directory, or when root is
+// an index.yaml with at least one sibling YAML file (the loader's auto-include
+// trigger). Pulled out of isMergedMode so it can be computed once during load
+// and cached.
+func computeMergedMode(root string, isDir bool) bool {
+	if isDir {
 		return true
 	}
-	if !strings.EqualFold(filepath.Base(h.specRoot), "index.yaml") {
+	if info, err := os.Stat(root); err == nil && info.IsDir() {
+		return true
+	}
+	if !strings.EqualFold(filepath.Base(root), "index.yaml") {
 		return false
 	}
-	parent := filepath.Dir(h.specRoot)
+	parent := filepath.Dir(root)
 	hasSibling := false
-	filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || path == h.specRoot {
+	_ = filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || path == root {
 			return nil
 		}
 		lower := strings.ToLower(path)
@@ -214,6 +268,17 @@ func (h *Handler) isMergedMode() bool {
 // ReloadSpec reloads all specs from disk
 func (h *Handler) ReloadSpec() error {
 	return h.loadAllSpecs()
+}
+
+// maybeReload triggers a reload only in dev mode. Production servers must
+// stay zero-syscall on the hot path; reloads only happen via the file
+// watcher (also gated on devMode). Returns the reload error for callers
+// that want to surface it.
+func (h *Handler) maybeReload() error {
+	if !h.devMode {
+		return nil
+	}
+	return h.ReloadSpec()
 }
 
 // renderData is the template payload. APISpec is embedded so every existing
@@ -246,12 +311,9 @@ func (h *Handler) Render(project string) ([]byte, error) {
 
 // ServeHTML serves the generated HTML documentation
 func (h *Handler) ServeHTML(c *gin.Context) {
-	// In dev mode, reload specs on each request
-	if h.devMode {
-		if err := h.ReloadSpec(); err != nil {
-			c.String(http.StatusInternalServerError, "Failed to reload spec: "+err.Error())
-			return
-		}
+	if err := h.maybeReload(); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to reload spec: "+err.Error())
+		return
 	}
 
 	out, err := h.Render(c.Query("p"))
@@ -266,8 +328,7 @@ func (h *Handler) ServeHTML(c *gin.Context) {
 
 // ServeSpec serves the API spec as JSON for AI agents
 func (h *Handler) ServeSpec(c *gin.Context) {
-	// Reload specs to ensure latest version
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -278,7 +339,7 @@ func (h *Handler) ServeSpec(c *gin.Context) {
 
 // ServeYAML serves the raw YAML spec
 func (h *Handler) ServeYAML(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.String(http.StatusInternalServerError, "reload spec: "+err.Error())
 		return
 	}
@@ -334,13 +395,17 @@ func (h *Handler) ServeYAML(c *gin.Context) {
 
 // ServeProjectList returns available projects
 func (h *Handler) ServeProjectList(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	projects := make([]projectInfo, 0, len(h.specs))
-	for name, spec := range h.specs {
+	specs := h.snapshotSpecs()
+	projects := make([]projectInfo, 0, len(specs))
+	for name, spec := range specs {
+		if spec == nil {
+			continue
+		}
 		label := name
 		if name == "" {
 			label = "default"
@@ -508,7 +573,7 @@ func parseSpecBody(raw []byte, contentType string) (*APISpec, error) {
 // ServeOpenAPI exports the current spec as an OpenAPI 3.0 JSON document so
 // downstream tools (Postman, Insomnia, Redocly) can consume it.
 func (h *Handler) ServeOpenAPI(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
