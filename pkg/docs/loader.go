@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -53,24 +54,72 @@ func loadFileSpec(path string) (*APISpec, error) {
 	return &spec, nil
 }
 
-// isOpenAPIDocument heuristically detects an OpenAPI 3.x document by looking
-// for the `openapi:` (YAML) or `"openapi":` (JSON) top-level key.
+// isOpenAPIDocument heuristically detects an OpenAPI 3.x document.
+//
+// Look only at the first ~4 KB and only at lines where `openapi:` (YAML) or
+// `"openapi":` (JSON) appears at column 0 — i.e. as a top-level key, not as
+// part of a description or a nested field. The previous implementation
+// matched the literal substring anywhere on a line that started with the
+// substring, which still false-positived on documents whose top-level
+// description happened to start a paragraph with the word "openapi:".
+//
+// We also require the value side to look like a version string starting
+// with `3.` (the only OpenAPI major version we project; OpenAPI 2.0 / Swagger
+// uses `swagger: "2.0"`). This rules out YAML keys like `openapi:` being
+// used as a literal field name in a docs-generator spec.
+// openAPIJSONRe matches the `"openapi": "3.x..."` field at the start of a
+// JSON document (with optional leading whitespace/object-open). This catches
+// minified JSON where the per-line check would miss the field — pretty-
+// printed JSON is also covered because the regex is anchored to the head
+// of the (already trimmed) buffer.
+var openAPIJSONRe = regexp.MustCompile(`^[\s\x{feff}]*\{[\s]*"openapi"\s*:\s*"3\.`)
+
 func isOpenAPIDocument(data []byte) bool {
 	head := data
 	if len(head) > 4096 {
 		head = head[:4096]
 	}
-	return bytesContainsLine(head, "openapi:") || bytesContainsLine(head, `"openapi"`)
-}
-
-func bytesContainsLine(data []byte, needle string) bool {
-	n := []byte(needle)
-	for i := 0; i+len(n) <= len(data); i++ {
-		if (i == 0 || data[i-1] == '\n') && string(data[i:i+len(n)]) == needle {
-			return true
+	// JSON form: check the head-of-document regex first. Minified one-liner
+	// specs like `{"openapi":"3.0.0",...}` only match here, not in the
+	// per-line YAML pass.
+	if openAPIJSONRe.Match(head) {
+		return true
+	}
+	for _, line := range splitLines(head) {
+		// YAML: `openapi: 3.0.3` or `openapi: "3.1.0"` at column 0.
+		if rest, ok := trimKeyPrefix(line, "openapi:"); ok {
+			rest = trimQuotesAndSpaces(rest)
+			if strings.HasPrefix(rest, "3.") {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// splitLines returns the byte-slice lines of data without allocating extra
+// copies of the underlying bytes.
+func splitLines(data []byte) []string {
+	// Fine to convert to string here — the OpenAPI heuristic runs once per
+	// load, not per request.
+	return strings.Split(string(data), "\n")
+}
+
+// trimKeyPrefix returns the substring after `prefix` if line starts with it.
+func trimKeyPrefix(line, prefix string) (string, bool) {
+	if strings.HasPrefix(line, prefix) {
+		return line[len(prefix):], true
+	}
+	return "", false
+}
+
+// trimQuotesAndSpaces strips surrounding whitespace and a leading quote so
+// the caller can match the start of the version literal regardless of
+// whether it was written as `3.0.3` or `"3.0.3"`.
+func trimQuotesAndSpaces(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimLeft(s, `"'`)
+	return s
 }
 
 // loadDirSpec loads index.yaml from directory and merges all other .yaml files.

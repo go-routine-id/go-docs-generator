@@ -215,3 +215,64 @@ info:
 		t.Error("notes should not be a project (no index.yaml)")
 	}
 }
+
+// TestIsOpenAPIDocument exercises the detection heuristic, including the
+// false-positive cases the previous implementation got wrong (substring
+// `openapi:` appearing inside a description, or as a non-version value).
+func TestIsOpenAPIDocument(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			"YAML OpenAPI 3.0",
+			"openapi: 3.0.3\ninfo:\n  title: x",
+			true,
+		},
+		{
+			"YAML OpenAPI 3.1 quoted",
+			`openapi: "3.1.0"` + "\ninfo:\n  title: x",
+			true,
+		},
+		{
+			"JSON OpenAPI 3.0",
+			`{"openapi": "3.0.0", "info": {"title": "x"}}`,
+			true,
+		},
+		{
+			"docs-gen spec without openapi key",
+			"info:\n  title: x\nsections:\n  - id: s1",
+			false,
+		},
+		{
+			"description mentioning `openapi:` at column 0",
+			"info:\n  title: x\n  description: |\n    See openapi: 3.0 below\n",
+			// Multi-line literal block: `openapi:` is at column 4, not 0. Should NOT match.
+			false,
+		},
+		{
+			"Swagger 2.0 (not OpenAPI 3.x)",
+			"swagger: \"2.0\"\ninfo:\n  title: x",
+			false,
+		},
+		{
+			"value-only `openapi:` without version",
+			"openapi:\ninfo:\n  title: x",
+			false,
+		},
+		{
+			"openapi: 4.x (future major) — must not match",
+			"openapi: 4.0.0\n",
+			false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isOpenAPIDocument([]byte(c.body))
+			if got != c.want {
+				t.Errorf("isOpenAPIDocument = %v, want %v\nbody:\n%s", got, c.want, c.body)
+			}
+		})
+	}
+}
