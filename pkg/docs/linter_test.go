@@ -227,3 +227,109 @@ func TestValidate_ExampleMuseum(t *testing.T) {
 		}
 	}
 }
+
+func TestLint_DuplicateEndpoints(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "a", Title: "A", Description: "x", Endpoints: []Endpoint{
+				{Name: "Login", Method: "POST", Path: "/login", Description: "x"},
+			}},
+			{ID: "b", Title: "B", Description: "x", Endpoints: []Endpoint{
+				{Name: "Sign in", Method: "POST", Path: "/login", Description: "x"},
+			}},
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".sections[1].endpoints[0]", "duplicate endpoint") {
+		t.Errorf("expected duplicate endpoint diagnostic, got: %+v", diags)
+	}
+}
+
+func TestLint_FlowDiagramEdgeRefs(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		FlowDiagramNodes: []FlowNodeInfo{{ID: "client"}, {ID: "server"}},
+		FlowDiagramEdges: []FlowEdgeInfo{
+			{Source: "client", Target: "server"},
+			{Source: "client", Target: "ghost"},        // dangling target
+			{Source: "unknown", Target: "server"},      // dangling source
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".flow_diagram_edges[1].target", `target "ghost"`) {
+		t.Errorf("expected dangling target diagnostic, got: %+v", diags)
+	}
+	if !findDiag(diags, ".flow_diagram_edges[2].source", `source "unknown"`) {
+		t.Errorf("expected dangling source diagnostic, got: %+v", diags)
+	}
+}
+
+func TestLint_ScreenCallRefs(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "users", Title: "U", Description: "x", Endpoints: []Endpoint{
+				{Name: "List", Method: "GET", Path: "/users", Description: "x"},
+			}},
+		},
+		Screens: []Screen{
+			{
+				ID:    "home",
+				Title: "Home",
+				Calls: []ScreenCall{
+					{Method: "GET", Path: "/users"},       // documented — fine
+					{Method: "GET", Path: "/userz"},       // typo
+					{Method: "POST", Path: "/users"},      // wrong method
+				},
+			},
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".screens[0].calls[1]", `"GET /userz"`) {
+		t.Errorf("expected diagnostic for typo, got: %+v", diags)
+	}
+	if !findDiag(diags, ".screens[0].calls[2]", `"POST /users"`) {
+		t.Errorf("expected diagnostic for wrong method, got: %+v", diags)
+	}
+	// The valid one must NOT be flagged.
+	if findDiag(diags, ".screens[0].calls[0]", "GET /users") {
+		t.Errorf("documented call should not be flagged, got: %+v", diags)
+	}
+}
+
+func TestLint_AuthModesAccumulates(t *testing.T) {
+	// When auth_modes is empty and multiple endpoints claim auth, ALL of them
+	// should be reported in one pass — previously the function returned on the
+	// first hit and made fixing iterative.
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "a", Title: "A", Description: "x", Endpoints: []Endpoint{
+				{Name: "E1", Method: "GET", Path: "/a", Auth: "JWT", Description: "x"},
+				{Name: "E2", Method: "GET", Path: "/b", Auth: "JWT", Description: "x"},
+			}},
+		},
+	}
+	diags := Lint(spec)
+	count := 0
+	for _, d := range diags {
+		if strings.Contains(d.Message, "api_tester_defaults.auth_modes is empty") {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Errorf("expected 2 auth-mode diagnostics (one per endpoint), got %d. diags: %+v", count, diags)
+	}
+}
+
+// findDiag reports whether any diagnostic matches the given path AND contains
+// the message substring.
+func findDiag(diags []Diagnostic, path, msgSubstring string) bool {
+	for _, d := range diags {
+		if d.Path == path && strings.Contains(d.Message, msgSubstring) {
+			return true
+		}
+	}
+	return false
+}
