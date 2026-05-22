@@ -276,3 +276,108 @@ func TestIsOpenAPIDocument(t *testing.T) {
 		})
 	}
 }
+
+// TestMergeSpec_MergesSectionsByID guards the contract that two overlay
+// files declaring sections with the same `id` collapse into one section
+// with the union of their endpoints — not two sections with duplicate
+// IDs and clashing HTML anchors.
+func TestMergeSpec_MergesSectionsByID(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Demo
+  version: "1.0"
+`)
+	writeYAML(t, dir, "sections/users-part1.yaml", `
+sections:
+  - id: users
+    title: Users
+    endpoints:
+      - name: List
+        method: GET
+        path: /users
+`)
+	writeYAML(t, dir, "sections/users-part2.yaml", `
+sections:
+  - id: users
+    endpoints:
+      - name: Create
+        method: POST
+        path: /users
+  - id: orders
+    title: Orders
+    endpoints:
+      - name: List
+        method: GET
+        path: /orders
+`)
+
+	spec, err := loadDirSpec(dir)
+	if err != nil {
+		t.Fatalf("loadDirSpec: %v", err)
+	}
+
+	if got := len(spec.Sections); got != 2 {
+		t.Fatalf("section count = %d, want 2 (users merged, orders added). got: %+v", got, spec.Sections)
+	}
+
+	var users, orders *SectionInfo
+	for i := range spec.Sections {
+		s := &spec.Sections[i]
+		switch s.ID {
+		case "users":
+			users = s
+		case "orders":
+			orders = s
+		}
+	}
+	if users == nil || orders == nil {
+		t.Fatalf("expected sections users + orders, got %+v", spec.Sections)
+	}
+	if users.Title != "Users" {
+		t.Errorf("users.Title = %q, want %q (overlay must not blank out the base title)", users.Title, "Users")
+	}
+	if got := len(users.Endpoints); got != 2 {
+		t.Errorf("users.Endpoints count = %d, want 2 (List from part1 + Create from part2)", got)
+	}
+	if got := len(orders.Endpoints); got != 1 {
+		t.Errorf("orders.Endpoints count = %d, want 1", got)
+	}
+}
+
+// TestMergeSpec_AppendsUnkeyedSlices verifies the non-keyed fallback still
+// appends. Endpoints have no ID and so should append within their containing
+// section's merge.
+func TestMergeSpec_AppendsUnkeyedSlices(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Demo
+sections:
+  - id: a
+    title: A
+    endpoints:
+      - name: One
+        method: GET
+        path: /one
+`)
+	writeYAML(t, dir, "overlay.yaml", `
+sections:
+  - id: a
+    endpoints:
+      - name: Two
+        method: GET
+        path: /two
+`)
+	spec, err := loadDirSpec(dir)
+	if err != nil {
+		t.Fatalf("loadDirSpec: %v", err)
+	}
+	if len(spec.Sections) != 1 {
+		t.Fatalf("expected 1 section after id-merge, got %d", len(spec.Sections))
+	}
+	got := len(spec.Sections[0].Endpoints)
+	if got != 2 {
+		t.Errorf("merged endpoints = %d, want 2", got)
+	}
+}

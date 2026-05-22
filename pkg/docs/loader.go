@@ -159,12 +159,19 @@ func loadDirSpec(dir string) (*APISpec, error) {
 }
 
 // mergeSpec merges overlay into base using generic, reflection-driven rules:
-//   - slice fields are APPENDED (additive — every overlay file contributes)
+//   - slice fields whose element type carries an identifying field are
+//     merged BY KEY (base entries keep their position; overlay entries
+//     with a matching key recurse into the existing entry; non-matching
+//     overlay entries are appended)
+//   - other slice fields are APPENDED (additive)
 //   - nested struct fields RECURSE (field-by-field merge)
 //   - scalar fields are OVERRIDDEN when overlay is non-zero
 //
-// This contract means new top-level or nested fields in APISpec do NOT require
-// updating this function — adding a field to the struct is enough.
+// Merge-by-key prevents the obvious footgun where two overlay files each
+// declare a section with the same id and the renderer ends up emitting two
+// sections (anchor collisions, duplicated nav entries). Adding a new
+// id-bearing struct anywhere in APISpec automatically opts into key merge
+// — no extra wiring needed.
 func mergeSpec(base, overlay *APISpec) {
 	mergeStruct(reflect.ValueOf(base).Elem(), reflect.ValueOf(overlay).Elem())
 }
@@ -180,9 +187,14 @@ func mergeStruct(base, overlay reflect.Value) {
 func mergeField(base, overlay reflect.Value) {
 	switch base.Kind() {
 	case reflect.Slice:
-		if overlay.Len() > 0 {
-			base.Set(reflect.AppendSlice(base, overlay))
+		if overlay.Len() == 0 {
+			return
 		}
+		if keyField, ok := sliceKeyField(base.Type().Elem()); ok {
+			base.Set(mergeSliceByKey(base, overlay, keyField))
+			return
+		}
+		base.Set(reflect.AppendSlice(base, overlay))
 	case reflect.Struct:
 		mergeStruct(base, overlay)
 	case reflect.Pointer:
@@ -195,6 +207,60 @@ func mergeField(base, overlay reflect.Value) {
 			base.Set(overlay)
 		}
 	}
+}
+
+// sliceKeyField returns the name of the struct field that identifies an
+// entry for merge-by-key purposes, or ("", false) if the element type is
+// not keyable. Only the canonical "ID" field is honoured — using "Name"
+// as a key is unsafe because Endpoint.Name is human-readable, not a
+// stable identifier; two endpoints in the same section might legitimately
+// share a name while differing by method/path. Permissions use Name as
+// their identity but the duplicate-permission check lives in the linter,
+// so missing the merge here only means the lint warning fires instead of
+// silent collapse.
+func sliceKeyField(elem reflect.Type) (string, bool) {
+	if elem.Kind() != reflect.Struct {
+		return "", false
+	}
+	if f, ok := elem.FieldByName("ID"); ok && f.Type.Kind() == reflect.String {
+		return "ID", true
+	}
+	return "", false
+}
+
+// mergeSliceByKey merges overlay entries into base by the named string
+// field. Base order is preserved. Overlay entries whose key matches a base
+// entry recurse into that entry (so a section's endpoints accumulate
+// across files); non-matching entries are appended at the end. Entries
+// with an empty key fall through to plain append — every file is free to
+// add unkeyed rows but they won't collide.
+func mergeSliceByKey(base, overlay reflect.Value, keyField string) reflect.Value {
+	// Index base entries by their key value so the overlay pass is O(n).
+	index := make(map[string]int, base.Len())
+	for i := 0; i < base.Len(); i++ {
+		k := base.Index(i).FieldByName(keyField).String()
+		if k != "" {
+			index[k] = i
+		}
+	}
+
+	for j := 0; j < overlay.Len(); j++ {
+		ov := overlay.Index(j)
+		k := ov.FieldByName(keyField).String()
+		if k == "" {
+			base = reflect.Append(base, ov)
+			continue
+		}
+		if i, ok := index[k]; ok {
+			// Recurse into the existing base entry so nested slices
+			// (e.g. SectionInfo.Endpoints) accumulate too.
+			mergeStruct(base.Index(i), ov)
+			continue
+		}
+		index[k] = base.Len()
+		base = reflect.Append(base, ov)
+	}
+	return base
 }
 
 // discoverProjects scans a root directory for sub-directories containing index.yaml.
