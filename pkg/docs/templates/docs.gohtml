@@ -377,8 +377,8 @@
                                 <button class="send-btn" onclick="sendInlineRequest({{$si}}, {{$ei}})">Send</button>
                             </div>
                             <div class="tester-tabs">
-                                <button class="tab-btn active" onclick="switchInlineTab({{$si}}, {{$ei}}, 'body')">Body</button>
-                                <button class="tab-btn" onclick="switchInlineTab({{$si}}, {{$ei}}, 'headers')">Headers</button>
+                                <button class="tab-btn active" onclick="switchInlineTab({{$si}}, {{$ei}}, 'body', event)">Body</button>
+                                <button class="tab-btn" onclick="switchInlineTab({{$si}}, {{$ei}}, 'headers', event)">Headers</button>
                             </div>
                             <div class="tab-content active" id="tab-body-{{$si}}-{{$ei}}">
                                 <textarea class="inline-body" data-section="{{$si}}" data-endpoint="{{$ei}}">{{$ep.ExampleBody}}</textarea>

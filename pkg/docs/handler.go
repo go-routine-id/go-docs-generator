@@ -85,11 +85,25 @@ func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handle
 			return string(b)
 		},
 		"js": func(s string) string {
-			// Escape string for JavaScript - replace newlines and quotes
+			// Defense-in-depth: html/template's contextual auto-escaper already
+			// JS-escapes string interpolations inside <script>, so the primary
+			// concern here is collapsing newlines (which would otherwise break
+			// a single-line JS string literal even after html/template's escape
+			// pass, because LF/CR are preserved as \n/\r — valid inside JSON
+			// strings but invalid inside JS string literals).
+			s = strings.ReplaceAll(s, "\r", "")
+			s = strings.ReplaceAll(s, "\n", " ")
+			// Explicit JS escaping of quote chars + backslash gives us safety
+			// even if a future caller forgets the auto-escape boundary
+			// (e.g. wraps the value in template.JS).
 			s = strings.ReplaceAll(s, "\\", "\\\\")
 			s = strings.ReplaceAll(s, "'", "\\'")
-			s = strings.ReplaceAll(s, "\n", " ")
-			s = strings.ReplaceAll(s, "\r", "")
+			s = strings.ReplaceAll(s, `"`, `\"`)
+			// Unicode line separators are valid JSON but break JS string
+			// literals. html/template escapes these in <script> contexts but
+			// we belt-and-brace.
+			s = strings.ReplaceAll(s, " ", "\\u2028")
+			s = strings.ReplaceAll(s, " ", "\\u2029")
 			return s
 		},
 		"add":                 func(a, b int) int { return a + b },
