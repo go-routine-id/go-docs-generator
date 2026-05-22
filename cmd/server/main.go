@@ -95,7 +95,7 @@ func runServe() {
 
 	printBanner(*specPath, *devMode, *prefix, *port)
 
-	handler, err := docs.NewHandler(*specPath, *devMode)
+	handler, err := docs.NewHandlerWithPrefix(*specPath, *devMode, *prefix)
 	if err != nil {
 		slog.Error("failed to initialize docs handler", "err", err)
 		os.Exit(1)

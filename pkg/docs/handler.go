@@ -52,11 +52,23 @@ type Handler struct {
 	mergedMode bool                // cached: true iff specs were produced by merging multiple files
 }
 
-// NewHandler creates a new documentation handler
+// NewHandler creates a new documentation handler. The prefix matches the URL
+// prefix the server will mount routes under (e.g. "/docs"); it is baked into
+// asset and link URLs emitted by the template. Pass "" for legacy callers
+// who set the prefix later via RegisterRoutes — those callers MUST not invoke
+// Render before RegisterRoutes runs.
 func NewHandler(specPath string, devMode bool) (*Handler, error) {
+	return NewHandlerWithPrefix(specPath, devMode, "")
+}
+
+// NewHandlerWithPrefix is the prefix-aware constructor. Prefer this over
+// NewHandler — pinning the prefix at construction time means Render() can be
+// called safely outside the HTTP path (golden tests, snapshot tools).
+func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handler, error) {
 	h := &Handler{
 		specRoot: specPath,
 		devMode:  devMode,
+		prefix:   normalizePrefix(prefix),
 	}
 
 	// Load specs
@@ -425,8 +437,20 @@ func (h *Handler) ServeProjectList(c *gin.Context) {
 	})
 }
 
-// RegisterRoutes registers the documentation routes with a custom prefix
+// RegisterRoutes registers the documentation routes under the given prefix.
+// If a prefix was already set via NewHandlerWithPrefix, the argument here
+// must either match or be empty — mismatches are a configuration bug and
+// would yield routes mounted at one prefix while templates emit links to a
+// different one.
 func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
+	prefix = normalizePrefix(prefix)
+	if prefix == "" {
+		prefix = h.prefix
+	} else if h.prefix != "" && h.prefix != prefix {
+		panic(fmt.Sprintf("docs.Handler: prefix mismatch (constructed with %q, RegisterRoutes called with %q)", h.prefix, prefix))
+	}
+	h.prefix = prefix
+
 	router.GET(prefix, h.ServeHTML)
 	router.GET(prefix+"/spec", h.ServeSpec)
 	router.GET(prefix+"/specs", h.ServeProjectList)
@@ -439,8 +463,16 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
 	// Self-hosted vendor assets (React, ReactFlow, dagre, ReactFlow CSS).
 	// Served from embed.FS so we have zero CDN dependency at runtime.
 	router.GET(prefix+"/assets/vendor/:file", h.ServeVendorAsset)
-	// Expose the prefix so the template can build asset URLs at render time.
-	h.prefix = prefix
+}
+
+// normalizePrefix canonicalises a URL prefix: leading slash, no trailing
+// slash, empty stays empty.
+func normalizePrefix(p string) string {
+	p = strings.Trim(p, "/")
+	if p == "" {
+		return ""
+	}
+	return "/" + p
 }
 
 // ServeVendorAsset serves a single file out of the embedded vendor bundle.
