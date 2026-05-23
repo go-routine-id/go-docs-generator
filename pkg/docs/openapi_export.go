@@ -106,7 +106,7 @@ func buildOperation(ep Endpoint, section SectionInfo, tagByID map[string]string,
 			Name:        qp.Name,
 			Required:    qp.Required,
 			Description: qp.Description,
-			Schema:      schemaFromTypeString(qp.Type, qp.Default),
+			Schema:      schemaFromTypeString(qp.Type, string(qp.Default)),
 		}})
 	}
 

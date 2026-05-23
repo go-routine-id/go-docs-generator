@@ -1997,6 +1997,10 @@
                     
 
                     
+
+                    
+
+                    
                     <div class="code-block">
                         <div class="code-header">Example Response</div>
                         <pre class="json-highlight"><code>{
@@ -2026,6 +2030,10 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
                     
 
                     
@@ -2123,6 +2131,16 @@
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
+                    
+
+                    
+
+                    
+
+                    
+                    <p class="text-muted"><em>Note: Hanya mengembalikan artikel yang sudah dipublish</em></p>
+                    
+
                     
 
                     
@@ -2228,6 +2246,14 @@
 
                     
                     <div class="auth-badge">🔓 Optional Auth (Public available)</div>
+                    
+
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -2348,59 +2374,109 @@
                             <td>museum_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>ID museum pemilik</td>
+                            <td>
+                                ID museum pemilik
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>type</td>
                             <td>string</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Tipe artikel</td>
+                            <td>
+                                Tipe artikel
+                                 <code>enum: news, artifact_detail</code>
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>artifact_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>Wajib jika type = artifact_detail</td>
+                            <td>
+                                Wajib jika type = artifact_detail
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>title</td>
                             <td>string</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Judul artikel</td>
+                            <td>
+                                Judul artikel
+                                
+                                 <code>max 255</code>
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>slug</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>URL slug (auto-generate jika kosong)</td>
+                            <td>
+                                URL slug (auto-generate jika kosong)
+                                
+                                 <code>max 255</code>
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>content</td>
                             <td>string (markdown)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Konten artikel dalam format Markdown</td>
+                            <td>
+                                Konten artikel dalam format Markdown
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>cover_image</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>URL cover image dari Media Service</td>
+                            <td>
+                                URL cover image dari Media Service
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>is_published</td>
                             <td>boolean</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>Status publish</td>
+                            <td>
+                                Status publish
+                                
+                                
+                                 <code>default: false</code>
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -2416,6 +2492,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -2538,52 +2620,104 @@
                             <td>type</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                 <code>enum: news, artifact_detail</code>
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>artifact_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>title</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                 <code>max 255</code>
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>slug</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                 <code>max 255</code>
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>content</td>
                             <td>string (markdown)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>cover_image</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>is_published</td>
                             <td>boolean</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
+                    
+                    <p class="text-muted"><em>Note: Field yang tidak diisi tidak akan diupdate</em></p>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -2698,6 +2832,14 @@
                     
 
                     
+
+                    
+
+                    
+
+                    
+
+                    
                     <div class="try-it-section">
                         <button class="try-it-btn" onclick="openTester( 0 ,  5 )">
                             ▶ Try It
@@ -2794,6 +2936,14 @@
                     <div class="auth-badge">
                         🔒 Auth Required <code>article:write</code>
                     </div>
+                    
+
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -2941,6 +3091,14 @@
                     
 
                     
+
+                    
+
+                    
+
+                    
+
+                    
                     <div class="try-it-section">
                         <button class="try-it-btn" onclick="openTester( 1 ,  0 )">
                             ▶ Try It
@@ -3050,66 +3208,122 @@
                             <td>museum_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>ID museum pemilik</td>
+                            <td>
+                                ID museum pemilik
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>name</td>
                             <td>string</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Nama artifact</td>
+                            <td>
+                                Nama artifact
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>description</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>category</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: historical</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: historical</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>era</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: ancient</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: ancient</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>origin</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: Indonesia</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: Indonesia</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>status</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: active</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: active</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>image_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>Media ID dari Media Service</td>
+                            <td>
+                                Media ID dari Media Service
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>model3d_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>Media ID 3D model dari Media Service</td>
+                            <td>
+                                Media ID 3D model dari Media Service
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -3128,6 +3342,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -3249,6 +3469,14 @@
                     
 
                     
+
+                    
+
+                    
+
+                    
+
+                    
                     <div class="try-it-section">
                         <button class="try-it-btn" onclick="openTester( 1 ,  2 )">
                             ▶ Try It
@@ -3358,31 +3586,57 @@
                             <td>name</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>description</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>image_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>model3d_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -3395,6 +3649,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -3512,6 +3772,14 @@
                     
 
                     
+
+                    
+
+                    
+
+                    
+
+                    
                     <div class="try-it-section">
                         <button class="try-it-btn" onclick="openTester( 1 ,  4 )">
                             ▶ Try It
@@ -3608,6 +3876,14 @@
                     <div class="auth-badge">
                         🔒 Auth Required <code>artifact:write</code>
                     </div>
+                    
+
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -3728,10 +4004,18 @@
                             <td>image_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Media ID dari Media Service</td>
+                            <td>
+                                Media ID dari Media Service
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -3742,6 +4026,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -3859,6 +4149,63 @@
                     
 
                     
+                    <p>Museum object (authenticated) atau list of selected museums (public)</p>
+                    
+
+                    
+
+                    
+                    <div class="code-block">
+                        <div class="code-header">Example Response (authenticated)</div>
+                        <pre class="json-highlight"><code>{
+  &#34;id&#34;: &#34;f6c857ea-5428-427f-b7bb-a19bfaeff6cf&#34;,
+  &#34;organization_id&#34;: &#34;d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a&#34;,
+  &#34;name&#34;: &#34;Museum Gangelang&#34;,
+  &#34;location&#34;: &#34;Bali&#34;,
+  &#34;description&#34;: &#34;Museum untuk organisasi ini&#34;,
+  &#34;image_media_id&#34;: &#34;abc123-def456&#34;,
+  &#34;contact_info&#34;: &#34;&#34;,
+  &#34;artifact_count&#34;: 0,
+  &#34;is_selected&#34;: true,
+  &#34;lat_lng&#34;: { &#34;lat&#34;: -8.5, &#34;lng&#34;: 115.2 },
+  &#34;created_at&#34;: &#34;2026-03-02T16:09:02&#43;07:00&#34;,
+  &#34;updated_at&#34;: &#34;2026-03-02T16:09:02&#43;07:00&#34;
+}
+</code></pre>
+                    </div>
+                    
+
+                    
+                    <div class="code-block">
+                        <div class="code-header">Example Response (public)</div>
+                        <pre class="json-highlight"><code>{
+  &#34;data&#34;: [
+    {
+      &#34;id&#34;: &#34;f6c857ea-5428-427f-b7bb-a19bfaeff6cf&#34;,
+      &#34;organization_id&#34;: &#34;d6450e6c-c4ea-4e9f-a4d3-c9cf0c755d6a&#34;,
+      &#34;name&#34;: &#34;Museum Gangelang&#34;,
+      &#34;location&#34;: &#34;Bali&#34;,
+      &#34;description&#34;: &#34;Museum untuk organisasi ini&#34;,
+      &#34;image_media_id&#34;: &#34;abc123-def456&#34;,
+      &#34;contact_info&#34;: &#34;&#34;,
+      &#34;artifact_count&#34;: 5,
+      &#34;is_selected&#34;: true,
+      &#34;lat_lng&#34;: { &#34;lat&#34;: -8.5, &#34;lng&#34;: 115.2 },
+      &#34;created_at&#34;: &#34;2026-03-02T16:09:02&#43;07:00&#34;,
+      &#34;updated_at&#34;: &#34;2026-03-02T16:09:02&#43;07:00&#34;
+    }
+  ],
+  &#34;meta&#34;: {
+    &#34;page&#34;: 1,
+    &#34;page_size&#34;: 2,
+    &#34;total&#34;: 2
+  }
+}
+</code></pre>
+                    </div>
+                    
+
+                    
                     <div class="try-it-section">
                         <button class="try-it-btn" onclick="openTester( 2 ,  0 )">
                             ▶ Try It
@@ -3968,38 +4315,70 @@
                             <td>name</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: Museum Gangelang Updated</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: Museum Gangelang Updated</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>location</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: Jakarta Pusat</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: Jakarta Pusat</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>description</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: Deskripsi museum yang diupdate</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: Deskripsi museum yang diupdate</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>image_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td>Media ID dari Media Service <code>ex: abc123-def456</code></td>
+                            <td>
+                                Media ID dari Media Service
+                                
+                                
+                                
+                                 <code>ex: abc123-def456</code>
+                            </td>
                         </tr>
                         
                         <tr>
                             <td>contact_info</td>
                             <td>string</td>
                             <td><span class="badge optional">optional</span></td>
-                            <td> <code>ex: &#43;62 812-3456-7890</code></td>
+                            <td>
+                                
+                                
+                                
+                                
+                                 <code>ex: &#43;62 812-3456-7890</code>
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -4012,6 +4391,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -4118,6 +4503,14 @@
                     <div class="auth-badge">
                         🔒 Auth Required <code>museum:delete</code>
                     </div>
+                    
+
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -4238,10 +4631,18 @@
                             <td>image_media_id</td>
                             <td>string (uuid)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Media ID yang didapat dari response Media Service upload <code>ex: abc123-def456</code></td>
+                            <td>
+                                Media ID yang didapat dari response Media Service upload
+                                
+                                
+                                
+                                 <code>ex: abc123-def456</code>
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -4252,6 +4653,12 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
+                    
+
                     
 
                     
@@ -4369,10 +4776,18 @@
                             <td>museum_ids</td>
                             <td>array of string (uuid)</td>
                             <td><span class="badge required">required</span></td>
-                            <td>Array museum ID yang ingin ditampilkan secara publik</td>
+                            <td>
+                                Array museum ID yang ingin ditampilkan secara publik
+                                
+                                
+                                
+                                
+                            </td>
                         </tr>
                         
                     </table>
+                    
+
                     
 
                     
@@ -4389,6 +4804,8 @@
                     
 
                     
+
+                    
                     <div class="code-block">
                         <div class="code-header">Example Response</div>
                         <pre class="json-highlight"><code>{
@@ -4396,6 +4813,10 @@
 }
 </code></pre>
                     </div>
+                    
+
+                    
+
                     
 
                     
@@ -4508,6 +4929,9 @@
                     <p style="color:var(--text-secondary); margin-bottom:1rem;">Content-Type: <code>multipart/form-data</code></p>
                     
                     
+                    <p style="color:var(--text-secondary); margin-bottom:1rem;">Auth: <code>Bearer JWT</code>, <code>X-API-Key</code></p>
+                    
+                    
                     <h3 class="section-title">Fields</h3>
                     <table>
                         <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
@@ -4569,6 +4993,7 @@
                 
                 
                 
+                
                 <h3 class="section-title">Step 2: Simpan media_id ke Museum/Artifact</h3>
                 
                 <div style="color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;"><p style="margin-bottom:0.75rem;">Gunakan media_id (bukan URL) dari response Media Service. Frontend mengkonstruksi URL untuk menampilkan file: https://museumdigi.id/api/v1/media/{media_id}</p></div>
@@ -4580,17 +5005,20 @@
                 <div class="flow-step" style="cursor:default;">
                     <div class="step-content">
                         <strong>Update museum image</strong>
-                        <p style="color:var(--text-secondary); margin-top:0.25rem;">Endpoint: <code>POST /api/v1/museum/image</code></p>
+                        <p style="color:var(--text-secondary); margin-top:0.25rem;">Endpoint: <code>POST /api/v1/museum/image</code> → field <code>image_media_id</code></p>
                     </div>
                 </div>
                 
                 <div class="flow-step" style="cursor:default;">
                     <div class="step-content">
                         <strong>Update artifact image</strong>
-                        <p style="color:var(--text-secondary); margin-top:0.25rem;">Endpoint: <code>POST /api/v1/artifacts/{id}/image</code></p>
+                        <p style="color:var(--text-secondary); margin-top:0.25rem;">Endpoint: <code>POST /api/v1/artifacts/{id}/image</code> → field <code>image_media_id</code></p>
                     </div>
                 </div>
                 
+                
+                
+                <div class="alert alert-info">💡 <p style="margin-bottom:0.75rem;">Backend menyimpan media_id (UUID), bukan full URL. Untuk menampilkan file di frontend: https://museumdigi.id/api/v1/media/{media_id}</p></div>
                 
                 
             </div>

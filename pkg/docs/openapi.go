@@ -178,7 +178,7 @@ func endpointFromOperation(method, path string, op *openapi3.Operation, pathPara
 			if pv.Schema != nil && pv.Schema.Value != nil {
 				qp.Type = schemaPrimitive(pv.Schema.Value)
 				if pv.Schema.Value.Default != nil {
-					qp.Default = fmt.Sprintf("%v", pv.Schema.Value.Default)
+					qp.Default = Scalar(fmt.Sprintf("%v", pv.Schema.Value.Default))
 				}
 			}
 			ep.QueryParams = append(ep.QueryParams, qp)

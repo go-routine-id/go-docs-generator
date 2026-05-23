@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -225,6 +226,102 @@ func TestValidate_ExampleMuseum(t *testing.T) {
 		for _, e := range errs {
 			t.Errorf("  %s", e.Error())
 		}
+	}
+}
+
+// TestValidate_RejectsUnknownKeys is the regression that motivated moving
+// validation onto the raw YAML. The old struct-round-trip path silently
+// dropped unknown keys, so a typo'd field passed validation. The schema's
+// additionalProperties:false only bites when we validate the raw document.
+func TestValidate_RejectsUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "index.yaml")
+	if err := os.WriteFile(p, []byte(`
+info:
+  title: Typo Demo
+sections:
+  - id: s1
+    title: S1
+    description: x
+    endpoints:
+      - name: Ping
+        method: GET
+        path: /ping
+        descriptoin: typo here
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	errs := ValidateFile(p)
+	if len(errs) == 0 {
+		t.Fatal("expected a schema error for the misspelled `descriptoin` key, got none")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "descriptoin") || strings.Contains(e.Message, "additionalProperties") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an additionalProperties violation mentioning the typo, got: %v", errs)
+	}
+}
+
+// TestValidateRaw_AcceptsScalarDefault verifies the Scalar type lets a
+// parameter `default` be a string, number, or boolean without a schema
+// violation — the museum example uses all three.
+func TestValidateRaw_AcceptsScalarDefault(t *testing.T) {
+	raw := []byte(`
+info:
+  title: Scalars
+sections:
+  - id: s
+    title: S
+    endpoints:
+      - name: List
+        method: GET
+        path: /x
+        query_params:
+          - name: page
+            type: integer
+            default: 1
+          - name: published
+            type: boolean
+            default: false
+          - name: sort
+            type: string
+            default: name
+`)
+	if errs := ValidateRaw(raw, "test"); len(errs) > 0 {
+		t.Errorf("scalar defaults should validate, got: %v", errs)
+	}
+}
+
+// TestScalar_ParsesAllForms locks in Scalar's YAML decoding across the three
+// scalar shapes and rejects a non-scalar.
+func TestScalar_ParsesAllForms(t *testing.T) {
+	type holder struct {
+		D Scalar `yaml:"d"`
+	}
+	cases := map[string]string{
+		"42":    "d: 42",
+		"true":  "d: true",
+		"hello": "d: hello",
+		"3.14":  "d: 3.14",
+	}
+	for want, in := range cases {
+		var h holder
+		if err := yamlUnmarshal([]byte(in), &h); err != nil {
+			t.Errorf("%q: unexpected error: %v", in, err)
+			continue
+		}
+		if string(h.D) != want {
+			t.Errorf("%q: got %q, want %q", in, h.D, want)
+		}
+	}
+	// A mapping is not a valid scalar default.
+	var h holder
+	if err := yamlUnmarshal([]byte("d: {a: 1}"), &h); err == nil {
+		t.Error("expected error for non-scalar default, got nil")
 	}
 }
 

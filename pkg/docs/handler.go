@@ -565,7 +565,11 @@ func (h *Handler) ServeValidate(c *gin.Context) {
 		return
 	}
 
-	schemaErrs := ValidateSpec(spec, "")
+	// Validate the RAW body so unknown/misspelled keys are caught
+	// (additionalProperties) — the struct-based ValidateSpec can't see them
+	// because parseSpecBody already dropped them. Lint runs on the parsed
+	// struct for the semantic checks the schema can't express.
+	schemaErrs := ValidateRaw(raw, "")
 	diags := Lint(spec)
 
 	lintErrs, lintWarns := 0, 0

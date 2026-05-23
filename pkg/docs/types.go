@@ -2,6 +2,78 @@ package docs
 
 //go:generate go run ../../cmd/gendocs
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+
+	"github.com/invopop/jsonschema"
+	"gopkg.in/yaml.v3"
+)
+
+// Scalar holds a value written in YAML/JSON as a string, number, or boolean —
+// e.g. a parameter `default`, where authors naturally write `default: 20`,
+// `default: false`, or `default: "all"`. It is stored and rendered as its
+// string form (the docs page only ever displays it as text). The custom
+// JSONSchema makes raw validation accept all three primitive types instead of
+// rejecting non-strings.
+type Scalar string
+
+// UnmarshalYAML accepts any scalar node and keeps its literal text.
+func (s *Scalar) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.ScalarNode {
+		return fmt.Errorf("expected a scalar (string, number, or boolean), got a %s", yamlKindName(node.Kind))
+	}
+	*s = Scalar(node.Value)
+	return nil
+}
+
+// UnmarshalJSON accepts a JSON string, number, or boolean. Strings are
+// unquoted; numbers and booleans keep their literal text.
+func (s *Scalar) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		*s = ""
+		return nil
+	}
+	if data[0] == '"' {
+		var str string
+		if err := json.Unmarshal(data, &str); err != nil {
+			return err
+		}
+		*s = Scalar(str)
+		return nil
+	}
+	*s = Scalar(string(data))
+	return nil
+}
+
+// JSONSchema tells the schema generator (invopop/jsonschema) to accept any of
+// the three primitive forms. anyOf (not oneOf) is deliberate: the integer 20
+// matches both "number" and "integer", which would make oneOf fail.
+func (Scalar) JSONSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		AnyOf: []*jsonschema.Schema{
+			{Type: "string"},
+			{Type: "number"},
+			{Type: "boolean"},
+		},
+	}
+}
+
+func yamlKindName(k yaml.Kind) string {
+	switch k {
+	case yaml.MappingNode:
+		return "mapping"
+	case yaml.SequenceNode:
+		return "sequence"
+	case yaml.AliasNode:
+		return "alias"
+	default:
+		return "non-scalar"
+	}
+}
+
 // APISpec represents the complete API specification from YAML.
 // Top-level fields are all optional at the file level — each overlay file in a
 // multi-file spec directory typically only populates a subset. The merged
@@ -155,32 +227,42 @@ type ScreenCall struct {
 }
 
 type Endpoint struct {
-	Name            string       `yaml:"name,omitempty" json:"name,omitempty"`
-	Method          string       `yaml:"method,omitempty" json:"method,omitempty"`
-	Path            string       `yaml:"path,omitempty" json:"path,omitempty"`
-	Auth            string       `yaml:"auth,omitempty" json:"auth,omitempty"`
-	Permission      string       `yaml:"permission,omitempty" json:"permission,omitempty"`
-	Description     string       `yaml:"description,omitempty" json:"description,omitempty"`
-	QueryParams     []QueryParam `yaml:"query_params,omitempty" json:"query_params,omitempty"`
-	Body            []BodyField  `yaml:"body,omitempty" json:"body,omitempty"`
-	ExampleBody     string       `yaml:"example_body,omitempty" json:"example_body,omitempty"`
-	ExampleResponse string       `yaml:"example_response,omitempty" json:"example_response,omitempty"`
+	Name        string       `yaml:"name,omitempty" json:"name,omitempty"`
+	Method      string       `yaml:"method,omitempty" json:"method,omitempty"`
+	Path        string       `yaml:"path,omitempty" json:"path,omitempty"`
+	Auth        string       `yaml:"auth,omitempty" json:"auth,omitempty"`
+	Permission  string       `yaml:"permission,omitempty" json:"permission,omitempty"`
+	Description string       `yaml:"description,omitempty" json:"description,omitempty"`
+	Note        string       `yaml:"note,omitempty" json:"note,omitempty" jsonschema_description:"Caveat shown below the endpoint (e.g. 'unset fields are not updated')."`
+	QueryParams []QueryParam `yaml:"query_params,omitempty" json:"query_params,omitempty"`
+	Body        []BodyField  `yaml:"body,omitempty" json:"body,omitempty"`
+	ExampleBody string       `yaml:"example_body,omitempty" json:"example_body,omitempty"`
+	// Response is a short prose summary of what the endpoint returns. For a
+	// concrete payload use ExampleResponse (or the authenticated/public split
+	// when behaviour differs by auth state).
+	Response                     string `yaml:"response,omitempty" json:"response,omitempty" jsonschema_description:"One-line prose description of the response shape."`
+	ExampleResponse              string `yaml:"example_response,omitempty" json:"example_response,omitempty"`
+	ExampleResponseAuthenticated string `yaml:"example_response_authenticated,omitempty" json:"example_response_authenticated,omitempty" jsonschema_description:"Example response when the caller is authenticated (for endpoints whose payload differs by auth state)."`
+	ExampleResponsePublic        string `yaml:"example_response_public,omitempty" json:"example_response_public,omitempty" jsonschema_description:"Example response for an unauthenticated/public caller."`
 }
 
 type QueryParam struct {
 	Name        string `yaml:"name,omitempty" json:"name,omitempty"`
 	Type        string `yaml:"type,omitempty" json:"type,omitempty"`
 	Required    bool   `yaml:"required,omitempty" json:"required,omitempty"`
-	Default     string `yaml:"default,omitempty" json:"default,omitempty"`
+	Default     Scalar `yaml:"default,omitempty" json:"default,omitempty" jsonschema_description:"Default value. May be a string, number, or boolean."`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 }
 
 type BodyField struct {
-	Name        string `yaml:"name,omitempty" json:"name,omitempty"`
-	Type        string `yaml:"type,omitempty" json:"type,omitempty"`
-	Required    bool   `yaml:"required,omitempty" json:"required,omitempty"`
-	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-	Example     string `yaml:"example,omitempty" json:"example,omitempty"`
+	Name        string   `yaml:"name,omitempty" json:"name,omitempty"`
+	Type        string   `yaml:"type,omitempty" json:"type,omitempty"`
+	Required    bool     `yaml:"required,omitempty" json:"required,omitempty"`
+	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
+	Example     string   `yaml:"example,omitempty" json:"example,omitempty"`
+	Enum        []string `yaml:"enum,omitempty" json:"enum,omitempty" jsonschema_description:"Allowed values for this field."`
+	MaxLength   int      `yaml:"max_length,omitempty" json:"max_length,omitempty" jsonschema_description:"Maximum string length, shown as a constraint."`
+	Default     Scalar   `yaml:"default,omitempty" json:"default,omitempty" jsonschema_description:"Default value applied when the field is omitted. May be a string, number, or boolean."`
 }
 
 type FlowStep struct {
@@ -193,6 +275,7 @@ type FlowStep struct {
 	CurlExampleJWT    string        `yaml:"curl_example_jwt,omitempty" json:"curl_example_jwt,omitempty"`
 	CurlExampleAPIKey string        `yaml:"curl_example_api_key,omitempty" json:"curl_example_api_key,omitempty"`
 	ResponseExample   string        `yaml:"response_example,omitempty" json:"response_example,omitempty"`
+	Tip               string        `yaml:"tip,omitempty" json:"tip,omitempty" jsonschema_description:"Highlighted hint shown at the end of the step."`
 }
 
 type FlowEndpoint struct {
@@ -201,6 +284,7 @@ type FlowEndpoint struct {
 	Service     string      `yaml:"service,omitempty" json:"service,omitempty"`
 	ContentType string      `yaml:"content_type,omitempty" json:"content_type,omitempty"`
 	Auth        string      `yaml:"auth,omitempty" json:"auth,omitempty"`
+	AuthMethods []string    `yaml:"auth_methods,omitempty" json:"auth_methods,omitempty" jsonschema_description:"Accepted auth methods for this step (e.g. [Bearer JWT, X-API-Key])."`
 	Permission  string      `yaml:"permission,omitempty" json:"permission,omitempty"`
 	Fields      []BodyField `yaml:"fields,omitempty" json:"fields,omitempty"`
 }
@@ -209,6 +293,7 @@ type FlowAction struct {
 	Type        string `yaml:"type,omitempty" json:"type,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 	Endpoint    string `yaml:"endpoint,omitempty" json:"endpoint,omitempty"`
+	Field       string `yaml:"field,omitempty" json:"field,omitempty" jsonschema_description:"The request field this action populates (e.g. image_media_id)."`
 }
 
 type PermissionInfo struct {

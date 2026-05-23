@@ -96,6 +96,9 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `required` | `boolean` | no | — |
 | `description` | `string` | no | — |
 | `example` | `string` | no | — |
+| `enum` | array<`string`> | no | Allowed values for this field. |
+| `max_length` | `integer` | no | Maximum string length, shown as a constraint. |
+| `default` | [`Scalar`](#scalar) | no | Default value applied when the field is omitted. May be a string, number, or boolean. |
 
 ### `Endpoint`
 
@@ -107,10 +110,14 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `auth` | `string` | no | — |
 | `permission` | `string` | no | — |
 | `description` | `string` | no | — |
+| `note` | `string` | no | Caveat shown below the endpoint (e.g. 'unset fields are not updated'). |
 | `query_params` | array<[`QueryParam`](#queryparam)> | no | — |
 | `body` | array<[`BodyField`](#bodyfield)> | no | — |
 | `example_body` | `string` | no | — |
+| `response` | `string` | no | One-line prose description of the response shape. |
 | `example_response` | `string` | no | — |
+| `example_response_authenticated` | `string` | no | Example response when the caller is authenticated (for endpoints whose payload differs by auth state). |
+| `example_response_public` | `string` | no | Example response for an unauthenticated/public caller. |
 
 ### `EventChannel`
 
@@ -140,6 +147,7 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `type` | `string` | no | — |
 | `description` | `string` | no | — |
 | `endpoint` | `string` | no | — |
+| `field` | `string` | no | The request field this action populates (e.g. image_media_id). |
 
 ### `FlowEdgeInfo`
 
@@ -161,6 +169,7 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `service` | `string` | no | — |
 | `content_type` | `string` | no | — |
 | `auth` | `string` | no | — |
+| `auth_methods` | array<`string`> | no | Accepted auth methods for this step (e.g. [Bearer JWT, X-API-Key]). |
 | `permission` | `string` | no | — |
 | `fields` | array<[`BodyField`](#bodyfield)> | no | — |
 
@@ -208,6 +217,7 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `curl_example_jwt` | `string` | no | — |
 | `curl_example_api_key` | `string` | no | — |
 | `response_example` | `string` | no | — |
+| `tip` | `string` | no | Highlighted hint shown at the end of the step. |
 
 ### `Guide`
 
@@ -260,8 +270,12 @@ When a spec directory contains multiple YAML files, they are merged into a singl
 | `name` | `string` | no | — |
 | `type` | `string` | no | — |
 | `required` | `boolean` | no | — |
-| `default` | `string` | no | — |
+| `default` | [`Scalar`](#scalar) | no | Default value. May be a string, number, or boolean. |
 | `description` | `string` | no | — |
+
+### `Scalar`
+
+_No properties._
 
 ### `Screen`
 
