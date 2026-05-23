@@ -40,10 +40,13 @@ func Lint(spec *APISpec) []Diagnostic {
 
 	out = append(out, checkRequiredFields(spec)...)
 	out = append(out, checkDuplicateIDs(spec)...)
+	out = append(out, checkDuplicateEndpoints(spec)...)
 	out = append(out, checkFlowAnchorRefs(spec)...)
 	out = append(out, checkPermissionRefs(spec)...)
 	out = append(out, checkAuthLabelConsistency(spec)...)
 	out = append(out, checkAuthModesPresent(spec)...)
+	out = append(out, checkFlowDiagramEdgeRefs(spec)...)
+	out = append(out, checkScreenCallRefs(spec)...)
 	out = append(out, checkEmptyDescriptions(spec)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
@@ -336,30 +339,133 @@ func firstToken(s string) string {
 	return s
 }
 
-// checkAuthModesPresent fails the lint when at least one endpoint claims an
-// auth mode (anything other than empty or "none") but the API tester has no
+// checkAuthModesPresent fails the lint when an endpoint claims an auth mode
+// (anything other than empty or "none") but the API tester has no
 // `api_tester_defaults.auth_modes` to back it. Without this check the spec
 // passes validation but the rendered tester runs `null.forEach` / `null.find`
 // at page load — silent crash for the consumer.
+//
+// Accumulates ALL failures rather than returning on the first; otherwise a
+// spec with thirty endpoints would force the user to re-lint after each fix.
 func checkAuthModesPresent(spec *APISpec) []Diagnostic {
 	if len(spec.APITesterDefaults.AuthModes) > 0 {
 		return nil
 	}
+	var out []Diagnostic
 	for si, sec := range spec.Sections {
 		for ei, ep := range sec.Endpoints {
 			label := strings.TrimSpace(ep.Auth)
 			if label == "" || strings.EqualFold(label, "none") {
 				continue
 			}
-			return []Diagnostic{{
+			out = append(out, Diagnostic{
 				Severity: SeverityError,
 				Path:     fmt.Sprintf(".sections[%d].endpoints[%d].auth", si, ei),
 				Message: fmt.Sprintf("endpoint claims auth %q but api_tester_defaults.auth_modes is empty — "+
 					"tester cannot attach credentials and the page will crash on load", label),
-			}}
+			})
 		}
 	}
-	return nil
+	return out
+}
+
+// checkDuplicateEndpoints flags repeated (method, path) pairs. A documented
+// duplicate is almost always either a copy-paste mistake or an unintended
+// section split — the rendered docs would show the same endpoint twice and
+// the tester would generate clashing DOM IDs.
+func checkDuplicateEndpoints(spec *APISpec) []Diagnostic {
+	type pos struct{ s, e int }
+	seen := map[string]pos{}
+	var out []Diagnostic
+	for si, sec := range spec.Sections {
+		for ei, ep := range sec.Endpoints {
+			if ep.Method == "" || ep.Path == "" {
+				continue // already flagged by checkRequiredFields
+			}
+			key := strings.ToUpper(ep.Method) + " " + ep.Path
+			if first, ok := seen[key]; ok {
+				out = append(out, Diagnostic{
+					Severity: SeverityWarning,
+					Path:     fmt.Sprintf(".sections[%d].endpoints[%d]", si, ei),
+					Message: fmt.Sprintf("duplicate endpoint %q (also defined at .sections[%d].endpoints[%d])",
+						key, first.s, first.e),
+				})
+				continue
+			}
+			seen[key] = pos{si, ei}
+		}
+	}
+	return out
+}
+
+// checkFlowDiagramEdgeRefs flags edges whose source/target points at a node
+// id not present in flow_diagram_nodes. ReactFlow tolerates this silently
+// (the edge just doesn't render) — left undiagnosed it's a maddening UX bug.
+func checkFlowDiagramEdgeRefs(spec *APISpec) []Diagnostic {
+	if len(spec.FlowDiagramEdges) == 0 {
+		return nil
+	}
+	known := map[string]bool{}
+	for _, n := range spec.FlowDiagramNodes {
+		if n.ID != "" {
+			known[n.ID] = true
+		}
+	}
+	var out []Diagnostic
+	for i, e := range spec.FlowDiagramEdges {
+		if e.Source != "" && !known[e.Source] {
+			out = append(out, Diagnostic{
+				Severity: SeverityError,
+				Path:     fmt.Sprintf(".flow_diagram_edges[%d].source", i),
+				Message:  fmt.Sprintf("edge source %q does not match any flow_diagram_nodes[].id", e.Source),
+			})
+		}
+		if e.Target != "" && !known[e.Target] {
+			out = append(out, Diagnostic{
+				Severity: SeverityError,
+				Path:     fmt.Sprintf(".flow_diagram_edges[%d].target", i),
+				Message:  fmt.Sprintf("edge target %q does not match any flow_diagram_nodes[].id", e.Target),
+			})
+		}
+	}
+	return out
+}
+
+// checkScreenCallRefs warns when a screen.calls[] entry references a
+// (method, path) pair that isn't a documented endpoint. Caught early it
+// prevents docs that promise an API call the backend has no record of.
+func checkScreenCallRefs(spec *APISpec) []Diagnostic {
+	if len(spec.Screens) == 0 {
+		return nil
+	}
+	known := map[string]bool{}
+	for _, sec := range spec.Sections {
+		for _, ep := range sec.Endpoints {
+			if ep.Method != "" && ep.Path != "" {
+				known[strings.ToUpper(ep.Method)+" "+ep.Path] = true
+			}
+		}
+	}
+	if len(known) == 0 {
+		return nil // can't validate if no endpoints declared at all
+	}
+	var out []Diagnostic
+	for si, screen := range spec.Screens {
+		for ci, call := range screen.Calls {
+			if call.Method == "" || call.Path == "" {
+				continue
+			}
+			key := strings.ToUpper(call.Method) + " " + call.Path
+			if !known[key] {
+				out = append(out, Diagnostic{
+					Severity: SeverityWarning,
+					Path:     fmt.Sprintf(".screens[%d].calls[%d]", si, ci),
+					Message:  fmt.Sprintf("call %q is not a documented endpoint — typo or undocumented API?", key),
+				})
+			}
+		}
+	}
+	return out
 }
 
 // checkEmptyDescriptions warns for endpoints and sections without a description —

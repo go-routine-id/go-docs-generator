@@ -323,14 +323,17 @@
             updateAuthDisplay(sectionIdx, endpointIdx);
         }
 
-        // Switch inline tab
-        function switchInlineTab(sectionIdx, endpointIdx, tabName) {
+        // Switch inline tab. Receives the click event explicitly so the
+        // function does not depend on the deprecated global `event` and works
+        // when invoked programmatically (e.g. from a test).
+        function switchInlineTab(sectionIdx, endpointIdx, tabName, evt) {
             var container = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
             container.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             container.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
             document.getElementById('tab-' + tabName + '-' + sectionIdx + '-' + endpointIdx).classList.add('active');
-            event.target.classList.add('active');
+            var clicked = (evt || window.event) && (evt || window.event).target;
+            if (clicked && clicked.classList) clicked.classList.add('active');
         }
 
         // Send inline request
@@ -391,13 +394,24 @@
                         var parsed = JSON.parse(data);
                         responseEl.innerHTML = '<code>' + syntaxHighlightJSON(parsed) + '</code>';
                     } catch(e) {
-                        responseEl.innerHTML = '<code>' + data + '</code>';
+                        // Non-JSON body — the response is attacker-controlled
+                        // (any endpoint the operator pointed at). Set as text,
+                        // not HTML, so an endpoint returning '<script>...' does
+                        // not execute in the tester's origin.
+                        responseEl.textContent = '';
+                        var code = document.createElement('code');
+                        code.textContent = data;
+                        responseEl.appendChild(code);
                     }
                 }
             } catch (error) {
                 statusEl.textContent = 'Error';
                 statusEl.className = 'status-badge inline-status status-error';
-                responseEl.innerHTML = '<code>Error: ' + error.message + '</code>';
+                // error.message can echo response URLs / fragments; treat as text.
+                responseEl.textContent = '';
+                var code = document.createElement('code');
+                code.textContent = 'Error: ' + error.message;
+                responseEl.appendChild(code);
             }
         }
     </script>

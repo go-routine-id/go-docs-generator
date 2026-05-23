@@ -181,19 +181,27 @@ func TestDiscoverProjects_SubdirWithIndex(t *testing.T) {
 	writeYAML(t, dir, "index.yaml", `
 info:
   title: Default
+sections:
+  - id: root-sec
+    title: Root Section
 `)
 	writeYAML(t, dir, "account/index.yaml", `
 info:
   title: Account
+sections:
+  - id: acct-sec
+    title: Account Section
 `)
 	writeYAML(t, dir, "storage/index.yaml", `
 info:
   title: Storage
 `)
-	// A sub-directory without index.yaml should NOT become a project.
-	writeYAML(t, dir, "notes/readme.yaml", `
-info:
-  title: ignored
+	// A sub-directory without index.yaml should NOT become a project — its
+	// files merge into the default project as overlays.
+	writeYAML(t, dir, "notes/extra.yaml", `
+sections:
+  - id: notes-sec
+    title: Notes Section
 `)
 
 	projects, err := discoverProjects(dir)
@@ -202,8 +210,9 @@ info:
 	}
 
 	// Expect: "" (default) + "account" + "storage". "notes" should be absent.
-	if _, ok := projects[""]; !ok {
-		t.Error("missing default project")
+	def, ok := projects[""]
+	if !ok {
+		t.Fatal("missing default project")
 	}
 	if p, ok := projects["account"]; !ok || p.Info.Title != "Account" {
 		t.Errorf("account project missing or wrong: %+v", p)
@@ -213,5 +222,191 @@ info:
 	}
 	if _, ok := projects["notes"]; ok {
 		t.Error("notes should not be a project (no index.yaml)")
+	}
+
+	// Regression: the default project must NOT absorb the sections of
+	// subprojects, and its info.title must not be clobbered by a subdir.
+	if def.Info.Title != "Default" {
+		t.Errorf("default project title = %q, want %q — a subproject clobbered it", def.Info.Title, "Default")
+	}
+	gotSecs := map[string]bool{}
+	for _, s := range def.Sections {
+		gotSecs[s.ID] = true
+	}
+	if gotSecs["acct-sec"] {
+		t.Errorf("default project absorbed account subproject's section (acct-sec); sections=%v", gotSecs)
+	}
+	if !gotSecs["root-sec"] {
+		t.Errorf("default project lost its own root-sec; sections=%v", gotSecs)
+	}
+	// The non-project overlay subdir SHOULD still merge in.
+	if !gotSecs["notes-sec"] {
+		t.Errorf("default project missing notes-sec from non-project overlay subdir; sections=%v", gotSecs)
+	}
+}
+
+// TestIsOpenAPIDocument exercises the detection heuristic, including the
+// false-positive cases the previous implementation got wrong (substring
+// `openapi:` appearing inside a description, or as a non-version value).
+func TestIsOpenAPIDocument(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			"YAML OpenAPI 3.0",
+			"openapi: 3.0.3\ninfo:\n  title: x",
+			true,
+		},
+		{
+			"YAML OpenAPI 3.1 quoted",
+			`openapi: "3.1.0"` + "\ninfo:\n  title: x",
+			true,
+		},
+		{
+			"JSON OpenAPI 3.0",
+			`{"openapi": "3.0.0", "info": {"title": "x"}}`,
+			true,
+		},
+		{
+			"docs-gen spec without openapi key",
+			"info:\n  title: x\nsections:\n  - id: s1",
+			false,
+		},
+		{
+			"description mentioning `openapi:` at column 0",
+			"info:\n  title: x\n  description: |\n    See openapi: 3.0 below\n",
+			// Multi-line literal block: `openapi:` is at column 4, not 0. Should NOT match.
+			false,
+		},
+		{
+			"Swagger 2.0 (not OpenAPI 3.x)",
+			"swagger: \"2.0\"\ninfo:\n  title: x",
+			false,
+		},
+		{
+			"value-only `openapi:` without version",
+			"openapi:\ninfo:\n  title: x",
+			false,
+		},
+		{
+			"openapi: 4.x (future major) — must not match",
+			"openapi: 4.0.0\n",
+			false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isOpenAPIDocument([]byte(c.body))
+			if got != c.want {
+				t.Errorf("isOpenAPIDocument = %v, want %v\nbody:\n%s", got, c.want, c.body)
+			}
+		})
+	}
+}
+
+// TestMergeSpec_MergesSectionsByID guards the contract that two overlay
+// files declaring sections with the same `id` collapse into one section
+// with the union of their endpoints — not two sections with duplicate
+// IDs and clashing HTML anchors.
+func TestMergeSpec_MergesSectionsByID(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Demo
+  version: "1.0"
+`)
+	writeYAML(t, dir, "sections/users-part1.yaml", `
+sections:
+  - id: users
+    title: Users
+    endpoints:
+      - name: List
+        method: GET
+        path: /users
+`)
+	writeYAML(t, dir, "sections/users-part2.yaml", `
+sections:
+  - id: users
+    endpoints:
+      - name: Create
+        method: POST
+        path: /users
+  - id: orders
+    title: Orders
+    endpoints:
+      - name: List
+        method: GET
+        path: /orders
+`)
+
+	spec, err := loadDirSpec(dir)
+	if err != nil {
+		t.Fatalf("loadDirSpec: %v", err)
+	}
+
+	if got := len(spec.Sections); got != 2 {
+		t.Fatalf("section count = %d, want 2 (users merged, orders added). got: %+v", got, spec.Sections)
+	}
+
+	var users, orders *SectionInfo
+	for i := range spec.Sections {
+		s := &spec.Sections[i]
+		switch s.ID {
+		case "users":
+			users = s
+		case "orders":
+			orders = s
+		}
+	}
+	if users == nil || orders == nil {
+		t.Fatalf("expected sections users + orders, got %+v", spec.Sections)
+	}
+	if users.Title != "Users" {
+		t.Errorf("users.Title = %q, want %q (overlay must not blank out the base title)", users.Title, "Users")
+	}
+	if got := len(users.Endpoints); got != 2 {
+		t.Errorf("users.Endpoints count = %d, want 2 (List from part1 + Create from part2)", got)
+	}
+	if got := len(orders.Endpoints); got != 1 {
+		t.Errorf("orders.Endpoints count = %d, want 1", got)
+	}
+}
+
+// TestMergeSpec_AppendsUnkeyedSlices verifies the non-keyed fallback still
+// appends. Endpoints have no ID and so should append within their containing
+// section's merge.
+func TestMergeSpec_AppendsUnkeyedSlices(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "index.yaml", `
+info:
+  title: Demo
+sections:
+  - id: a
+    title: A
+    endpoints:
+      - name: One
+        method: GET
+        path: /one
+`)
+	writeYAML(t, dir, "overlay.yaml", `
+sections:
+  - id: a
+    endpoints:
+      - name: Two
+        method: GET
+        path: /two
+`)
+	spec, err := loadDirSpec(dir)
+	if err != nil {
+		t.Fatalf("loadDirSpec: %v", err)
+	}
+	if len(spec.Sections) != 1 {
+		t.Fatalf("expected 1 section after id-merge, got %d", len(spec.Sections))
+	}
+	got := len(spec.Sections[0].Endpoints)
+	if got != 2 {
+		t.Errorf("merged endpoints = %d, want 2", got)
 	}
 }

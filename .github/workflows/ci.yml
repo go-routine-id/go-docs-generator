@@ -17,12 +17,26 @@ jobs:
         run: |
           go run ./cmd/gendocs
           cp AGENTS.md cmd/server/agents.md
-          git diff --exit-code -- SPEC.md schemas/spec.schema.json cmd/server/agents.md \
+          # pkg/docs/spec.schema.json is the embedded copy used by the
+          # validator at runtime — drift here means tests/server use a
+          # different schema than the canonical one.
+          git diff --exit-code -- SPEC.md schemas/spec.schema.json \
+            pkg/docs/spec.schema.json cmd/server/agents.md \
             || (echo "Generated artifacts are stale — run 'make generate'" && exit 1)
       - name: Build
         run: go build ./...
-      - name: Test
-        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "gofmt issues in:"
+            echo "$out"
+            exit 1
+          fi
+      - name: Test (with race detector)
+        run: go test -race ./...
       - name: Validate starter spec
         run: go run ./cmd/server validate ./spec/index.yaml
       - name: Validate Museum example

@@ -95,7 +95,7 @@ func runServe() {
 
 	printBanner(*specPath, *devMode, *prefix, *port)
 
-	handler, err := docs.NewHandler(*specPath, *devMode)
+	handler, err := docs.NewHandlerWithPrefix(*specPath, *devMode, *prefix)
 	if err != nil {
 		slog.Error("failed to initialize docs handler", "err", err)
 		os.Exit(1)
@@ -146,8 +146,8 @@ func runServe() {
 
 // runValidate loads a spec and reports problems without starting the server.
 // Two layers:
-//   1. Parse + merge (same load path as production) — catches YAML / type errors.
-//   2. JSON Schema validation — catches unknown fields, wrong enum values, etc.
+//  1. Parse + merge (same load path as production) — catches YAML / type errors.
+//  2. JSON Schema validation — catches unknown fields, wrong enum values, etc.
 //
 // Returns the process exit code.
 func runValidate(args []string) int {

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,20 +34,41 @@ type projectInfo struct {
 	BaseURL     string `json:"base_url"`
 }
 
-// Handler handles documentation requests
+// Handler handles documentation requests.
+//
+// Concurrency: specs and the cached isMergedMode flag are guarded by mu.
+// The dev-mode file watcher and request handlers BOTH replace h.specs on
+// reload, so reads must hold the read lock and writes the write lock.
+// template and prefix are set during NewHandler/RegisterRoutes (before any
+// concurrent access starts) and treated as immutable thereafter.
 type Handler struct {
-	specRoot string              // path to spec file or directory
+	specRoot string // path to spec file or directory
 	devMode  bool
-	specs    map[string]*APISpec // key = project name, "" = default
 	template *template.Template
 	prefix   string // URL prefix under which routes are registered (e.g. "/docs")
+
+	mu         sync.RWMutex
+	specs      map[string]*APISpec // key = project name, "" = default
+	mergedMode bool                // cached: true iff specs were produced by merging multiple files
 }
 
-// NewHandler creates a new documentation handler
+// NewHandler creates a new documentation handler. The prefix matches the URL
+// prefix the server will mount routes under (e.g. "/docs"); it is baked into
+// asset and link URLs emitted by the template. Pass "" for legacy callers
+// who set the prefix later via RegisterRoutes — those callers MUST not invoke
+// Render before RegisterRoutes runs.
 func NewHandler(specPath string, devMode bool) (*Handler, error) {
+	return NewHandlerWithPrefix(specPath, devMode, "")
+}
+
+// NewHandlerWithPrefix is the prefix-aware constructor. Prefer this over
+// NewHandler — pinning the prefix at construction time means Render() can be
+// called safely outside the HTTP path (golden tests, snapshot tools).
+func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handler, error) {
 	h := &Handler{
 		specRoot: specPath,
 		devMode:  devMode,
+		prefix:   normalizePrefix(prefix),
 	}
 
 	// Load specs
@@ -63,23 +85,37 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 			return string(b)
 		},
 		"js": func(s string) string {
-			// Escape string for JavaScript - replace newlines and quotes
+			// Defense-in-depth: html/template's contextual auto-escaper already
+			// JS-escapes string interpolations inside <script>, so the primary
+			// concern here is collapsing newlines (which would otherwise break
+			// a single-line JS string literal even after html/template's escape
+			// pass, because LF/CR are preserved as \n/\r — valid inside JSON
+			// strings but invalid inside JS string literals).
+			s = strings.ReplaceAll(s, "\r", "")
+			s = strings.ReplaceAll(s, "\n", " ")
+			// Explicit JS escaping of quote chars + backslash gives us safety
+			// even if a future caller forgets the auto-escape boundary
+			// (e.g. wraps the value in template.JS).
 			s = strings.ReplaceAll(s, "\\", "\\\\")
 			s = strings.ReplaceAll(s, "'", "\\'")
-			s = strings.ReplaceAll(s, "\n", " ")
-			s = strings.ReplaceAll(s, "\r", "")
+			s = strings.ReplaceAll(s, `"`, `\"`)
+			// Unicode line separators are valid JSON but break JS string
+			// literals. html/template escapes these in <script> contexts but
+			// we belt-and-brace.
+			s = strings.ReplaceAll(s, " ", "\\u2028")
+			s = strings.ReplaceAll(s, " ", "\\u2029")
 			return s
 		},
-		"add":                 func(a, b int) int { return a + b },
-		"md":                  mdToHTML,
-		"mdi":                 mdInline,
-		"sectionBaseURLs":     sectionBaseURLs,
-		"sectionDefaultURL":   sectionDefaultURL,
-		"sectionUsesGlobal":   sectionUsesGlobal,
-		"testerMethods":       testerMethods,
-		"testerMethodsWith":   testerMethodsWith,
-		"assetURL":            func(file string) string { return h.prefix + "/assets/vendor/" + file },
-		"docPath":             func(sub string) string { return h.prefix + "/" + sub },
+		"add":               func(a, b int) int { return a + b },
+		"md":                mdToHTML,
+		"mdi":               mdInline,
+		"sectionBaseURLs":   sectionBaseURLs,
+		"sectionDefaultURL": sectionDefaultURL,
+		"sectionUsesGlobal": sectionUsesGlobal,
+		"testerMethods":     testerMethods,
+		"testerMethodsWith": testerMethodsWith,
+		"assetURL":          func(file string) string { return h.prefix + "/assets/vendor/" + file },
+		"docPath":           func(sub string) string { return h.prefix + "/" + sub },
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseFS(templateFS, "templates/*.gohtml")
@@ -96,42 +132,71 @@ func NewHandler(specPath string, devMode bool) (*Handler, error) {
 	return h, nil
 }
 
-// loadAllSpecs loads specs based on whether specRoot is file or directory
+// loadAllSpecs loads specs based on whether specRoot is file or directory.
+// Acquires the write lock — callers must NOT already hold mu.
 func (h *Handler) loadAllSpecs() error {
 	info, err := os.Stat(h.specRoot)
 	if err != nil {
 		return fmt.Errorf("failed to stat %s: %w", h.specRoot, err)
 	}
 
+	var (
+		specs  map[string]*APISpec
+		merged bool
+	)
 	if !info.IsDir() {
 		// File mode — use loadSpecFromPath (handles index.yaml auto-include)
 		spec, err := loadSpecFromPath(h.specRoot)
 		if err != nil {
 			return err
 		}
-		h.specs = map[string]*APISpec{"": spec}
-		return nil
+		specs = map[string]*APISpec{"": spec}
+		merged = computeMergedMode(h.specRoot, false)
+	} else {
+		// Directory mode — discover all projects
+		specs, err = discoverProjects(h.specRoot)
+		if err != nil {
+			return err
+		}
+		merged = true
 	}
 
-	// Directory mode — discover all projects
-	specs, err := discoverProjects(h.specRoot)
-	if err != nil {
-		return err
-	}
+	h.mu.Lock()
 	h.specs = specs
+	h.mergedMode = merged
+	h.mu.Unlock()
 	return nil
 }
 
-// getSpec returns the spec for a given project name, or default
+// getSpec returns the spec for a given project name, or default.
+// Caller must NOT already hold mu.
 func (h *Handler) getSpec(project string) *APISpec {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	if spec, ok := h.specs[project]; ok {
 		return spec
 	}
 	return h.specs[""]
 }
 
-// getProjectNames returns a sorted list of project names (excluding default)
+// snapshotSpecs returns a shallow copy of the specs map for safe iteration
+// without holding the lock during downstream work. Each *APISpec is shared —
+// callers must treat the contents as read-only.
+func (h *Handler) snapshotSpecs() map[string]*APISpec {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	out := make(map[string]*APISpec, len(h.specs))
+	for k, v := range h.specs {
+		out[k] = v
+	}
+	return out
+}
+
+// getProjectNames returns a sorted list of project names (excluding default).
+// Caller must NOT already hold mu.
 func (h *Handler) getProjectNames() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	names := make([]string, 0, len(h.specs))
 	for name := range h.specs {
 		if name != "" {
@@ -146,19 +211,20 @@ func (h *Handler) getProjectNames() []string {
 // get no chrome). The default project (key "") is included first when it has
 // any content, labelled by its info.title; named projects follow in sorted
 // order, each carrying its own title for friendlier display than the bare
-// directory name.
+// directory name. Caller must NOT already hold mu.
 func (h *Handler) projectListForSwitcher() []projectInfo {
-	if len(h.specs) < 2 {
+	specs := h.snapshotSpecs()
+	if len(specs) < 2 {
 		return nil
 	}
-	names := make([]string, 0, len(h.specs))
-	for name := range h.specs {
+	names := make([]string, 0, len(specs))
+	for name := range specs {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	out := make([]projectInfo, 0, len(names))
 	for _, name := range names {
-		spec := h.specs[name]
+		spec := specs[name]
 		if spec == nil {
 			continue
 		}
@@ -174,7 +240,9 @@ func (h *Handler) projectListForSwitcher() []projectInfo {
 	return out
 }
 
-// isDirMode returns true if spec is loaded from a directory
+// isDirMode returns true if spec is loaded from a directory. Used by the
+// watcher to decide whether to recurse — does not consult the cached flag
+// since it is filesystem state, not spec state.
 func (h *Handler) isDirMode() bool {
 	info, err := os.Stat(h.specRoot)
 	if err != nil {
@@ -184,21 +252,33 @@ func (h *Handler) isDirMode() bool {
 }
 
 // isMergedMode reports whether the in-memory spec was produced by merging
-// multiple source files. True when specRoot is a directory, or when specRoot
-// is an index.yaml with at least one sibling YAML file (the loader's
-// auto-include trigger). In that case the raw bytes of specRoot alone would
-// under-represent the spec, so /yaml must serve the marshalled merged view.
+// multiple source files. Cached on the handler so ServeYAML doesn't walk the
+// filesystem per request. Caller must NOT already hold mu.
 func (h *Handler) isMergedMode() bool {
-	if h.isDirMode() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.mergedMode
+}
+
+// computeMergedMode determines whether the spec at the given root would be
+// produced via the merge path. True when root is a directory, or when root is
+// an index.yaml with at least one sibling YAML file (the loader's auto-include
+// trigger). Pulled out of isMergedMode so it can be computed once during load
+// and cached.
+func computeMergedMode(root string, isDir bool) bool {
+	if isDir {
 		return true
 	}
-	if !strings.EqualFold(filepath.Base(h.specRoot), "index.yaml") {
+	if info, err := os.Stat(root); err == nil && info.IsDir() {
+		return true
+	}
+	if !strings.EqualFold(filepath.Base(root), "index.yaml") {
 		return false
 	}
-	parent := filepath.Dir(h.specRoot)
+	parent := filepath.Dir(root)
 	hasSibling := false
-	filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() || path == h.specRoot {
+	_ = filepath.WalkDir(parent, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || path == root {
 			return nil
 		}
 		lower := strings.ToLower(path)
@@ -214,6 +294,17 @@ func (h *Handler) isMergedMode() bool {
 // ReloadSpec reloads all specs from disk
 func (h *Handler) ReloadSpec() error {
 	return h.loadAllSpecs()
+}
+
+// maybeReload triggers a reload only in dev mode. Production servers must
+// stay zero-syscall on the hot path; reloads only happen via the file
+// watcher (also gated on devMode). Returns the reload error for callers
+// that want to surface it.
+func (h *Handler) maybeReload() error {
+	if !h.devMode {
+		return nil
+	}
+	return h.ReloadSpec()
 }
 
 // renderData is the template payload. APISpec is embedded so every existing
@@ -246,12 +337,9 @@ func (h *Handler) Render(project string) ([]byte, error) {
 
 // ServeHTML serves the generated HTML documentation
 func (h *Handler) ServeHTML(c *gin.Context) {
-	// In dev mode, reload specs on each request
-	if h.devMode {
-		if err := h.ReloadSpec(); err != nil {
-			c.String(http.StatusInternalServerError, "Failed to reload spec: "+err.Error())
-			return
-		}
+	if err := h.maybeReload(); err != nil {
+		c.String(http.StatusInternalServerError, "Failed to reload spec: "+err.Error())
+		return
 	}
 
 	out, err := h.Render(c.Query("p"))
@@ -266,8 +354,7 @@ func (h *Handler) ServeHTML(c *gin.Context) {
 
 // ServeSpec serves the API spec as JSON for AI agents
 func (h *Handler) ServeSpec(c *gin.Context) {
-	// Reload specs to ensure latest version
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -278,7 +365,7 @@ func (h *Handler) ServeSpec(c *gin.Context) {
 
 // ServeYAML serves the raw YAML spec
 func (h *Handler) ServeYAML(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.String(http.StatusInternalServerError, "reload spec: "+err.Error())
 		return
 	}
@@ -334,13 +421,17 @@ func (h *Handler) ServeYAML(c *gin.Context) {
 
 // ServeProjectList returns available projects
 func (h *Handler) ServeProjectList(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	projects := make([]projectInfo, 0, len(h.specs))
-	for name, spec := range h.specs {
+	specs := h.snapshotSpecs()
+	projects := make([]projectInfo, 0, len(specs))
+	for name, spec := range specs {
+		if spec == nil {
+			continue
+		}
 		label := name
 		if name == "" {
 			label = "default"
@@ -360,8 +451,20 @@ func (h *Handler) ServeProjectList(c *gin.Context) {
 	})
 }
 
-// RegisterRoutes registers the documentation routes with a custom prefix
+// RegisterRoutes registers the documentation routes under the given prefix.
+// If a prefix was already set via NewHandlerWithPrefix, the argument here
+// must either match or be empty — mismatches are a configuration bug and
+// would yield routes mounted at one prefix while templates emit links to a
+// different one.
 func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
+	prefix = normalizePrefix(prefix)
+	if prefix == "" {
+		prefix = h.prefix
+	} else if h.prefix != "" && h.prefix != prefix {
+		panic(fmt.Sprintf("docs.Handler: prefix mismatch (constructed with %q, RegisterRoutes called with %q)", h.prefix, prefix))
+	}
+	h.prefix = prefix
+
 	router.GET(prefix, h.ServeHTML)
 	router.GET(prefix+"/spec", h.ServeSpec)
 	router.GET(prefix+"/specs", h.ServeProjectList)
@@ -374,8 +477,16 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, prefix string) {
 	// Self-hosted vendor assets (React, ReactFlow, dagre, ReactFlow CSS).
 	// Served from embed.FS so we have zero CDN dependency at runtime.
 	router.GET(prefix+"/assets/vendor/:file", h.ServeVendorAsset)
-	// Expose the prefix so the template can build asset URLs at render time.
-	h.prefix = prefix
+}
+
+// normalizePrefix canonicalises a URL prefix: leading slash, no trailing
+// slash, empty stays empty.
+func normalizePrefix(p string) string {
+	p = strings.Trim(p, "/")
+	if p == "" {
+		return ""
+	}
+	return "/" + p
 }
 
 // ServeVendorAsset serves a single file out of the embedded vendor bundle.
@@ -413,9 +524,9 @@ type ValidateResponse struct {
 
 // ValidateSummary counts errors vs warnings for quick client-side branching.
 type ValidateSummary struct {
-	SchemaErrors  int `json:"schema_errors"`
-	LintErrors    int `json:"lint_errors"`
-	LintWarnings  int `json:"lint_warnings"`
+	SchemaErrors int `json:"schema_errors"`
+	LintErrors   int `json:"lint_errors"`
+	LintWarnings int `json:"lint_warnings"`
 }
 
 // ServeValidate accepts a spec in the request body, parses it, and returns
@@ -454,7 +565,11 @@ func (h *Handler) ServeValidate(c *gin.Context) {
 		return
 	}
 
-	schemaErrs := ValidateSpec(spec, "")
+	// Validate the RAW body so unknown/misspelled keys are caught
+	// (additionalProperties) — the struct-based ValidateSpec can't see them
+	// because parseSpecBody already dropped them. Lint runs on the parsed
+	// struct for the semantic checks the schema can't express.
+	schemaErrs := ValidateRaw(raw, "")
 	diags := Lint(spec)
 
 	lintErrs, lintWarns := 0, 0
@@ -508,7 +623,7 @@ func parseSpecBody(raw []byte, contentType string) (*APISpec, error) {
 // ServeOpenAPI exports the current spec as an OpenAPI 3.0 JSON document so
 // downstream tools (Postman, Insomnia, Redocly) can consume it.
 func (h *Handler) ServeOpenAPI(c *gin.Context) {
-	if err := h.ReloadSpec(); err != nil {
+	if err := h.maybeReload(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -675,36 +790,93 @@ func mdInline(s string) template.HTML {
 var mdLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)\s]+)\)`)
 
 // inlineFmt handles inline formatting: [text](url), **bold**, *italic*, `code`.
-// Order matters: link substitution runs FIRST so the link text passes through
-// the subsequent bold/italic/code passes (so `[**important**](/x)` works).
+//
+// Links are extracted into placeholders BEFORE the emphasis passes so that
+// characters inside the href (`*`, “ ` “) are not mistaken for emphasis
+// delimiters — without this, `[x](https://a/*b*)` would produce
+// `<a href="https://a/<em>b</em>">x</a>`, a broken anchor. The link text is
+// formatted separately so `[**bold**](/x)` still renders emphasis.
 func inlineFmt(s string) string {
 	// Escape HTML first — neutralises any literal '<', '>' the user wrote.
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 
-	// Markdown links: [text](url). Reject schemes that can execute script
-	// (javascript:, data:) — those fall through as literal `[text](url)`.
+	// Phase 1: extract links into placeholder tokens. \x00 is a safe sentinel
+	// since the HTML-escape pass above stripped angle brackets and entities
+	// already encode any user-supplied bytes other than \x00 itself, which
+	// has no legitimate place in a docs spec.
+	type linkTok struct{ text, href string }
+	var links []linkTok
 	s = mdLinkRe.ReplaceAllStringFunc(s, func(m string) string {
 		parts := mdLinkRe.FindStringSubmatch(m)
 		text, url := parts[1], parts[2]
 		if !isSafeURL(url) {
-			return m
+			return m // unsafe scheme — leave as literal `[text](url)`
 		}
-		// HTML-escape happened above, so `&` is already `&amp;`. Only the
-		// double-quote needs attribute-escaping for safe insertion into href.
 		url = strings.ReplaceAll(url, `"`, "&quot;")
-		return `<a href="` + url + `">` + text + `</a>`
+		links = append(links, linkTok{text: text, href: url})
+		return fmt.Sprintf("\x00%d\x00", len(links)-1)
 	})
 
-	// Bold: **text**
-	s = replacePair(s, "**", "<strong>", "</strong>")
-	// Italic: *text*
-	s = replacePair(s, "*", "<em>", "</em>")
-	// Inline code: `text`
-	s = replacePair(s, "`", "<code>", "</code>")
+	// Phase 2: emphasis + code on the outer string (link placeholders are
+	// inert under these passes).
+	s = applyEmphasis(s)
+
+	// Phase 3: substitute placeholders with formatted anchors. The link
+	// text gets its own emphasis pass so `[**bold**](/x)` still works.
+	for i, link := range links {
+		formatted := applyEmphasis(link.text)
+		s = strings.ReplaceAll(s, fmt.Sprintf("\x00%d\x00", i), `<a href="`+link.href+`">`+formatted+`</a>`)
+	}
 
 	return s
+}
+
+// applyEmphasis runs the bold / italic / code substitutions. Pulled out so
+// the link-text and outer-string passes share the same logic.
+func applyEmphasis(s string) string {
+	// Mask inline code spans FIRST so their contents are inert under the
+	// emphasis passes — a `*` inside `code` must not be treated as italics,
+	// and the `*` pass running before the backtick pass would otherwise
+	// mangle `` `a*b` `` into interleaved tags.
+	var spans []string
+	s = maskCodeSpans(s, &spans)
+	s = replacePair(s, "**", "<strong>", "</strong>")
+	s = replacePair(s, "*", "<em>", "</em>")
+	for i, code := range spans {
+		s = strings.ReplaceAll(s, codeSentinel(i), "<code>"+code+"</code>")
+	}
+	return s
+}
+
+// codeSentinel returns the placeholder token used to mask a code span while
+// emphasis substitution runs. \x00 can't appear in escaped docs content.
+func codeSentinel(i int) string { return fmt.Sprintf("\x00c%d\x00", i) }
+
+// maskCodeSpans replaces each `...` code span with a sentinel and records the
+// (already HTML-escaped) inner text in spans. An unterminated backtick is
+// left as a literal so a stray “ ` “ doesn't swallow the rest of the line.
+func maskCodeSpans(s string, spans *[]string) string {
+	var b strings.Builder
+	for {
+		start := strings.IndexByte(s, '`')
+		if start == -1 {
+			b.WriteString(s)
+			break
+		}
+		end := strings.IndexByte(s[start+1:], '`')
+		if end == -1 {
+			b.WriteString(s) // no closing backtick — emit the rest verbatim
+			break
+		}
+		inner := s[start+1 : start+1+end]
+		b.WriteString(s[:start])
+		b.WriteString(codeSentinel(len(*spans)))
+		*spans = append(*spans, inner)
+		s = s[start+1+end+1:]
+	}
+	return b.String()
 }
 
 // isSafeURL whitelists URL schemes that can't execute arbitrary script when
@@ -725,20 +897,37 @@ func isSafeURL(u string) bool {
 	return false
 }
 
-// replacePair replaces paired delimiters like **text** → <strong>text</strong>
+// replacePair replaces paired delimiters like **text** → <strong>text</strong>.
+// An empty pair (e.g. the leftover `**` from an unclosed `**bold`, which the
+// single-`*` pass would otherwise see as two adjacent delimiters) is left as
+// the literal delimiter rather than emitting empty <em></em> tags. Processed
+// regions are advanced past so we never re-scan emitted markup.
 func replacePair(s, delim, open, close string) string {
+	var b strings.Builder
 	for {
 		start := strings.Index(s, delim)
 		if start == -1 {
+			b.WriteString(s)
 			break
 		}
 		after := start + len(delim)
 		end := strings.Index(s[after:], delim)
 		if end == -1 {
+			b.WriteString(s)
 			break
 		}
 		inner := s[after : after+end]
-		s = s[:start] + open + inner + close + s[after+end+len(delim):]
+		b.WriteString(s[:start])
+		if inner == "" {
+			// Empty pair — keep the delimiters literal and move past them.
+			b.WriteString(delim)
+			b.WriteString(delim)
+		} else {
+			b.WriteString(open)
+			b.WriteString(inner)
+			b.WriteString(close)
+		}
+		s = s[after+end+len(delim):]
 	}
-	return s
+	return b.String()
 }

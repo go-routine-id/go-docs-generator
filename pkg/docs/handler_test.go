@@ -437,6 +437,75 @@ func TestServeYAML_IndexWithSiblings(t *testing.T) {
 	}
 }
 
+// TestRender_TesterUsesTextContentForRawBody guards the XSS-hardening of the
+// in-browser tester: when an endpoint's response body is non-JSON text, the
+// tester must NOT route it through innerHTML — any endpoint returning HTML
+// (a generic 500 page, an error template, an intentionally malicious one)
+// would otherwise run script in the operator's origin.
+func TestRender_TesterUsesTextContentForRawBody(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	got, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	out := string(got)
+
+	// The unsafe pattern: innerHTML concat with raw response body.
+	bad := `responseEl.innerHTML = '<code>' + data + '</code>'`
+	if strings.Contains(out, bad) {
+		t.Errorf("tester still uses innerHTML for raw response body — XSS regression\n  found: %s", bad)
+	}
+	// Same surface for error.message.
+	bad2 := `'<code>Error: ' + error.message + '</code>'`
+	if strings.Contains(out, bad2) {
+		t.Errorf("tester still uses innerHTML for error.message — XSS regression\n  found: %s", bad2)
+	}
+	// The safe replacement must be present.
+	if !strings.Contains(out, `code.textContent = data`) {
+		t.Errorf("expected `code.textContent = data` safe assignment to be present")
+	}
+}
+
+// TestHandler_ConcurrentReloadAndServe stresses the race between the dev-mode
+// file watcher (which replaces h.specs) and request handlers reading from it.
+// Run with `-race` to exercise the bug — without the RWMutex this test trips
+// the race detector instantly.
+func TestHandler_ConcurrentReloadAndServe(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h.RegisterRoutes(router, "/docs")
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 50; i++ {
+			if err := h.ReloadSpec(); err != nil {
+				t.Errorf("ReloadSpec: %v", err)
+			}
+		}
+		close(done)
+	}()
+
+	for i := 0; i < 50; i++ {
+		for _, path := range []string{"/docs", "/docs/spec", "/docs/specs", "/docs/yaml", "/docs/openapi"} {
+			req := httptest.NewRequest("GET", path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if w.Code >= 500 {
+				t.Errorf("%s -> %d (body: %q)", path, w.Code, w.Body.String())
+			}
+		}
+	}
+	<-done
+}
+
 // firstDivergence returns a short description of where two byte slices first differ.
 func firstDivergence(a, b []byte) string {
 	n := len(a)

@@ -125,6 +125,21 @@
         },
         "example": {
           "type": "string"
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Allowed values for this field."
+        },
+        "max_length": {
+          "type": "integer",
+          "description": "Maximum string length, shown as a constraint."
+        },
+        "default": {
+          "$ref": "#/$defs/Scalar",
+          "description": "Default value applied when the field is omitted. May be a string, number, or boolean."
         }
       },
       "additionalProperties": false,
@@ -150,6 +165,10 @@
         "description": {
           "type": "string"
         },
+        "note": {
+          "type": "string",
+          "description": "Caveat shown below the endpoint (e.g. 'unset fields are not updated')."
+        },
         "query_params": {
           "items": {
             "$ref": "#/$defs/QueryParam"
@@ -165,8 +184,20 @@
         "example_body": {
           "type": "string"
         },
+        "response": {
+          "type": "string",
+          "description": "One-line prose description of the response shape."
+        },
         "example_response": {
           "type": "string"
+        },
+        "example_response_authenticated": {
+          "type": "string",
+          "description": "Example response when the caller is authenticated (for endpoints whose payload differs by auth state)."
+        },
+        "example_response_public": {
+          "type": "string",
+          "description": "Example response for an unauthenticated/public caller."
         }
       },
       "additionalProperties": false,
@@ -244,6 +275,10 @@
         },
         "endpoint": {
           "type": "string"
+        },
+        "field": {
+          "type": "string",
+          "description": "The request field this action populates (e.g. image_media_id)."
         }
       },
       "additionalProperties": false,
@@ -289,6 +324,13 @@
         },
         "auth": {
           "type": "string"
+        },
+        "auth_methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Accepted auth methods for this step (e.g. [Bearer JWT, X-API-Key])."
         },
         "permission": {
           "type": "string"
@@ -397,6 +439,10 @@
         },
         "response_example": {
           "type": "string"
+        },
+        "tip": {
+          "type": "string",
+          "description": "Highlighted hint shown at the end of the step."
         }
       },
       "additionalProperties": false,
@@ -510,7 +556,8 @@
           "type": "boolean"
         },
         "default": {
-          "type": "string"
+          "$ref": "#/$defs/Scalar",
+          "description": "Default value. May be a string, number, or boolean."
         },
         "description": {
           "type": "string"
@@ -518,6 +565,19 @@
       },
       "additionalProperties": false,
       "type": "object"
+    },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
     },
     "Screen": {
       "properties": {

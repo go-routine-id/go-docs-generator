@@ -101,10 +101,10 @@ theme:
 	got := string(out)
 
 	checks := []string{
-		"<title>Custom Docs</title>",            // Theme.Title overrides
-		"🚀",                                    // Theme.LogoIcon
-		`href="/my-favicon.ico"`,                // Theme.Favicon
-		"--primary: #ff0099",                    // Theme.PrimaryColor CSS override
+		"<title>Custom Docs</title>", // Theme.Title overrides
+		"🚀",                          // Theme.LogoIcon
+		`href="/my-favicon.ico"`,     // Theme.Favicon
+		"--primary: #ff0099",         // Theme.PrimaryColor CSS override
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
@@ -148,11 +148,11 @@ events:
 	got := string(out)
 
 	checks := []string{
-		"📡 Events",             // sidebar header
-		"User Signup",           // title
-		"user.signup.v1",        // address rendered
-		`id="panel-event-0"`,    // panel id for first event
-		"publish",               // operation type shown
+		"📡 Events",           // sidebar header
+		"User Signup",        // title
+		"user.signup.v1",     // address rendered
+		`id="panel-event-0"`, // panel id for first event
+		"publish",            // operation type shown
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
@@ -211,10 +211,10 @@ sections:
 	got := string(out)
 
 	checks := []string{
-		`https://account.example/login`,       // section override applied to endpoint URL
-		`https://storage.example/upload`,      // second section with different base_url
-		`https://staging.account.example`,     // section-specific environment label
-		`data-uses-global="false"`,            // section-level means not global
+		`https://account.example/login`,   // section override applied to endpoint URL
+		`https://storage.example/upload`,  // second section with different base_url
+		`https://staging.account.example`, // section-specific environment label
+		`data-uses-global="false"`,        // section-level means not global
 	}
 	for _, needle := range checks {
 		if !strings.Contains(got, needle) {
@@ -271,6 +271,101 @@ func TestInlineFmt_MarkdownLinks(t *testing.T) {
 				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+// TestInlineFmt_URLWithEmphasisChars guards against a rendering bug where
+// URLs containing characters that double as Markdown emphasis delimiters
+// (`*`, `_`, backtick) were getting wrapped in <em>/<code> tags INSIDE the
+// href attribute, producing invalid HTML like
+// `<a href="https://a.com/<em>x</em>">`. The fix is to extract links to
+// placeholders before the emphasis pass.
+func TestInlineFmt_URLWithEmphasisChars(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"asterisk in URL",
+			`See [docs](https://example.com/*ref*) for more`,
+			`<a href="https://example.com/*ref*">docs</a>`,
+		},
+		{
+			"double asterisk in URL",
+			`Read [it](https://example.com/**bold**)`,
+			`<a href="https://example.com/**bold**">it</a>`,
+		},
+		{
+			"backtick in URL",
+			"Try [api](https://example.com/foo`bar)",
+			"<a href=\"https://example.com/foo`bar\">api</a>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if !strings.Contains(got, c.want) {
+				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
+			}
+			// Belt-and-brace: no emphasis tags should appear INSIDE href.
+			if strings.Contains(got, `href="`) && strings.Contains(got, `<em>`) && strings.Contains(got[strings.Index(got, `href="`):strings.Index(got, `">`)], `<em>`) {
+				t.Errorf("emphasis tag leaked into href attribute: %s", got)
+			}
+		})
+	}
+}
+
+// TestInlineFmt_CodeSpanAndUnclosed guards two emphasis-pass bugs: a `*`
+// inside a code span used to be turned into <em> (because the * pass ran
+// before the backtick pass), and an unclosed `**` produced stray
+// <em></em> tags.
+func TestInlineFmt_CodeSpanAndUnclosed(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    string // substring that MUST appear
+		notWant string // substring that must NOT appear ("" to skip)
+	}{
+		{
+			"asterisk inside code span",
+			"use `a*b` here",
+			"<code>a*b</code>",
+			"<em>",
+		},
+		{
+			"code span then italic",
+			"`x*y` and *real*",
+			"<code>x*y</code>",
+			"", // the *real* still becomes <em>real</em>; just don't mangle the code
+		},
+		{
+			"unclosed bold does not emit empty em",
+			"an unclosed **bold start",
+			"bold start",
+			"<em></em>",
+		},
+		{
+			"backtick without close stays literal",
+			"a stray ` backtick",
+			"stray ` backtick",
+			"<code>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if !strings.Contains(got, c.want) {
+				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
+			}
+			if c.notWant != "" && strings.Contains(got, c.notWant) {
+				t.Errorf("input %q\n got: %s\nmust NOT contain: %s", c.in, got, c.notWant)
+			}
+		})
+	}
+	// The italic in "code span then italic" should still render.
+	if got := string(mdInline("`x*y` and *real*")); !strings.Contains(got, "<em>real</em>") {
+		t.Errorf("italic outside code span should still render: %s", got)
 	}
 }
 

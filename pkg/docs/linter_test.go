@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -125,7 +126,7 @@ func TestLint_OrphanPermission(t *testing.T) {
 		},
 		Sections: []SectionInfo{
 			{ID: "s", Title: "S", Description: "x", Endpoints: []Endpoint{
-				{Name: "a", Method: "GET", Path: "/a", Permission: "users:read", Description: "d"},  // known
+				{Name: "a", Method: "GET", Path: "/a", Permission: "users:read", Description: "d"},   // known
 				{Name: "b", Method: "POST", Path: "/b", Permission: "users:write", Description: "d"}, // orphan
 			}},
 		},
@@ -226,4 +227,206 @@ func TestValidate_ExampleMuseum(t *testing.T) {
 			t.Errorf("  %s", e.Error())
 		}
 	}
+}
+
+// TestValidate_RejectsUnknownKeys is the regression that motivated moving
+// validation onto the raw YAML. The old struct-round-trip path silently
+// dropped unknown keys, so a typo'd field passed validation. The schema's
+// additionalProperties:false only bites when we validate the raw document.
+func TestValidate_RejectsUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "index.yaml")
+	if err := os.WriteFile(p, []byte(`
+info:
+  title: Typo Demo
+sections:
+  - id: s1
+    title: S1
+    description: x
+    endpoints:
+      - name: Ping
+        method: GET
+        path: /ping
+        descriptoin: typo here
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	errs := ValidateFile(p)
+	if len(errs) == 0 {
+		t.Fatal("expected a schema error for the misspelled `descriptoin` key, got none")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "descriptoin") || strings.Contains(e.Message, "additionalProperties") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an additionalProperties violation mentioning the typo, got: %v", errs)
+	}
+}
+
+// TestValidateRaw_AcceptsScalarDefault verifies the Scalar type lets a
+// parameter `default` be a string, number, or boolean without a schema
+// violation — the museum example uses all three.
+func TestValidateRaw_AcceptsScalarDefault(t *testing.T) {
+	raw := []byte(`
+info:
+  title: Scalars
+sections:
+  - id: s
+    title: S
+    endpoints:
+      - name: List
+        method: GET
+        path: /x
+        query_params:
+          - name: page
+            type: integer
+            default: 1
+          - name: published
+            type: boolean
+            default: false
+          - name: sort
+            type: string
+            default: name
+`)
+	if errs := ValidateRaw(raw, "test"); len(errs) > 0 {
+		t.Errorf("scalar defaults should validate, got: %v", errs)
+	}
+}
+
+// TestScalar_ParsesAllForms locks in Scalar's YAML decoding across the three
+// scalar shapes and rejects a non-scalar.
+func TestScalar_ParsesAllForms(t *testing.T) {
+	type holder struct {
+		D Scalar `yaml:"d"`
+	}
+	cases := map[string]string{
+		"42":    "d: 42",
+		"true":  "d: true",
+		"hello": "d: hello",
+		"3.14":  "d: 3.14",
+	}
+	for want, in := range cases {
+		var h holder
+		if err := yamlUnmarshal([]byte(in), &h); err != nil {
+			t.Errorf("%q: unexpected error: %v", in, err)
+			continue
+		}
+		if string(h.D) != want {
+			t.Errorf("%q: got %q, want %q", in, h.D, want)
+		}
+	}
+	// A mapping is not a valid scalar default.
+	var h holder
+	if err := yamlUnmarshal([]byte("d: {a: 1}"), &h); err == nil {
+		t.Error("expected error for non-scalar default, got nil")
+	}
+}
+
+func TestLint_DuplicateEndpoints(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "a", Title: "A", Description: "x", Endpoints: []Endpoint{
+				{Name: "Login", Method: "POST", Path: "/login", Description: "x"},
+			}},
+			{ID: "b", Title: "B", Description: "x", Endpoints: []Endpoint{
+				{Name: "Sign in", Method: "POST", Path: "/login", Description: "x"},
+			}},
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".sections[1].endpoints[0]", "duplicate endpoint") {
+		t.Errorf("expected duplicate endpoint diagnostic, got: %+v", diags)
+	}
+}
+
+func TestLint_FlowDiagramEdgeRefs(t *testing.T) {
+	spec := &APISpec{
+		Info:             InfoInfo{Title: "x"},
+		FlowDiagramNodes: []FlowNodeInfo{{ID: "client"}, {ID: "server"}},
+		FlowDiagramEdges: []FlowEdgeInfo{
+			{Source: "client", Target: "server"},
+			{Source: "client", Target: "ghost"},   // dangling target
+			{Source: "unknown", Target: "server"}, // dangling source
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".flow_diagram_edges[1].target", `target "ghost"`) {
+		t.Errorf("expected dangling target diagnostic, got: %+v", diags)
+	}
+	if !findDiag(diags, ".flow_diagram_edges[2].source", `source "unknown"`) {
+		t.Errorf("expected dangling source diagnostic, got: %+v", diags)
+	}
+}
+
+func TestLint_ScreenCallRefs(t *testing.T) {
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "users", Title: "U", Description: "x", Endpoints: []Endpoint{
+				{Name: "List", Method: "GET", Path: "/users", Description: "x"},
+			}},
+		},
+		Screens: []Screen{
+			{
+				ID:    "home",
+				Title: "Home",
+				Calls: []ScreenCall{
+					{Method: "GET", Path: "/users"},  // documented — fine
+					{Method: "GET", Path: "/userz"},  // typo
+					{Method: "POST", Path: "/users"}, // wrong method
+				},
+			},
+		},
+	}
+	diags := Lint(spec)
+	if !findDiag(diags, ".screens[0].calls[1]", `"GET /userz"`) {
+		t.Errorf("expected diagnostic for typo, got: %+v", diags)
+	}
+	if !findDiag(diags, ".screens[0].calls[2]", `"POST /users"`) {
+		t.Errorf("expected diagnostic for wrong method, got: %+v", diags)
+	}
+	// The valid one must NOT be flagged.
+	if findDiag(diags, ".screens[0].calls[0]", "GET /users") {
+		t.Errorf("documented call should not be flagged, got: %+v", diags)
+	}
+}
+
+func TestLint_AuthModesAccumulates(t *testing.T) {
+	// When auth_modes is empty and multiple endpoints claim auth, ALL of them
+	// should be reported in one pass — previously the function returned on the
+	// first hit and made fixing iterative.
+	spec := &APISpec{
+		Info: InfoInfo{Title: "x"},
+		Sections: []SectionInfo{
+			{ID: "a", Title: "A", Description: "x", Endpoints: []Endpoint{
+				{Name: "E1", Method: "GET", Path: "/a", Auth: "JWT", Description: "x"},
+				{Name: "E2", Method: "GET", Path: "/b", Auth: "JWT", Description: "x"},
+			}},
+		},
+	}
+	diags := Lint(spec)
+	count := 0
+	for _, d := range diags {
+		if strings.Contains(d.Message, "api_tester_defaults.auth_modes is empty") {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Errorf("expected 2 auth-mode diagnostics (one per endpoint), got %d. diags: %+v", count, diags)
+	}
+}
+
+// findDiag reports whether any diagnostic matches the given path AND contains
+// the message substring.
+func findDiag(diags []Diagnostic, path, msgSubstring string) bool {
+	for _, d := range diags {
+		if d.Path == path && strings.Contains(d.Message, msgSubstring) {
+			return true
+		}
+	}
+	return false
 }
