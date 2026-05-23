@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -131,10 +132,26 @@ func loadDirSpec(dir string) (*APISpec, error) {
 		return nil, fmt.Errorf("failed to load index.yaml in %s: %w", dir, err)
 	}
 
-	// Collect all .yaml files except index.yaml, sorted for deterministic order
+	// Collect all .yaml files except index.yaml, sorted for deterministic order.
+	//
+	// Subdirectories that contain their OWN index.yaml are project boundaries
+	// (see discoverProjects) — skip them entirely so the root/default project
+	// does not absorb every subproject's sections and have its info clobbered.
+	// Plain overlay subdirs (sections/, guides/, …) have no index.yaml and are
+	// merged as before.
 	var yamlFiles []string
-	filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			// Surface traversal failures rather than silently rendering a
+			// partial spec (e.g. an unreadable overlay directory).
+			return err
+		}
+		if d.IsDir() {
+			if path != dir {
+				if _, statErr := os.Stat(filepath.Join(path, "index.yaml")); statErr == nil {
+					return filepath.SkipDir // separate project — not part of this one
+				}
+			}
 			return nil
 		}
 		if path == indexPath {
@@ -145,6 +162,10 @@ func loadDirSpec(dir string) (*APISpec, error) {
 		}
 		return nil
 	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("scan spec directory %s: %w", dir, walkErr)
+	}
+	sort.Strings(yamlFiles)
 
 	// Merge each file into base
 	for _, f := range yamlFiles {

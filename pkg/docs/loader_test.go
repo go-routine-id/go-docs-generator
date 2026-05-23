@@ -181,19 +181,27 @@ func TestDiscoverProjects_SubdirWithIndex(t *testing.T) {
 	writeYAML(t, dir, "index.yaml", `
 info:
   title: Default
+sections:
+  - id: root-sec
+    title: Root Section
 `)
 	writeYAML(t, dir, "account/index.yaml", `
 info:
   title: Account
+sections:
+  - id: acct-sec
+    title: Account Section
 `)
 	writeYAML(t, dir, "storage/index.yaml", `
 info:
   title: Storage
 `)
-	// A sub-directory without index.yaml should NOT become a project.
-	writeYAML(t, dir, "notes/readme.yaml", `
-info:
-  title: ignored
+	// A sub-directory without index.yaml should NOT become a project — its
+	// files merge into the default project as overlays.
+	writeYAML(t, dir, "notes/extra.yaml", `
+sections:
+  - id: notes-sec
+    title: Notes Section
 `)
 
 	projects, err := discoverProjects(dir)
@@ -202,8 +210,9 @@ info:
 	}
 
 	// Expect: "" (default) + "account" + "storage". "notes" should be absent.
-	if _, ok := projects[""]; !ok {
-		t.Error("missing default project")
+	def, ok := projects[""]
+	if !ok {
+		t.Fatal("missing default project")
 	}
 	if p, ok := projects["account"]; !ok || p.Info.Title != "Account" {
 		t.Errorf("account project missing or wrong: %+v", p)
@@ -213,6 +222,26 @@ info:
 	}
 	if _, ok := projects["notes"]; ok {
 		t.Error("notes should not be a project (no index.yaml)")
+	}
+
+	// Regression: the default project must NOT absorb the sections of
+	// subprojects, and its info.title must not be clobbered by a subdir.
+	if def.Info.Title != "Default" {
+		t.Errorf("default project title = %q, want %q — a subproject clobbered it", def.Info.Title, "Default")
+	}
+	gotSecs := map[string]bool{}
+	for _, s := range def.Sections {
+		gotSecs[s.ID] = true
+	}
+	if gotSecs["acct-sec"] {
+		t.Errorf("default project absorbed account subproject's section (acct-sec); sections=%v", gotSecs)
+	}
+	if !gotSecs["root-sec"] {
+		t.Errorf("default project lost its own root-sec; sections=%v", gotSecs)
+	}
+	// The non-project overlay subdir SHOULD still merge in.
+	if !gotSecs["notes-sec"] {
+		t.Errorf("default project missing notes-sec from non-project overlay subdir; sections=%v", gotSecs)
 	}
 }
 
