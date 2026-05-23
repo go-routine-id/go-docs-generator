@@ -836,10 +836,47 @@ func inlineFmt(s string) string {
 // applyEmphasis runs the bold / italic / code substitutions. Pulled out so
 // the link-text and outer-string passes share the same logic.
 func applyEmphasis(s string) string {
+	// Mask inline code spans FIRST so their contents are inert under the
+	// emphasis passes — a `*` inside `code` must not be treated as italics,
+	// and the `*` pass running before the backtick pass would otherwise
+	// mangle `` `a*b` `` into interleaved tags.
+	var spans []string
+	s = maskCodeSpans(s, &spans)
 	s = replacePair(s, "**", "<strong>", "</strong>")
 	s = replacePair(s, "*", "<em>", "</em>")
-	s = replacePair(s, "`", "<code>", "</code>")
+	for i, code := range spans {
+		s = strings.ReplaceAll(s, codeSentinel(i), "<code>"+code+"</code>")
+	}
 	return s
+}
+
+// codeSentinel returns the placeholder token used to mask a code span while
+// emphasis substitution runs. \x00 can't appear in escaped docs content.
+func codeSentinel(i int) string { return fmt.Sprintf("\x00c%d\x00", i) }
+
+// maskCodeSpans replaces each `...` code span with a sentinel and records the
+// (already HTML-escaped) inner text in spans. An unterminated backtick is
+// left as a literal so a stray “ ` “ doesn't swallow the rest of the line.
+func maskCodeSpans(s string, spans *[]string) string {
+	var b strings.Builder
+	for {
+		start := strings.IndexByte(s, '`')
+		if start == -1 {
+			b.WriteString(s)
+			break
+		}
+		end := strings.IndexByte(s[start+1:], '`')
+		if end == -1 {
+			b.WriteString(s) // no closing backtick — emit the rest verbatim
+			break
+		}
+		inner := s[start+1 : start+1+end]
+		b.WriteString(s[:start])
+		b.WriteString(codeSentinel(len(*spans)))
+		*spans = append(*spans, inner)
+		s = s[start+1+end+1:]
+	}
+	return b.String()
 }
 
 // isSafeURL whitelists URL schemes that can't execute arbitrary script when
@@ -860,20 +897,37 @@ func isSafeURL(u string) bool {
 	return false
 }
 
-// replacePair replaces paired delimiters like **text** → <strong>text</strong>
+// replacePair replaces paired delimiters like **text** → <strong>text</strong>.
+// An empty pair (e.g. the leftover `**` from an unclosed `**bold`, which the
+// single-`*` pass would otherwise see as two adjacent delimiters) is left as
+// the literal delimiter rather than emitting empty <em></em> tags. Processed
+// regions are advanced past so we never re-scan emitted markup.
 func replacePair(s, delim, open, close string) string {
+	var b strings.Builder
 	for {
 		start := strings.Index(s, delim)
 		if start == -1 {
+			b.WriteString(s)
 			break
 		}
 		after := start + len(delim)
 		end := strings.Index(s[after:], delim)
 		if end == -1 {
+			b.WriteString(s)
 			break
 		}
 		inner := s[after : after+end]
-		s = s[:start] + open + inner + close + s[after+end+len(delim):]
+		b.WriteString(s[:start])
+		if inner == "" {
+			// Empty pair — keep the delimiters literal and move past them.
+			b.WriteString(delim)
+			b.WriteString(delim)
+		} else {
+			b.WriteString(open)
+			b.WriteString(inner)
+			b.WriteString(close)
+		}
+		s = s[after+end+len(delim):]
 	}
-	return s
+	return b.String()
 }

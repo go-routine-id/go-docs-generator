@@ -316,6 +316,59 @@ func TestInlineFmt_URLWithEmphasisChars(t *testing.T) {
 	}
 }
 
+// TestInlineFmt_CodeSpanAndUnclosed guards two emphasis-pass bugs: a `*`
+// inside a code span used to be turned into <em> (because the * pass ran
+// before the backtick pass), and an unclosed `**` produced stray
+// <em></em> tags.
+func TestInlineFmt_CodeSpanAndUnclosed(t *testing.T) {
+	cases := []struct {
+		name    string
+		in      string
+		want    string // substring that MUST appear
+		notWant string // substring that must NOT appear ("" to skip)
+	}{
+		{
+			"asterisk inside code span",
+			"use `a*b` here",
+			"<code>a*b</code>",
+			"<em>",
+		},
+		{
+			"code span then italic",
+			"`x*y` and *real*",
+			"<code>x*y</code>",
+			"", // the *real* still becomes <em>real</em>; just don't mangle the code
+		},
+		{
+			"unclosed bold does not emit empty em",
+			"an unclosed **bold start",
+			"bold start",
+			"<em></em>",
+		},
+		{
+			"backtick without close stays literal",
+			"a stray ` backtick",
+			"stray ` backtick",
+			"<code>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if !strings.Contains(got, c.want) {
+				t.Errorf("input %q\n got: %s\nwant containing: %s", c.in, got, c.want)
+			}
+			if c.notWant != "" && strings.Contains(got, c.notWant) {
+				t.Errorf("input %q\n got: %s\nmust NOT contain: %s", c.in, got, c.notWant)
+			}
+		})
+	}
+	// The italic in "code span then italic" should still render.
+	if got := string(mdInline("`x*y` and *real*")); !strings.Contains(got, "<em>real</em>") {
+		t.Errorf("italic outside code span should still render: %s", got)
+	}
+}
+
 // TestInlineFmt_LinkXSSGuard makes sure scheme whitelisting actually blocks
 // the obvious attack vectors. javascript: and data: URLs must NOT produce an
 // anchor — the original bracketed text is preserved verbatim so the author
