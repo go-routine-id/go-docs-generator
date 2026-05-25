@@ -328,6 +328,50 @@ func TestRender_SidebarResizable(t *testing.T) {
 	}
 }
 
+// TestRender_SidebarSearch locks in the search affordance: the input is
+// present, every endpoint nav-item carries data-search-text including the
+// endpoint NAME (which is not visible in the sidebar), the JS filter logic
+// is wired up, and the body.searching CSS override exists so collapsed
+// groups still reveal matches.
+func TestRender_SidebarSearch(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	checks := []struct {
+		needle string
+		why    string
+	}{
+		{`class="sidebar-search"`, "search input missing from sidebar"},
+		{`placeholder="Search endpoints..."`, "search placeholder text changed — recipe docs reference this"},
+		{`data-search-text=`, "endpoint nav-items must carry data-search-text so endpoint NAME is searchable"},
+		{`function setupSidebarSearch()`, "search filter function missing"},
+		{`document.body.classList.toggle('searching'`, "body.searching toggle missing — collapsed groups won't reveal matches"},
+		{`body.searching .nav-children`, "CSS override missing — search won't expand collapsed groups"},
+		{`max-height: none !important`, "the override that forces nav-children open during search"},
+		{"input.focus()", "`/` keyboard shortcut should focus the search input"},
+		{`e.key === '/'`, "`/` shortcut binding missing"},
+		{`e.key === 'Escape'`, "Esc to clear search missing"},
+	}
+	for _, c := range checks {
+		if !strings.Contains(body, c.needle) {
+			t.Errorf("missing %q — %s", c.needle, c.why)
+		}
+	}
+
+	// Confirm a specific endpoint has its NAME in data-search-text — that's
+	// the value-add over plain textContent matching.
+	if !strings.Contains(body, `data-search-text="GET /api/v1/museum Get My Museum"`) {
+		t.Error("expected endpoint nav-item to carry `data-search-text=\"GET /api/v1/museum Get My Museum\"` so searching by name finds it")
+	}
+}
+
 // TestRender_EndpointDeepLink locks in the shareable deep-link contract:
 // stable IDs based on (section, method, name) — not array indices, share
 // button per endpoint, hash sync logic in the JS bootstrap, and replaceState

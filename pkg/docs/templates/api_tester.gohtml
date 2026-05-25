@@ -182,7 +182,78 @@
             // that endpoint. Silent fallback to the default panel (overview)
             // if the hash points to a panel that does not exist in this spec.
             syncFromHash();
+
+            // Wire up sidebar search after the nav DOM is in place.
+            setupSidebarSearch();
         });
+
+        // Sidebar search. Filters .nav-child-item nodes (endpoints, flows,
+        // screens, events) by case-insensitive substring match against either
+        // an explicit data-search-text attribute (richer than visible text —
+        // for endpoints it includes the endpoint NAME which is not shown in
+        // the sidebar) or the element's textContent.
+        //
+        // While the input has a value, document.body.searching is added; the
+        // CSS rule for that class overrides every nav-children's max-height to
+        // `none`, so collapsed groups expand to reveal matches. Clearing the
+        // input removes the class and groups snap back to their original
+        // open/closed state — no maxHeight pollution.
+        //
+        // Keyboard: `/` focuses the input (unless the user is already typing
+        // somewhere); `Esc` clears + blurs. Matches the GitHub / Stripe muscle
+        // memory.
+        function setupSidebarSearch() {
+            const input = document.querySelector('.sidebar-search');
+            if (!input) return;
+
+            const items = Array.from(document.querySelectorAll('.nav-child-item'));
+            const groups = Array.from(document.querySelectorAll('.nav-item.nav-subgroup'));
+
+            function searchableText(el) {
+                return (el.getAttribute('data-search-text') || el.textContent || '').toLowerCase();
+            }
+
+            function applyFilter() {
+                const q = input.value.trim().toLowerCase();
+                document.body.classList.toggle('searching', q.length > 0);
+                if (!q) {
+                    items.forEach(el => { el.style.display = ''; });
+                    groups.forEach(el => { el.style.display = ''; });
+                    return;
+                }
+                items.forEach(el => {
+                    el.style.display = searchableText(el).includes(q) ? '' : 'none';
+                });
+                // Hide groups that have zero visible items.
+                groups.forEach(group => {
+                    const children = group.querySelectorAll('.nav-child-item');
+                    let anyVisible = false;
+                    for (let i = 0; i < children.length; i++) {
+                        if (children[i].style.display !== 'none') { anyVisible = true; break; }
+                    }
+                    group.style.display = anyVisible ? '' : 'none';
+                });
+            }
+
+            input.addEventListener('input', applyFilter);
+
+            document.addEventListener('keydown', function(e) {
+                // Don't hijack `/` if the user is typing in another input.
+                const tag = (e.target && e.target.tagName) || '';
+                const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable);
+                if (e.key === '/' && !typing) {
+                    e.preventDefault();
+                    input.focus();
+                    input.select();
+                    return;
+                }
+                if (e.key === 'Escape' && document.activeElement === input) {
+                    input.value = '';
+                    applyFilter();
+                    input.blur();
+                }
+            });
+        }
 
         // Cross-tab / back-forward / manual address-bar edits.
         window.addEventListener('hashchange', syncFromHash);

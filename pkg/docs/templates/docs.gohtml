@@ -81,6 +81,10 @@
         </div>
 
         <nav class="sidebar-nav">
+            <div class="sidebar-search-wrap">
+                <input type="search" class="sidebar-search" placeholder="Search endpoints..." autocomplete="off" spellcheck="false" aria-label="Search documentation">
+                <kbd class="sidebar-search-shortcut" aria-hidden="true">/</kbd>
+            </div>
             <!-- Overview -->
             <div class="nav-item">
                 <div class="nav-item-header" data-target="panel-overview">
@@ -115,7 +119,7 @@
                         </div>
                         <div class="nav-children">
                             {{range $ei, $ep := .Endpoints}}
-                            <a class="nav-child-item" data-target="{{endpointAnchor $section $ep}}">
+                            <a class="nav-child-item" data-target="{{endpointAnchor $section $ep}}" data-search-text="{{.Method}} {{.Path}} {{.Name}}">
                                 <span class="nav-method {{lower .Method}}">{{.Method}}</span>
                                 <span>{{.Path}}</span>
                             </a>
