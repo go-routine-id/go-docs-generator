@@ -202,6 +202,14 @@
         // height on each open so the panel grows to fit, no matter how many
         // endpoints the spec declares. Clearing the inline style on close
         // falls back to the CSS default (0) and re-runs the transition.
+        //
+        // Nested collapsibles (section sub-groups inside the Endpoints panel):
+        // when an inner item toggles, every ancestor that is currently `open`
+        // must recompute its own maxHeight — otherwise opening an inner panel
+        // would be clipped by the outer's pinned height, and closing one would
+        // leave the outer with stale dead space. We refresh synchronously (so
+        // opening grows immediately) AND on transitionend (so closing settles
+        // accurately after the inner has fully collapsed).
         function toggleCollapse(el) {
             const navItem = el.closest('.nav-item');
             const children = navItem.querySelector(':scope > .nav-children');
@@ -209,6 +217,28 @@
                 if (children) children.style.maxHeight = children.scrollHeight + 'px';
             } else {
                 if (children) children.style.maxHeight = '';
+            }
+            refreshAncestorMaxHeight(navItem);
+            if (children) {
+                const settle = function() {
+                    children.removeEventListener('transitionend', settle);
+                    refreshAncestorMaxHeight(navItem);
+                };
+                children.addEventListener('transitionend', settle);
+            }
+        }
+
+        // Walks up from navItem and resets the maxHeight of every ancestor
+        // .nav-item.open so it stays in sync with the (possibly changed) size
+        // of its descendants.
+        function refreshAncestorMaxHeight(navItem) {
+            let cursor = navItem.parentElement;
+            while (cursor) {
+                const ancestor = cursor.closest('.nav-item.open');
+                if (!ancestor) break;
+                const ac = ancestor.querySelector(':scope > .nav-children');
+                if (ac) ac.style.maxHeight = ac.scrollHeight + 'px';
+                cursor = ancestor.parentElement;
             }
         }
 

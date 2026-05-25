@@ -328,6 +328,49 @@ func TestRender_SidebarResizable(t *testing.T) {
 	}
 }
 
+// TestRender_CollapsibleEndpointGroups locks in the contract that section
+// groups inside the "🔌 Endpoints" panel render as nested collapsibles
+// (default closed, click to expand). Two checks: the DOM markup carries the
+// toggle plumbing, and the JS has the walk-up logic that keeps the outer
+// panel sized correctly when an inner group expands or collapses.
+func TestRender_CollapsibleEndpointGroups(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	// Each section in the museum spec should produce a nav-subgroup wrapper
+	// with the toggle handler attached.
+	if !strings.Contains(body, `class="nav-item nav-subgroup has-children"`) {
+		t.Error("section groups must render as `.nav-item.nav-subgroup.has-children` (collapsible)")
+	}
+	if !strings.Contains(body, `class="nav-item-header nav-subgroup-header" onclick="toggleCollapse(this)"`) {
+		t.Error("sub-group header must wire `toggleCollapse(this)` onclick")
+	}
+	// Default state: NO `open` class on the sub-group — opted into B (closed
+	// by default). If a future refactor adds default-open behavior, this
+	// guards against that drift.
+	if strings.Contains(body, `class="nav-item nav-subgroup has-children open"`) {
+		t.Error("sub-groups should NOT default to open — UX choice B (collapsed by default)")
+	}
+	// Walk-up logic must exist AND be invoked. Count `refreshAncestorMaxHeight`
+	// occurrences: 1 = function definition only (the helper is dead code → the
+	// regression we're guarding against), 2+ = at least one call site wired up.
+	count := strings.Count(body, "refreshAncestorMaxHeight")
+	if count < 2 {
+		t.Errorf("refreshAncestorMaxHeight appears %d times — expected at least 2 (definition + call). "+
+			"Without the call, nested toggles clip and stale dead space remains after collapse.", count)
+	}
+	if !strings.Contains(body, `.closest('.nav-item.open')`) {
+		t.Error("refreshAncestorMaxHeight must walk to ancestor `.nav-item.open` elements")
+	}
+}
+
 // TestRender_NavChildrenNotClipped guards against a regression where the
 // sidebar's expanding nav-children panel had a hard `max-height: 2000px` cap.
 // Once a section had ~50+ endpoints, the combined height exceeded the cap and

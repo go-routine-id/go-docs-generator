@@ -540,6 +540,28 @@
         }
 
          
+        .nav-subgroup > .nav-subgroup-header {
+            padding: 0.5rem 1.5rem 0.5rem 2rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .nav-subgroup > .nav-subgroup-header:hover {
+            color: var(--text);
+            background: var(--sidebar-hover);
+        }
+
+         
+        .nav-item.nav-subgroup.has-children > .nav-subgroup-header::after {
+            width: 5px;
+            height: 5px;
+        }
+
+         
         .nav-method {
             display: inline-block;
             width: 3rem;
@@ -1507,113 +1529,131 @@
                 <div class="nav-children">
                     
                     
-                    <div class="nav-group-label">Articles (CMS)</div>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-0">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/articles</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-1">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/articles/slug/{slug}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-2">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/articles/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-3">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/articles</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-4">
-                        <span class="nav-method patch">PATCH</span>
-                        <span>/api/v1/articles/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-5">
-                        <span class="nav-method delete">DELETE</span>
-                        <span>/api/v1/articles/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-0-6">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/articles/{id}/restore</span>
-                    </a>
-                    
-                    
-                    
-                    
-                    <div class="nav-group-label">Artifacts</div>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-0">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/artifacts</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-1">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/artifacts</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-2">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/artifacts/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-3">
-                        <span class="nav-method patch">PATCH</span>
-                        <span>/api/v1/artifacts/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-4">
-                        <span class="nav-method delete">DELETE</span>
-                        <span>/api/v1/artifacts/{id}</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-5">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/artifacts/{id}/restore</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-1-6">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/artifacts/{id}/image</span>
-                    </a>
+                    <div class="nav-item nav-subgroup has-children">
+                        <div class="nav-item-header nav-subgroup-header" onclick="toggleCollapse(this)">
+                            <span class="nav-item-header-content">Articles (CMS)</span>
+                        </div>
+                        <div class="nav-children">
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-0">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/articles</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-1">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/articles/slug/{slug}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-2">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/articles/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-3">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/articles</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-4">
+                                <span class="nav-method patch">PATCH</span>
+                                <span>/api/v1/articles/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-5">
+                                <span class="nav-method delete">DELETE</span>
+                                <span>/api/v1/articles/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-0-6">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/articles/{id}/restore</span>
+                            </a>
+                            
+                        </div>
+                    </div>
                     
                     
                     
+                    <div class="nav-item nav-subgroup has-children">
+                        <div class="nav-item-header nav-subgroup-header" onclick="toggleCollapse(this)">
+                            <span class="nav-item-header-content">Artifacts</span>
+                        </div>
+                        <div class="nav-children">
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-0">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/artifacts</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-1">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/artifacts</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-2">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/artifacts/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-3">
+                                <span class="nav-method patch">PATCH</span>
+                                <span>/api/v1/artifacts/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-4">
+                                <span class="nav-method delete">DELETE</span>
+                                <span>/api/v1/artifacts/{id}</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-5">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/artifacts/{id}/restore</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-1-6">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/artifacts/{id}/image</span>
+                            </a>
+                            
+                        </div>
+                    </div>
                     
-                    <div class="nav-group-label">My Museum (Single Museum Pattern)</div>
                     
-                    <a class="nav-child-item" data-target="panel-endpoint-2-0">
-                        <span class="nav-method get">GET</span>
-                        <span>/api/v1/museum</span>
-                    </a>
                     
-                    <a class="nav-child-item" data-target="panel-endpoint-2-1">
-                        <span class="nav-method patch">PATCH</span>
-                        <span>/api/v1/museum</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-2-2">
-                        <span class="nav-method delete">DELETE</span>
-                        <span>/api/v1/museum</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-2-3">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/museum/image</span>
-                    </a>
-                    
-                    <a class="nav-child-item" data-target="panel-endpoint-2-4">
-                        <span class="nav-method post">POST</span>
-                        <span>/api/v1/museum/select</span>
-                    </a>
-                    
+                    <div class="nav-item nav-subgroup has-children">
+                        <div class="nav-item-header nav-subgroup-header" onclick="toggleCollapse(this)">
+                            <span class="nav-item-header-content">My Museum (Single Museum Pattern)</span>
+                        </div>
+                        <div class="nav-children">
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-2-0">
+                                <span class="nav-method get">GET</span>
+                                <span>/api/v1/museum</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-2-1">
+                                <span class="nav-method patch">PATCH</span>
+                                <span>/api/v1/museum</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-2-2">
+                                <span class="nav-method delete">DELETE</span>
+                                <span>/api/v1/museum</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-2-3">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/museum/image</span>
+                            </a>
+                            
+                            <a class="nav-child-item" data-target="panel-endpoint-2-4">
+                                <span class="nav-method post">POST</span>
+                                <span>/api/v1/museum/select</span>
+                            </a>
+                            
+                        </div>
+                    </div>
                     
                     
                 </div>
@@ -6065,6 +6105,14 @@
         
         
         
+        
+        
+        
+        
+        
+        
+        
+        
         function toggleCollapse(el) {
             const navItem = el.closest('.nav-item');
             const children = navItem.querySelector(':scope > .nav-children');
@@ -6072,6 +6120,28 @@
                 if (children) children.style.maxHeight = children.scrollHeight + 'px';
             } else {
                 if (children) children.style.maxHeight = '';
+            }
+            refreshAncestorMaxHeight(navItem);
+            if (children) {
+                const settle = function() {
+                    children.removeEventListener('transitionend', settle);
+                    refreshAncestorMaxHeight(navItem);
+                };
+                children.addEventListener('transitionend', settle);
+            }
+        }
+
+        
+        
+        
+        function refreshAncestorMaxHeight(navItem) {
+            let cursor = navItem.parentElement;
+            while (cursor) {
+                const ancestor = cursor.closest('.nav-item.open');
+                if (!ancestor) break;
+                const ac = ancestor.querySelector(':scope > .nav-children');
+                if (ac) ac.style.maxHeight = ac.scrollHeight + 'px';
+                cursor = ancestor.parentElement;
             }
         }
 

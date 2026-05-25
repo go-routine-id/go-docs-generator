@@ -527,6 +527,33 @@
             margin-top: 0.5rem;
         }
 
+        /* Sub-group — section folder inside the "🔌 Endpoints" panel. Default
+           collapsed so a spec with many sections opens to a compact list of
+           folder names rather than a wall of endpoints. Visually matches the
+           uppercase-muted nav-group-label so single-section specs aren't
+           jarring after the rewrite. */
+        .nav-subgroup > .nav-subgroup-header {
+            padding: 0.5rem 1.5rem 0.5rem 2rem;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .nav-subgroup > .nav-subgroup-header:hover {
+            color: var(--text);
+            background: var(--sidebar-hover);
+        }
+
+        /* Caret on the sub-group header — slightly smaller than the top-level
+           one, matching the smaller header font. */
+        .nav-item.nav-subgroup.has-children > .nav-subgroup-header::after {
+            width: 5px;
+            height: 5px;
+        }
+
         /* Method badge in sidebar */
         .nav-method {
             display: inline-block;

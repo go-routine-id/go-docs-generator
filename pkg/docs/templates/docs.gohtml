@@ -109,13 +109,19 @@
                 <div class="nav-children">
                     {{range $si, $section := .Sections}}
                     {{if .Endpoints}}
-                    <div class="nav-group-label">{{.Title}}</div>
-                    {{range $ei, $ep := .Endpoints}}
-                    <a class="nav-child-item" data-target="panel-endpoint-{{$si}}-{{$ei}}">
-                        <span class="nav-method {{lower .Method}}">{{.Method}}</span>
-                        <span>{{.Path}}</span>
-                    </a>
-                    {{end}}
+                    <div class="nav-item nav-subgroup has-children">
+                        <div class="nav-item-header nav-subgroup-header" onclick="toggleCollapse(this)">
+                            <span class="nav-item-header-content">{{.Title}}</span>
+                        </div>
+                        <div class="nav-children">
+                            {{range $ei, $ep := .Endpoints}}
+                            <a class="nav-child-item" data-target="panel-endpoint-{{$si}}-{{$ei}}">
+                                <span class="nav-method {{lower .Method}}">{{.Method}}</span>
+                                <span>{{.Path}}</span>
+                            </a>
+                            {{end}}
+                        </div>
+                    </div>
                     {{end}}
                     {{end}}
                 </div>
