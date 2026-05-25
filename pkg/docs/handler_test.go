@@ -328,6 +328,90 @@ func TestRender_SidebarResizable(t *testing.T) {
 	}
 }
 
+// TestRender_EndpointDeepLink locks in the shareable deep-link contract:
+// stable IDs based on (section, method, name) — not array indices, share
+// button per endpoint, hash sync logic in the JS bootstrap, and replaceState
+// (not pushState) so the back button isn't polluted by intra-docs navigation.
+func TestRender_EndpointDeepLink(t *testing.T) {
+	h, err := NewHandler("testdata/specs/museum/index.yaml", false)
+	if err != nil {
+		t.Fatalf("NewHandler: %v", err)
+	}
+	out, err := h.Render("")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	body := string(out)
+
+	// Stable ID format `endpoint-{section}-{method}-{slug}`. Museum spec has a
+	// section id=`museum` with a `Get My Museum` endpoint at GET /api/v1/museum.
+	wantPanelID := `id="endpoint-museum-get-get-my-museum"`
+	if !strings.Contains(body, wantPanelID) {
+		t.Errorf("expected stable panel id %q in rendered HTML — deep links break if IDs depend on array position", wantPanelID)
+	}
+	// Old indexed format must be gone from endpoint PANELS (tester elements
+	// keep indexed IDs because they're internal-only — not URL-shareable).
+	if strings.Contains(body, `id="panel-endpoint-`) {
+		t.Error("legacy indexed panel IDs must be replaced with stable endpoint anchors")
+	}
+	// Sidebar nav data-target must match the panel id (otherwise clicking the
+	// sidebar lands on nothing).
+	if !strings.Contains(body, `data-target="endpoint-museum-get-get-my-museum"`) {
+		t.Error("sidebar nav-child-item data-target must use the stable endpoint anchor")
+	}
+	// Per-endpoint share button (clipboard reuses the existing copy-link
+	// handler — see TestRender_CopyLinkButton).
+	if !strings.Contains(body, `class="sidebar-copy-link endpoint-share"`) {
+		t.Error("per-endpoint share button missing")
+	}
+	if !strings.Contains(body, `data-copy-href="#endpoint-museum-get-get-my-museum"`) {
+		t.Error("share button must carry data-copy-href with the stable hash so the absolute URL is shareable")
+	}
+	// Hash sync JS — both directions (URL → panel and click → URL).
+	for _, marker := range []string{
+		"function syncFromHash()",
+		`window.addEventListener('hashchange'`,
+		"function navigateTo(targetId)",
+		"history.replaceState(null, ''",
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("missing JS marker %q — deep linking will not work without it", marker)
+		}
+	}
+	// Back button must NOT be polluted: ensure pushState is NOT used for the
+	// in-docs navigation (replaceState is the correct choice).
+	if strings.Contains(body, "history.pushState(null, '', '#") {
+		t.Error("intra-docs navigation should use replaceState, not pushState — pushState pollutes the back button")
+	}
+}
+
+// TestEndpointAnchor exercises the slug generator directly so the format
+// stays stable across versions. Existing shared links rely on it.
+func TestEndpointAnchor(t *testing.T) {
+	cases := []struct {
+		section SectionInfo
+		ep      Endpoint
+		want    string
+	}{
+		{SectionInfo{ID: "users"}, Endpoint{Method: "GET", Name: "List Users"}, "endpoint-users-get-list-users"},
+		{SectionInfo{ID: "galleries"}, Endpoint{Method: "POST", Name: "Create Gallery"}, "endpoint-galleries-post-create-gallery"},
+		{SectionInfo{ID: "users"}, Endpoint{Method: "DELETE", Name: "Delete User"}, "endpoint-users-delete-delete-user"},
+		// Case + punctuation normalisation. NB: slug() does not collapse
+		// consecutive separator characters — " / " produces three dashes.
+		// Documenting current behavior; safe-to-link as URL either way.
+		{SectionInfo{ID: "Account-Service"}, Endpoint{Method: "patch", Name: "Reset Password / Send OTP"}, "endpoint-account-service-patch-reset-password---send-otp"},
+		// Defensive: empty section id still produces something usable.
+		{SectionInfo{ID: ""}, Endpoint{Method: "GET", Name: "Ping"}, "endpoint-get-ping"},
+	}
+	for _, c := range cases {
+		got := endpointAnchor(c.section, c.ep)
+		if got != c.want {
+			t.Errorf("endpointAnchor(section=%q, method=%q, name=%q) = %q, want %q",
+				c.section.ID, c.ep.Method, c.ep.Name, got, c.want)
+		}
+	}
+}
+
 // TestRender_CollapsibleEndpointGroups locks in the contract that section
 // groups inside the "🔌 Endpoints" panel render as nested collapsibles
 // (default closed, click to expand). Two checks: the DOM markup carries the

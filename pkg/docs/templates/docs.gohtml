@@ -115,7 +115,7 @@
                         </div>
                         <div class="nav-children">
                             {{range $ei, $ep := .Endpoints}}
-                            <a class="nav-child-item" data-target="panel-endpoint-{{$si}}-{{$ei}}">
+                            <a class="nav-child-item" data-target="{{endpointAnchor $section $ep}}">
                                 <span class="nav-method {{lower .Method}}">{{.Method}}</span>
                                 <span>{{.Path}}</span>
                             </a>
@@ -272,7 +272,7 @@
             {{range $si, $section := .Sections}}
             {{if .Endpoints}}
             {{range $ei, $ep := .Endpoints}}
-            <div class="content-panel" id="panel-endpoint-{{$si}}-{{$ei}}">
+            <div class="content-panel" id="{{endpointAnchor $section $ep}}">
                 <div class="breadcrumb">
                     <span>{{$section.Title}}</span>
                     <span>{{$ep.Name}}</span>
@@ -282,6 +282,7 @@
                     <div class="endpoint-header">
                         <span class="method {{lower $ep.Method}}">{{$ep.Method}}</span>
                         <span class="endpoint-path">{{$ep.Path}}</span>
+                        <button type="button" class="sidebar-copy-link endpoint-share" data-copy-href="#{{endpointAnchor $section $ep}}" title="Copy link to this endpoint" aria-label="Copy link to this endpoint">🔗</button>
                     </div>
 
                     <div class="endpoint-description">{{$ep.Description | md}}</div>

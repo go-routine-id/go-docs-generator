@@ -114,6 +114,7 @@ func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handle
 		"sectionUsesGlobal": sectionUsesGlobal,
 		"testerMethods":     testerMethods,
 		"testerMethodsWith": testerMethodsWith,
+		"endpointAnchor":    endpointAnchor,
 		"assetURL":          func(file string) string { return h.prefix + "/assets/vendor/" + file },
 		"docPath":           func(sub string) string { return h.prefix + "/" + sub },
 	}

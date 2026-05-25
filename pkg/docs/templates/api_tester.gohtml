@@ -160,35 +160,82 @@
                 } catch(e) {}
             });
 
-            // Setup panel switching for nav items
+            // Setup panel switching for nav items. The click handlers call
+            // navigateTo(target) which both switches the visible panel AND
+            // updates window.location.hash, so the URL in the address bar is
+            // always shareable. The hashchange listener below mirrors the
+            // other direction (URL changes → panel switches), so deep links
+            // work without any custom routing.
             document.querySelectorAll('.nav-item-header[data-target]').forEach(el => {
                 el.addEventListener('click', function() {
-                    const target = this.getAttribute('data-target');
-                    showPanel(target);
+                    navigateTo(this.getAttribute('data-target'));
                 });
             });
 
             document.querySelectorAll('.nav-child-item[data-target]').forEach(el => {
                 el.addEventListener('click', function() {
-                    const target = this.getAttribute('data-target');
-                    showPanel(target);
+                    navigateTo(this.getAttribute('data-target'));
                 });
             });
+
+            // Honor the URL hash on first paint so /docs#endpoint-x lands on
+            // that endpoint. Silent fallback to the default panel (overview)
+            // if the hash points to a panel that does not exist in this spec.
+            syncFromHash();
         });
+
+        // Cross-tab / back-forward / manual address-bar edits.
+        window.addEventListener('hashchange', syncFromHash);
+
+        function syncFromHash() {
+            const hash = (window.location.hash || '').replace(/^#/, '');
+            if (!hash) return;
+            const target = document.getElementById(hash);
+            if (target && target.classList.contains('content-panel')) {
+                showPanel(hash);
+            }
+        }
+
+        // navigateTo = showPanel + URL hash update. We use replaceState
+        // (not pushState) so the back button doesn't have to traverse every
+        // endpoint the user browsed through to leave the docs.
+        function navigateTo(targetId) {
+            showPanel(targetId);
+            const next = '#' + targetId;
+            if (window.location.hash !== next) {
+                history.replaceState(null, '', next);
+            }
+        }
 
         // Panel switching
         function showPanel(targetId) {
             // Hide all panels
             document.querySelectorAll('.content-panel').forEach(el => el.classList.remove('active'));
             // Show target
-            document.getElementById(targetId).classList.add('active');
+            const target = document.getElementById(targetId);
+            if (!target) return; // invalid id — leave whichever panel is currently active
+            target.classList.add('active');
 
             // Update sidebar active state
             document.querySelectorAll('.nav-item-header').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.nav-child-item').forEach(el => el.classList.remove('active'));
 
             const activeNav = document.querySelector('[data-target="' + targetId + '"]');
-            if (activeNav) activeNav.classList.add('active');
+            if (activeNav) {
+                activeNav.classList.add('active');
+                // If the target is inside a collapsed sub-group, open the
+                // group so the active highlight is actually visible.
+                let parent = activeNav.parentElement;
+                while (parent) {
+                    const ancestorItem = parent.closest('.nav-item.has-children');
+                    if (!ancestorItem) break;
+                    if (!ancestorItem.classList.contains('open')) {
+                        const header = ancestorItem.querySelector(':scope > .nav-item-header');
+                        if (header) toggleCollapse(header);
+                    }
+                    parent = ancestorItem.parentElement;
+                }
+            }
 
             // Close mobile sidebar
             if (window.innerWidth <= 768) {

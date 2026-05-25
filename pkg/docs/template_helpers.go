@@ -74,3 +74,24 @@ func defaultOrFirst(urls []BaseURL) string {
 	}
 	return ""
 }
+
+
+// endpointAnchor returns a stable, shareable element ID for an endpoint panel.
+// Format: endpoint-{section-id}-{method-lower}-{slug(name)}. Section scoping
+// avoids collisions across sections; including the method disambiguates the
+// common REST shape where GET /x and POST /x share a short name like "List".
+// Duplicates within (section, method, name) take first-wins — the duplicate-
+// endpoint lint surfaces the actual issue.
+func endpointAnchor(section SectionInfo, ep Endpoint) string {
+	parts := []string{"endpoint"}
+	if s := slug(section.ID); s != "" {
+		parts = append(parts, s)
+	}
+	if m := strings.ToLower(strings.TrimSpace(ep.Method)); m != "" {
+		parts = append(parts, m)
+	}
+	if n := slug(ep.Name); n != "" {
+		parts = append(parts, n)
+	}
+	return strings.Join(parts, "-")
+}
