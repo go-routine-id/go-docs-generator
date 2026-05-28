@@ -292,3 +292,89 @@ func TestInlineFmt_LinkXSSGuard(t *testing.T) {
 		}
 	}
 }
+
+// TestInlineFmt_LinkURLNotMangled guards a regression where the emphasis passes
+// (bold/italic/code) ran over an already-emitted `<a href="…">`, so a URL
+// containing a '*' or '`' had tags injected mid-attribute — e.g.
+// `/guide*v2*final` rendered as `href="/guide<em>v2</em>final"`, a broken link
+// and invalid HTML. Links must round-trip with their URL byte-for-byte intact.
+func TestInlineFmt_LinkURLNotMangled(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"asterisks in path",
+			`see [the docs](/guide*v2*final) here`,
+			`see <a href="/guide*v2*final">the docs</a> here`,
+		},
+		{
+			"backticks in path",
+			`fetch [x](/a` + "`b`" + `c)`,
+			`fetch <a href="/a` + "`b`" + `c">x</a>`,
+		},
+		{
+			"ampersand query string stays escaped once",
+			`open [link](https://x.com/a?b=1&c=2) ok`,
+			`open <a href="https://x.com/a?b=1&amp;c=2">link</a> ok`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if got != c.want {
+				t.Errorf("input %q\n got: %s\nwant: %s", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestInlineFmt_NoEmptyEmphasis guards against a literal/unbalanced `**` (or a
+// lone `*`) being collapsed into an empty `<em></em>`/`<strong></strong>`.
+// Decorative or unpaired delimiters must survive as plain text.
+func TestInlineFmt_NoEmptyEmphasis(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"stray double asterisk",
+			`a *single* asterisk and ** stray`,
+			`a <em>single</em> asterisk and ** stray`,
+		},
+		{
+			"unbalanced bold open",
+			`unbalanced **open bold`,
+			`unbalanced **open bold`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := string(mdInline(c.in))
+			if strings.Contains(got, "<em></em>") || strings.Contains(got, "<strong></strong>") {
+				t.Errorf("input %q produced an empty emphasis tag: %s", c.in, got)
+			}
+			if got != c.want {
+				t.Errorf("input %q\n got: %s\nwant: %s", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestInlineFmt_TripleEmphasis locks in well-formed nesting for `***both***`.
+// The old paired-delimiter replacer left a stray '*' after the bold pass that
+// the italic pass then mis-paired, yielding crossed tags
+// (`<strong><em>…</strong></em>`). Output must nest correctly.
+func TestInlineFmt_TripleEmphasis(t *testing.T) {
+	got := string(mdInline(`nested ***all three*** done`))
+	want := `nested <strong><em>all three</em></strong> done`
+	if got != want {
+		t.Errorf("got: %s\nwant: %s", got, want)
+	}
+	// Crossed tags must never appear.
+	if strings.Contains(got, "</strong></em>") {
+		t.Errorf("crossed emphasis tags in output: %s", got)
+	}
+}

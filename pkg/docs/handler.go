@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -675,8 +676,13 @@ func mdInline(s string) template.HTML {
 var mdLinkRe = regexp.MustCompile(`\[([^\]]+)\]\(([^)\s]+)\)`)
 
 // inlineFmt handles inline formatting: [text](url), **bold**, *italic*, `code`.
-// Order matters: link substitution runs FIRST so the link text passes through
-// the subsequent bold/italic/code passes (so `[**important**](/x)` works).
+//
+// Links are resolved FIRST and parked behind opaque placeholders before the
+// emphasis passes run. Without this, the bold/italic/code passes walk the whole
+// string — including an already-emitted `<a href="…">` — so a URL containing a
+// '*' or '`' (e.g. `/guide*v2*final`) would get tags injected mid-attribute,
+// producing a broken link and invalid HTML. The link *text* is still formatted
+// (via emphasis), so `[**important**](/x)` renders bold.
 func inlineFmt(s string) string {
 	// Escape HTML first — neutralises any literal '<', '>' the user wrote.
 	s = strings.ReplaceAll(s, "&", "&amp;")
@@ -685,6 +691,9 @@ func inlineFmt(s string) string {
 
 	// Markdown links: [text](url). Reject schemes that can execute script
 	// (javascript:, data:) — those fall through as literal `[text](url)`.
+	// Accepted links become placeholders (which carry no '*' or '`', so the
+	// emphasis passes skip over them) and are restored verbatim at the end.
+	var links []string
 	s = mdLinkRe.ReplaceAllStringFunc(s, func(m string) string {
 		parts := mdLinkRe.FindStringSubmatch(m)
 		text, url := parts[1], parts[2]
@@ -694,17 +703,41 @@ func inlineFmt(s string) string {
 		// HTML-escape happened above, so `&` is already `&amp;`. Only the
 		// double-quote needs attribute-escaping for safe insertion into href.
 		url = strings.ReplaceAll(url, `"`, "&quot;")
-		return `<a href="` + url + `">` + text + `</a>`
+		anchor := `<a href="` + url + `">` + emphasis(text) + `</a>`
+		links = append(links, anchor)
+		return linkPlaceholder(len(links) - 1)
 	})
 
+	s = emphasis(s)
+
+	for i, anchor := range links {
+		s = strings.Replace(s, linkPlaceholder(i), anchor, 1)
+	}
+	return s
+}
+
+// emphasis applies the inline emphasis passes: bold, italic, and code. The
+// combined `***both***` form is handled before `**`/`*` so a leftover lone '*'
+// can never be mis-paired into crossed tags. Run this only on text free of
+// link placeholders.
+func emphasis(s string) string {
+	// Bold+italic: ***text***
+	s = replacePair(s, "***", "<strong><em>", "</em></strong>")
 	// Bold: **text**
 	s = replacePair(s, "**", "<strong>", "</strong>")
 	// Italic: *text*
 	s = replacePair(s, "*", "<em>", "</em>")
 	// Inline code: `text`
 	s = replacePair(s, "`", "<code>", "</code>")
-
 	return s
+}
+
+// linkPlaceholder builds the sentinel that parks a rendered anchor while the
+// emphasis passes run. It deliberately contains no '*' or '`' (nor any other
+// emphasis delimiter) so those passes leave it untouched. The NUL bytes make
+// accidental collision with real spec prose effectively impossible.
+func linkPlaceholder(i int) string {
+	return "\x00link:" + strconv.Itoa(i) + "\x00"
 }
 
 // isSafeURL whitelists URL schemes that can't execute arbitrary script when
@@ -725,20 +758,37 @@ func isSafeURL(u string) bool {
 	return false
 }
 
-// replacePair replaces paired delimiters like **text** → <strong>text</strong>
+// replacePair replaces paired delimiters like **text** → <strong>text</strong>,
+// scanning left-to-right. Adjacent delimiters with no content between them
+// (e.g. a literal `**` in prose) are left verbatim rather than collapsed into
+// an empty `<em></em>`/`<strong></strong>` — the empty-inner case is skipped
+// past so an unbalanced or decorative delimiter never emits a hollow tag.
 func replacePair(s, delim, open, close string) string {
+	var b strings.Builder
 	for {
 		start := strings.Index(s, delim)
 		if start == -1 {
+			b.WriteString(s)
 			break
 		}
 		after := start + len(delim)
 		end := strings.Index(s[after:], delim)
 		if end == -1 {
+			b.WriteString(s)
 			break
 		}
-		inner := s[after : after+end]
-		s = s[:start] + open + inner + close + s[after+end+len(delim):]
+		if end == 0 {
+			// Adjacent delimiters: emit them literally and resume scanning
+			// after the pair so we never produce an empty tag.
+			b.WriteString(s[:after+len(delim)])
+			s = s[after+len(delim):]
+			continue
+		}
+		b.WriteString(s[:start])
+		b.WriteString(open)
+		b.WriteString(s[after : after+end])
+		b.WriteString(close)
+		s = s[after+end+len(delim):]
 	}
-	return s
+	return b.String()
 }
