@@ -843,6 +843,10 @@ func applyEmphasis(s string) string {
 	// mangle `` `a*b` `` into interleaved tags.
 	var spans []string
 	s = maskCodeSpans(s, &spans)
+	// `***both***` must be handled before `**`/`*`; otherwise the bold pass
+	// leaves a stray lone `*` that the italic pass mis-pairs, yielding crossed
+	// tags (`<strong><em>…</strong></em>`).
+	s = replacePair(s, "***", "<strong><em>", "</em></strong>")
 	s = replacePair(s, "**", "<strong>", "</strong>")
 	s = replacePair(s, "*", "<em>", "</em>")
 	for i, code := range spans {

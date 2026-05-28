@@ -387,3 +387,18 @@ func TestInlineFmt_LinkXSSGuard(t *testing.T) {
 		}
 	}
 }
+
+// TestInlineFmt_TripleEmphasis locks in well-formed nesting for `***both***`.
+// Running the bold pass before a dedicated triple pass left a stray lone `*`
+// that the italic pass mis-paired, producing crossed tags
+// (`<strong><em>…</strong></em>`). Output must nest correctly and never cross.
+func TestInlineFmt_TripleEmphasis(t *testing.T) {
+	got := string(mdInline(`nested ***all three*** done`))
+	want := `nested <strong><em>all three</em></strong> done`
+	if got != want {
+		t.Errorf("got:  %s\nwant: %s", got, want)
+	}
+	if strings.Contains(got, "</strong></em>") {
+		t.Errorf("crossed emphasis tags in output: %s", got)
+	}
+}
