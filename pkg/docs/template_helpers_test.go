@@ -263,6 +263,13 @@ func TestInlineFmt_MarkdownLinks(t *testing.T) {
 			`[A](/a) and [B](/b)`,
 			`<a href="/a">A</a> and <a href="/b">B</a>`,
 		},
+		{
+			// A '&' in the query string must be HTML-escaped exactly once —
+			// `&amp;`, never the double-escaped `&amp;amp;`.
+			"ampersand in query string escaped once",
+			`open [link](https://x.com/a?b=1&c=2) ok`,
+			`<a href="https://x.com/a?b=1&amp;c=2">link</a>`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
