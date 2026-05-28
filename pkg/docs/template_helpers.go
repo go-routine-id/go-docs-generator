@@ -75,7 +75,6 @@ func defaultOrFirst(urls []BaseURL) string {
 	return ""
 }
 
-
 // endpointAnchor returns a stable, shareable element ID for an endpoint panel.
 // Format: endpoint-{section-id}-{method-lower}-{slug(name)}. Section scoping
 // avoids collisions across sections; including the method disambiguates the
