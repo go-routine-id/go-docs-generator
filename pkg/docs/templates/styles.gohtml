@@ -285,6 +285,10 @@
             align-items: center;
             gap: 0.5rem;
             color: var(--text);
+            /* Reserve space for the absolutely-positioned .sidebar-theme-toggle
+               (top:0.75rem right:0.75rem) so a long title doesn't slide under
+               the button — otherwise the title text and the 🌙/☀️ icon overlap. */
+            padding-right: 2.5rem;
         }
 
         .sidebar-version {
@@ -390,7 +394,12 @@
             border: 1px solid var(--border);
             border-radius: 6px;
             background: var(--bg);
-            max-height: 18rem;
+            /* The switcher lives in .sidebar-header, which doesn't scroll, inside
+               .sidebar { overflow: hidden }. A flat 18rem cap was clipped (and
+               unreachable) on short viewports — the Download YAML row below
+               would disappear. Constrain to viewport so the rest of the header
+               stays visible and scrollable from within the list itself. */
+            max-height: min(18rem, calc(100vh - 200px));
             overflow-y: auto;
         }
 
@@ -429,6 +438,12 @@
 
         .sidebar-nav {
             flex: 1;
+            /* min-height: 0 is required so the nav can shrink below its content
+               height under flex pressure — without it, when the header grows
+               (e.g. project switcher open), the nav refuses to yield and the
+               whole sidebar overflows past the viewport, getting clipped by
+               .sidebar { overflow: hidden } with no way to scroll. */
+            min-height: 0;
             overflow-y: auto;
             padding: 0.5rem 0;
         }
