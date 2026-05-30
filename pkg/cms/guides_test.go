@@ -187,6 +187,40 @@ func TestSaveGuide_OtherGuidesInFileUntouched(t *testing.T) {
 	}
 }
 
+// TestProposedGuideYAML_DoesNotWriteFile is the key safety guarantee for the
+// preview path: calling it must NOT mutate the file on disk — only return what
+// SaveGuide WOULD have written. The preview page shows the diff, then the
+// editor decides whether to commit. A leak here would mean unintentional
+// publishes during preview.
+func TestProposedGuideYAML_DoesNotWriteFile(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    icon: ⭐
+    title: Star
+    description: Shiny
+`)
+	before, _ := os.ReadFile(file)
+
+	out, err := ProposedGuideYAML(file, GuideEntry{
+		ID: "x", Icon: "✨", Title: "Sparkle", Description: "Brighter",
+	})
+	if err != nil {
+		t.Fatalf("ProposedGuideYAML: %v", err)
+	}
+	after, _ := os.ReadFile(file)
+
+	if string(before) != string(after) {
+		t.Errorf("file was mutated during preview render — this would publish unintentionally\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if !strings.Contains(string(out), "Sparkle") {
+		t.Errorf("proposed bytes should contain the new title, got:\n%s", out)
+	}
+	if !strings.Contains(string(out), "Brighter") {
+		t.Errorf("proposed bytes should contain the new description, got:\n%s", out)
+	}
+}
+
 // TestLoadGuide_ReadsFields verifies the pre-fill path the edit form depends on.
 func TestLoadGuide_ReadsFields(t *testing.T) {
 	dir := t.TempDir()

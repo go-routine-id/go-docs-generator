@@ -13,10 +13,19 @@
   <h1>Edit guide</h1>
   <p class="muted">
     Editable fields: <code>icon</code>, <code>title</code>, <code>description</code>.
-    Everything else in the guide (<code>flow</code>, comments, key order) is preserved on save.
+    Everything else in the guide (<code>flow</code>, comments, key order) is preserved on publish.
   </p>
+  {{if .Flash}}<div class="banner banner-ok">{{.Flash}}</div>{{end}}
   {{if .Error}}<div class="banner banner-error">{{.Error}}</div>{{end}}
-  <form method="POST" action="/guides/edit?file={{.Guide.FilePath}}&id={{.Guide.ID}}" class="card stack">
+  {{if .DraftBanner}}
+  <div class="banner banner-info">
+    📝 {{.DraftBanner}}
+    <form method="POST" action="/guides/draft/discard?file={{.Guide.FilePath}}&id={{.Guide.ID}}" class="inline" style="margin-left:0.5rem;">
+      <button type="submit" class="btn-link" onclick="return confirm('Discard the saved draft? This cannot be undone.');">Discard draft</button>
+    </form>
+  </div>
+  {{end}}
+  <form method="POST" class="card stack">
     <label>
       <span>File</span>
       <input type="text" value="{{.Guide.FilePath}}" disabled>
@@ -38,7 +47,8 @@
       <textarea name="description" rows="6">{{.Guide.Description}}</textarea>
     </label>
     <div class="row">
-      <button type="submit" class="btn-primary">Publish</button>
+      <button type="submit" formaction="/guides/preview?file={{.Guide.FilePath}}&id={{.Guide.ID}}" class="btn-primary">Preview &amp; Publish</button>
+      <button type="submit" formaction="/guides/draft?file={{.Guide.FilePath}}&id={{.Guide.ID}}">Save draft</button>
       <a class="btn btn-link" href="/guides">Cancel</a>
     </div>
   </form>

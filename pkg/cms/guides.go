@@ -128,31 +128,41 @@ func LoadGuide(path, id string) (*GuideEntry, error) {
 	return nil, ErrGuideNotFound
 }
 
-// SaveGuide updates the editable fields of the matching guide in path, writing
-// the file back atomically. Non-editable fields, comments, key order, and
-// other guides in the same file are preserved verbatim — we walk yaml.Node
-// and mutate only the scalar values we own.
+// SaveGuide writes the proposed YAML to disk atomically. Splits cleanly from
+// ProposedGuideYAML so the same byte stream can be rendered for preview/diff
+// without committing it.
 func SaveGuide(path string, update GuideEntry) error {
-	raw, err := os.ReadFile(path)
+	out, err := ProposedGuideYAML(path, update)
 	if err != nil {
 		return err
 	}
+	return writeFileAtomic(path, out, 0o644)
+}
+
+// ProposedGuideYAML returns the bytes that SaveGuide would write — without
+// actually writing them. The preview/diff path uses this to show the editor
+// exactly what publishing will do before they commit.
+func ProposedGuideYAML(path string, update GuideEntry) ([]byte, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return fmt.Errorf("parse yaml: %w", err)
+		return nil, fmt.Errorf("parse yaml: %w", err)
 	}
 	root := documentRoot(&doc)
 	if root == nil || root.Kind != yaml.MappingNode {
-		return fmt.Errorf("%s: top-level YAML is not a mapping", path)
+		return nil, fmt.Errorf("%s: top-level YAML is not a mapping", path)
 	}
 	seq := childValue(root, "guides")
 	if seq == nil || seq.Kind != yaml.SequenceNode {
-		return fmt.Errorf("%s: no top-level `guides:` sequence", path)
+		return nil, fmt.Errorf("%s: no top-level `guides:` sequence", path)
 	}
 
 	target := findGuideByID(seq, update.ID)
 	if target == nil {
-		return ErrGuideNotFound
+		return nil, ErrGuideNotFound
 	}
 
 	setOrAppendScalar(target, "icon", update.Icon)
@@ -161,15 +171,14 @@ func SaveGuide(path string, update GuideEntry) error {
 
 	out, err := yaml.Marshal(&doc)
 	if err != nil {
-		return fmt.Errorf("marshal yaml: %w", err)
+		return nil, fmt.Errorf("marshal yaml: %w", err)
 	}
 	// yaml.v3 always emits non-ASCII as \U / \u escapes regardless of the
 	// requested scalar style, which makes icons like "📤" round-trip as
 	// `"\U0001F4E4"` — valid but ugly to read in the file. Convert them
 	// back to UTF-8 in the wire form. Literal-backslash escapes
 	// (`\\U…`) are skipped so we don't corrupt content authored that way.
-	out = unescapeUnicode(out)
-	return writeFileAtomic(path, out, 0o644)
+	return unescapeUnicode(out), nil
 }
 
 // unescapeUnicode rewrites \uXXXX and \UXXXXXXXX escape sequences in b back

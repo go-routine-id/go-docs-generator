@@ -89,3 +89,88 @@ func TestStore_DeleteUnknownTokenIsNoOp(t *testing.T) {
 		t.Errorf("deleting unknown token should be no-op, got: %v", err)
 	}
 }
+
+func TestStore_DraftRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+	const file, id = "/spec/guides/x.yaml", "x"
+
+	if err := s.UpsertDraft(file, id, `{"icon":"⭐","title":"Star","description":"Shiny"}`); err != nil {
+		t.Fatalf("UpsertDraft: %v", err)
+	}
+	got, err := s.GetDraft(file, id)
+	if err != nil {
+		t.Fatalf("GetDraft: %v", err)
+	}
+	if got.FilePath != file || got.GuideID != id {
+		t.Errorf("keys round-trip wrong: %+v", got)
+	}
+	if got.Payload != `{"icon":"⭐","title":"Star","description":"Shiny"}` {
+		t.Errorf("payload round-trip wrong: %q", got.Payload)
+	}
+	if got.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be populated")
+	}
+}
+
+// TestStore_UpsertDraftOverwrites guards the "one draft per guide" invariant —
+// saving twice for the same key must replace, not duplicate.
+func TestStore_UpsertDraftOverwrites(t *testing.T) {
+	s := openTestStore(t)
+	const file, id = "/spec/guides/x.yaml", "x"
+
+	if err := s.UpsertDraft(file, id, `{"title":"v1"}`); err != nil {
+		t.Fatalf("upsert v1: %v", err)
+	}
+	if err := s.UpsertDraft(file, id, `{"title":"v2"}`); err != nil {
+		t.Fatalf("upsert v2: %v", err)
+	}
+	all, err := s.ListDrafts()
+	if err != nil {
+		t.Fatalf("ListDrafts: %v", err)
+	}
+	if len(all) != 1 {
+		t.Errorf("want 1 draft after upsert-twice, got %d", len(all))
+	}
+	if all[0].Payload != `{"title":"v2"}` {
+		t.Errorf("payload after upsert v2 = %q", all[0].Payload)
+	}
+}
+
+func TestStore_GetDraftMissingReturnsErrDraftNotFound(t *testing.T) {
+	s := openTestStore(t)
+	_, err := s.GetDraft("/nope.yaml", "nope")
+	if err != ErrDraftNotFound {
+		t.Errorf("err = %v, want ErrDraftNotFound", err)
+	}
+}
+
+func TestStore_DeleteDraft(t *testing.T) {
+	s := openTestStore(t)
+	const file, id = "/spec/guides/x.yaml", "x"
+	_ = s.UpsertDraft(file, id, `{"title":"x"}`)
+	if err := s.DeleteDraft(file, id); err != nil {
+		t.Fatalf("DeleteDraft: %v", err)
+	}
+	if _, err := s.GetDraft(file, id); err != ErrDraftNotFound {
+		t.Errorf("after delete: err = %v, want ErrDraftNotFound", err)
+	}
+	// Deleting missing draft must be a no-op (so publish handlers can call
+	// DeleteDraft after writing without first checking existence).
+	if err := s.DeleteDraft(file, id); err != nil {
+		t.Errorf("delete missing draft should be no-op, got: %v", err)
+	}
+}
+
+func TestStore_ListDraftsAcrossKeys(t *testing.T) {
+	s := openTestStore(t)
+	_ = s.UpsertDraft("/spec/a.yaml", "alpha", `{}`)
+	_ = s.UpsertDraft("/spec/b.yaml", "beta", `{}`)
+	_ = s.UpsertDraft("/spec/b.yaml", "gamma", `{}`)
+	got, err := s.ListDrafts()
+	if err != nil {
+		t.Fatalf("ListDrafts: %v", err)
+	}
+	if len(got) != 3 {
+		t.Errorf("want 3 drafts, got %d (%+v)", len(got), got)
+	}
+}

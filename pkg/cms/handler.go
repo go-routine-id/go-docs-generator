@@ -1,14 +1,17 @@
 package cms
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -54,7 +57,14 @@ func (s *Server) RegisterRoutes(r *gin.Engine) {
 	authed.GET("/", s.handleRoot)
 	authed.GET("/guides", s.handleGuidesList)
 	authed.GET("/guides/edit", s.handleGuideEditForm)
-	authed.POST("/guides/edit", s.handleGuideEditSubmit)
+	// Draft + preview flow: edits hit /draft (just persist) or /preview
+	// (persist + show diff); /publish applies the saved draft to disk.
+	// Publishing without a draft is disallowed so the editor always sees
+	// the diff before writing the file.
+	authed.POST("/guides/draft", s.handleGuideDraftSave)
+	authed.POST("/guides/draft/discard", s.handleGuideDraftDiscard)
+	authed.POST("/guides/preview", s.handleGuidePreview)
+	authed.POST("/guides/publish", s.handleGuidePublish)
 }
 
 // render executes one of the embedded templates and writes the result.
@@ -105,22 +115,37 @@ func (s *Server) handleGuidesList(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "list guides: "+err.Error())
 		return
 	}
+	draftKeys, err := s.draftKeySet()
+	if err != nil {
+		slog.Warn("list drafts (badges will be wrong)", "err", err)
+	}
 	// File paths displayed to editors are relative to the spec dir — full
 	// paths are noisy and leak the host layout. They're still passed verbatim
 	// in the edit URL (absolute) so the publish path stays unambiguous.
-	for i := range guides {
-		if rel, err := filepath.Rel(s.specDir, guides[i].FilePath); err == nil {
-			guides[i].FilePath = rel
+	type listRow struct {
+		GuideEntry
+		HasDraft bool
+	}
+	rows := make([]listRow, 0, len(guides))
+	for _, g := range guides {
+		row := listRow{GuideEntry: g, HasDraft: draftKeys[draftKey(g.FilePath, g.ID)]}
+		if rel, err := filepath.Rel(s.specDir, g.FilePath); err == nil {
+			row.FilePath = rel
 		}
+		rows = append(rows, row)
 	}
 	s.render(c, "guides_list", gin.H{
 		"User":    sessionUser(c),
 		"SpecDir": s.specDir,
-		"Guides":  guides,
+		"Guides":  rows,
 		"Flash":   c.Query("flash"),
 	})
 }
 
+// handleGuideEditForm shows the edit form. When a saved draft exists for the
+// (file, guide) pair it pre-fills from the draft and surfaces a banner so the
+// editor knows what they're editing — otherwise it falls back to the
+// published YAML.
 func (s *Server) handleGuideEditForm(c *gin.Context) {
 	file, id := c.Query("file"), c.Query("id")
 	abs, err := s.resolveSpecPath(file)
@@ -138,24 +163,174 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "load guide: "+err.Error())
 		return
 	}
-	// Display path is relative; submit path keeps the original (relative) query
-	// — we re-resolve on POST.
+	var draftBanner string
+	if d, err := s.store.GetDraft(abs, id); err == nil {
+		if drafted, derr := decodeGuidePayload(d.Payload); derr == nil {
+			// Preserve the (relative) display path; overwrite only the
+			// editable fields with the draft values.
+			guide.Icon = drafted.Icon
+			guide.Title = drafted.Title
+			guide.Description = drafted.Description
+			draftBanner = "Editing an unsaved draft from " + humanAgo(d.UpdatedAt) + "."
+		}
+	}
 	guide.FilePath = file
 	s.render(c, "guide_edit", gin.H{
-		"User":  sessionUser(c),
-		"Guide": guide,
-		"Error": c.Query("error"),
+		"User":        sessionUser(c),
+		"Guide":       guide,
+		"DraftBanner": draftBanner,
+		"Flash":       c.Query("flash"),
+		"Error":       c.Query("error"),
 	})
 }
 
-func (s *Server) handleGuideEditSubmit(c *gin.Context) {
+// handleGuideDraftSave persists the form values as a draft without touching
+// the YAML file. The editor stays on the edit form so they can keep iterating.
+func (s *Server) handleGuideDraftSave(c *gin.Context) {
+	file, id, update, abs, ok := s.collectEditForm(c)
+	if !ok {
+		return
+	}
+	if err := s.persistDraft(abs, id, update); err != nil {
+		slog.Error("save draft", "err", err)
+		s.redirectWithQuery(c, "/guides/edit", url.Values{
+			"file":  {file},
+			"id":    {id},
+			"error": {"Save draft failed: " + err.Error()},
+		})
+		return
+	}
+	s.redirectWithQuery(c, "/guides/edit", url.Values{
+		"file":  {file},
+		"id":    {id},
+		"flash": {"Draft saved."},
+	})
+}
+
+// handleGuideDraftDiscard removes the draft for a guide. The next edit form
+// load will fall back to the published YAML.
+func (s *Server) handleGuideDraftDiscard(c *gin.Context) {
 	file, id := c.Query("file"), c.Query("id")
 	abs, err := s.resolveSpecPath(file)
 	if err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	update := GuideEntry{
+	if err := s.store.DeleteDraft(abs, id); err != nil {
+		slog.Warn("delete draft", "err", err)
+	}
+	s.redirectWithQuery(c, "/guides/edit", url.Values{
+		"file":  {file},
+		"id":    {id},
+		"flash": {"Draft discarded."},
+	})
+}
+
+// handleGuidePreview persists the form as a draft and renders the diff page:
+// "publish this draft, or go back and keep editing". Persisting the form
+// means the Publish button on the preview page is just "apply latest draft"
+// — no hidden form fields to keep in sync.
+func (s *Server) handleGuidePreview(c *gin.Context) {
+	file, id, update, abs, ok := s.collectEditForm(c)
+	if !ok {
+		return
+	}
+	if err := s.persistDraft(abs, id, update); err != nil {
+		slog.Error("preview: persist draft", "err", err)
+		s.redirectWithQuery(c, "/guides/edit", url.Values{
+			"file": {file}, "id": {id},
+			"error": {"Save draft failed: " + err.Error()},
+		})
+		return
+	}
+	current, err := s.fileBytes(abs)
+	if err != nil {
+		s.previewError(c, file, id, "Read current YAML failed: "+err.Error())
+		return
+	}
+	proposed, err := ProposedGuideYAML(abs, update)
+	if err != nil {
+		s.previewError(c, file, id, "Render proposed YAML failed: "+err.Error())
+		return
+	}
+	rel := file
+	lines, stats, err := DiffYAML(current, proposed, rel+" (current)", rel+" (draft)")
+	if err != nil {
+		s.previewError(c, file, id, "Diff failed: "+err.Error())
+		return
+	}
+	s.render(c, "guide_preview", gin.H{
+		"User":      sessionUser(c),
+		"File":      file,
+		"ID":        id,
+		"Title":     update.Title,
+		"DiffLines": lines,
+		"Stats":     stats,
+		"NoChanges": len(lines) == 0,
+	})
+}
+
+// handleGuidePublish applies the saved draft to disk and clears it. Publishing
+// requires a draft (the edit form's Publish path goes through preview first),
+// so a missing draft is treated as "already published, just redirect home".
+func (s *Server) handleGuidePublish(c *gin.Context) {
+	file, id := c.Query("file"), c.Query("id")
+	abs, err := s.resolveSpecPath(file)
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+	d, err := s.store.GetDraft(abs, id)
+	if errors.Is(err, ErrDraftNotFound) {
+		s.redirectWithQuery(c, "/guides", url.Values{
+			"flash": {"Nothing to publish — no draft for this guide."},
+		})
+		return
+	}
+	if err != nil {
+		slog.Error("publish: load draft", "err", err)
+		c.String(http.StatusInternalServerError, "load draft: "+err.Error())
+		return
+	}
+	update, err := decodeGuidePayload(d.Payload)
+	if err != nil {
+		slog.Error("publish: decode draft", "err", err)
+		c.String(http.StatusInternalServerError, "decode draft: "+err.Error())
+		return
+	}
+	update.FilePath = abs
+	update.ID = id
+	if err := SaveGuide(abs, update); err != nil {
+		slog.Error("publish: save guide", "err", err)
+		s.redirectWithQuery(c, "/guides/edit", url.Values{
+			"file": {file}, "id": {id},
+			"error": {"Publish failed: " + err.Error()},
+		})
+		return
+	}
+	if err := s.store.DeleteDraft(abs, id); err != nil {
+		slog.Warn("publish: delete draft (state may be stale)", "err", err)
+	}
+	slog.Info("guide published", "file", abs, "id", id, "user", sessionUser(c))
+	s.redirectWithQuery(c, "/guides", url.Values{
+		"flash": {fmt.Sprintf("Published %s (%s).", id, file)},
+	})
+}
+
+// collectEditForm pulls the editable fields out of a POST and resolves the
+// path. Centralised so /draft, /preview, and /publish-flow all agree on what
+// the form contains (and so all share the same Title-required guard). Returns
+// the relative file (for redirects) and absolute file (for IO + DB).
+func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideEntry, abs string, ok bool) {
+	file = c.Query("file")
+	id = c.Query("id")
+	var err error
+	abs, err = s.resolveSpecPath(file)
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+		return file, id, update, "", false
+	}
+	update = GuideEntry{
 		FilePath:    abs,
 		ID:          id,
 		Icon:        strings.TrimSpace(c.PostForm("icon")),
@@ -168,21 +343,103 @@ func (s *Server) handleGuideEditSubmit(c *gin.Context) {
 			"id":    {id},
 			"error": {"Title cannot be empty."},
 		})
-		return
+		return file, id, update, "", false
 	}
-	if err := SaveGuide(abs, update); err != nil {
-		slog.Error("save guide", "file", abs, "id", id, "err", err)
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file":  {file},
-			"id":    {id},
-			"error": {"Save failed: " + err.Error()},
-		})
-		return
+	return file, id, update, abs, true
+}
+
+// persistDraft JSON-encodes update and upserts it into the drafts table.
+func (s *Server) persistDraft(abs, id string, update GuideEntry) error {
+	payload, err := encodeGuidePayload(update)
+	if err != nil {
+		return err
 	}
-	slog.Info("guide published", "file", abs, "id", id, "user", sessionUser(c))
-	s.redirectWithQuery(c, "/guides", url.Values{
-		"flash": {fmt.Sprintf("Published %s (%s).", id, file)},
+	return s.store.UpsertDraft(abs, id, payload)
+}
+
+// previewError sends the editor back to the edit form with the message in the
+// error banner. Used when something goes wrong AFTER the draft was already saved.
+func (s *Server) previewError(c *gin.Context, file, id, msg string) {
+	s.redirectWithQuery(c, "/guides/edit", url.Values{
+		"file":  {file},
+		"id":    {id},
+		"error": {msg},
 	})
+}
+
+// draftKeySet returns the set of (file, id) keys that currently have drafts,
+// for the list-view badge.
+func (s *Server) draftKeySet() (map[string]bool, error) {
+	drafts, err := s.store.ListDrafts()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(drafts))
+	for _, d := range drafts {
+		out[draftKey(d.FilePath, d.GuideID)] = true
+	}
+	return out, nil
+}
+
+// draftKey joins a (file, id) pair into a single string for the membership map.
+// NUL is used as separator since paths can't contain it.
+func draftKey(file, id string) string { return file + "\x00" + id }
+
+// fileBytes is a thin wrapper around os.ReadFile so the diff path has a
+// single chokepoint in case we add caching or layout-aware reads later.
+func (s *Server) fileBytes(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
+
+// encodeGuidePayload serialises only the editable subset of a GuideEntry —
+// FilePath / ID live in the table key columns so duplicating them in the JSON
+// payload would just be data-drift waiting to happen.
+func encodeGuidePayload(g GuideEntry) (string, error) {
+	body := struct {
+		Icon        string `json:"icon"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}{g.Icon, g.Title, g.Description}
+	b, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// decodeGuidePayload is the reverse — populates only the editable fields, the
+// rest of the GuideEntry (FilePath, ID) is supplied by the caller.
+func decodeGuidePayload(s string) (GuideEntry, error) {
+	var body struct {
+		Icon        string `json:"icon"`
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal([]byte(s), &body); err != nil {
+		return GuideEntry{}, err
+	}
+	return GuideEntry{Icon: body.Icon, Title: body.Title, Description: body.Description}, nil
+}
+
+// humanAgo renders a duration like "a few seconds ago" / "5 minutes ago" /
+// "2 hours ago" — enough granularity to tell editors how stale their draft is
+// without pulling in a time-formatting library.
+func humanAgo(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < 45*time.Second:
+		return "a few seconds ago"
+	case d < 90*time.Second:
+		return "a minute ago"
+	case d < 45*time.Minute:
+		return fmt.Sprintf("%d minutes ago", int(d.Minutes()))
+	case d < 90*time.Minute:
+		return "an hour ago"
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d hours ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%d days ago", int(d.Hours()/24))
+	}
 }
 
 // ---- helpers ----

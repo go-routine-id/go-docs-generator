@@ -11,10 +11,10 @@
 <main class="page">
   <h1>Guides</h1>
   {{if .Flash}}<div class="banner banner-ok">{{.Flash}}</div>{{end}}
-  <p class="muted">Authoring surface — edit a guide and click Publish to overwrite its YAML file in <code>{{.SpecDir}}</code>.</p>
+  <p class="muted">Authoring surface — edit a guide, save drafts, preview the diff, then publish. Files live under <code>{{.SpecDir}}</code>.</p>
   {{if .Guides}}
   <table class="rows">
-    <thead><tr><th>File</th><th>ID</th><th>Icon</th><th>Title</th><th></th></tr></thead>
+    <thead><tr><th>File</th><th>ID</th><th>Icon</th><th>Title</th><th>Status</th><th></th></tr></thead>
     <tbody>
     {{range .Guides}}
       <tr>
@@ -22,6 +22,7 @@
         <td><code>{{.ID}}</code></td>
         <td>{{.Icon}}</td>
         <td>{{.Title}}</td>
+        <td>{{if .HasDraft}}<span class="badge badge-draft">📝 draft</span>{{end}}</td>
         <td><a class="btn btn-link" href="/guides/edit?file={{.FilePath}}&id={{.ID}}">Edit</a></td>
       </tr>
     {{end}}
