@@ -1,0 +1,48 @@
+{{define "guide_edit"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Edit guide — Docs CMS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>{{template "styles"}}</style>
+</head>
+<body>
+{{template "topbar" .}}
+<main class="page">
+  <p><a href="/guides">← Back to guides</a></p>
+  <h1>Edit guide</h1>
+  <p class="muted">
+    Editable fields: <code>icon</code>, <code>title</code>, <code>description</code>.
+    Everything else in the guide (<code>flow</code>, comments, key order) is preserved on save.
+  </p>
+  {{if .Error}}<div class="banner banner-error">{{.Error}}</div>{{end}}
+  <form method="POST" action="/guides/edit?file={{.Guide.FilePath}}&id={{.Guide.ID}}" class="card stack">
+    <label>
+      <span>File</span>
+      <input type="text" value="{{.Guide.FilePath}}" disabled>
+    </label>
+    <label>
+      <span>ID</span>
+      <input type="text" value="{{.Guide.ID}}" disabled>
+    </label>
+    <label>
+      <span>Icon</span>
+      <input type="text" name="icon" value="{{.Guide.Icon}}" maxlength="8">
+    </label>
+    <label>
+      <span>Title</span>
+      <input type="text" name="title" value="{{.Guide.Title}}" required>
+    </label>
+    <label>
+      <span>Description</span>
+      <textarea name="description" rows="6">{{.Guide.Description}}</textarea>
+    </label>
+    <div class="row">
+      <button type="submit" class="btn-primary">Publish</button>
+      <a class="btn btn-link" href="/guides">Cancel</a>
+    </div>
+  </form>
+</main>
+</body>
+</html>
+{{end}}

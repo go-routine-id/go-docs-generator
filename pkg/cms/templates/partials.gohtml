@@ -1,0 +1,115 @@
+{{define "topbar"}}
+<header class="topbar">
+  <div class="brand">📝 Docs CMS</div>
+  <nav>
+    <a href="/guides">Guides</a>
+  </nav>
+  <form method="POST" action="/logout" class="inline">
+    <span class="muted">{{.User}}</span>
+    <button type="submit" class="btn-link">Sign out</button>
+  </form>
+</header>
+{{end}}
+
+{{define "styles"}}
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --text: #1f2328;
+  --muted: #6e7681;
+  --border: #d0d7de;
+  --primary: #0969da;
+  --primary-dark: #0550ae;
+  --ok-bg: #dafbe1;
+  --ok-fg: #1a7f37;
+  --err-bg: #ffebe9;
+  --err-fg: #cf222e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+a { color: var(--primary); }
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .brand { font-weight: 600; }
+.topbar nav { flex: 1; display: flex; gap: 1rem; }
+.topbar nav a { text-decoration: none; }
+.topbar form.inline { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.page { max-width: 960px; margin: 1.5rem auto; padding: 0 1.5rem; }
+.auth-shell { max-width: 360px; margin: 8vh auto; padding: 0 1rem; text-align: center; }
+.auth-shell h1 { margin-bottom: 1.5rem; }
+h1 { margin: 0 0 1rem; font-size: 1.5rem; }
+.muted { color: var(--muted); font-size: 0.875rem; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+.stack > * + * { margin-top: 0.75rem; }
+label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; }
+label > span { font-weight: 500; }
+input[type=text], input[type=password], textarea {
+  font: inherit;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  width: 100%;
+}
+textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+input:disabled { background: var(--bg); color: var(--muted); }
+button, .btn {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button:hover, .btn:hover { background: var(--bg); }
+.btn-primary, button[type=submit] {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.btn-primary:hover, button[type=submit]:hover {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+.btn-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--primary);
+  cursor: pointer;
+}
+.btn-link:hover { background: transparent; text-decoration: underline; }
+.row { display: flex; gap: 0.75rem; align-items: center; }
+.banner { padding: 0.625rem 0.875rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.875rem; }
+.banner-ok  { background: var(--ok-bg);  color: var(--ok-fg); }
+.banner-error { background: var(--err-bg); color: var(--err-fg); }
+.rows { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.rows th, .rows td { padding: 0.625rem 0.875rem; text-align: left; border-bottom: 1px solid var(--border); }
+.rows tr:last-child td { border-bottom: none; }
+.rows th { background: var(--bg); font-weight: 500; font-size: 0.8125rem; color: var(--muted); }
+{{end}}
