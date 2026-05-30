@@ -1,6 +1,7 @@
 package cms
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
 	"net/http"
@@ -36,9 +37,14 @@ func NewAuthenticator(store *Store, password string) (*Authenticator, error) {
 }
 
 // CheckPassword returns true iff submitted matches the configured password.
-// Constant-time compare avoids leaking length/prefix via timing.
+// Both sides are SHA-256 hashed first so the constant-time comparison always
+// runs over fixed-length 32-byte digests — submitting a wrong-length password
+// no longer short-circuits inside subtle.ConstantTimeCompare's length check,
+// which would otherwise leak the configured password length via timing.
 func (a *Authenticator) CheckPassword(submitted string) bool {
-	return subtle.ConstantTimeCompare([]byte(submitted), []byte(a.password)) == 1
+	s := sha256.Sum256([]byte(submitted))
+	c := sha256.Sum256([]byte(a.password))
+	return subtle.ConstantTimeCompare(s[:], c[:]) == 1
 }
 
 // Login mints a fresh session, writes the cookie, and returns the session.

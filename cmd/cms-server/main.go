@@ -74,7 +74,14 @@ func main() {
 	}
 	srv.RegisterRoutes(r)
 
-	go gcLoop(store)
+	// gcLoop runs against store, which is closed via defer above. Cancel its
+	// context BEFORE Shutdown returns so the ticker goroutine exits before
+	// the deferred close runs — otherwise the next tick would Exec on a
+	// closed DB and log a noisy "sql: database is closed" warning at every
+	// shutdown.
+	gcCtx, gcCancel := context.WithCancel(context.Background())
+	gcDone := make(chan struct{})
+	go gcLoop(gcCtx, store, gcDone)
 
 	httpSrv := &http.Server{
 		Addr:              *addr,
@@ -104,17 +111,25 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdownCtx)
+	gcCancel()
+	<-gcDone
 }
 
 // gcLoop runs the session-table garbage collector on a slow tick so expired
-// rows don't pile up. The interval is short relative to SessionTTL — even an
-// admin who never logs out will see their stale rows reaped within an hour.
-func gcLoop(store *cms.Store) {
+// rows don't pile up. Exits when ctx is cancelled; closes done before
+// returning so main can synchronise its shutdown sequence with the goroutine.
+func gcLoop(ctx context.Context, store *cms.Store, done chan<- struct{}) {
+	defer close(done)
 	t := time.NewTicker(1 * time.Hour)
 	defer t.Stop()
-	for range t.C {
-		if err := store.GarbageCollect(); err != nil {
-			slog.Warn("session gc", "err", err)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := store.GarbageCollect(); err != nil {
+				slog.Warn("session gc", "err", err)
+			}
 		}
 	}
 }

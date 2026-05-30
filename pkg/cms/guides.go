@@ -1,6 +1,7 @@
 package cms
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -70,6 +71,9 @@ func guidesInFile(path string) ([]GuideEntry, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+	if isMultiDoc(raw) {
+		return nil, fmt.Errorf("%s: multi-document YAML files are not supported by the CMS (split into one document per file)", path)
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -141,11 +145,24 @@ func SaveGuide(path string, update GuideEntry) error {
 
 // ProposedGuideYAML returns the bytes that SaveGuide would write — without
 // actually writing them. The preview/diff path uses this to show the editor
-// exactly what publishing will do before they commit.
+// exactly what publishing will do before they commit. Reads the file once;
+// for paths that already have the current bytes in hand, use
+// ProposedGuideYAMLFromBytes to skip the extra read.
 func ProposedGuideYAML(path string, update GuideEntry) ([]byte, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
+	}
+	return ProposedGuideYAMLFromBytes(path, raw, update)
+}
+
+// ProposedGuideYAMLFromBytes mutates the parsed view of `raw` to reflect the
+// editable fields in update and returns the marshaled bytes. path is used
+// only for error context. Pulled out so callers (the preview handler) can
+// produce both the unchanged baseline and the proposed result from one read.
+func ProposedGuideYAMLFromBytes(path string, raw []byte, update GuideEntry) ([]byte, error) {
+	if isMultiDoc(raw) {
+		return nil, fmt.Errorf("%s: multi-document YAML files are not supported by the CMS (split into one document per file)", path)
 	}
 	var doc yaml.Node
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
@@ -174,40 +191,135 @@ func ProposedGuideYAML(path string, update GuideEntry) ([]byte, error) {
 		return nil, fmt.Errorf("marshal yaml: %w", err)
 	}
 	// yaml.v3 always emits non-ASCII as \U / \u escapes regardless of the
-	// requested scalar style, which makes icons like "📤" round-trip as
-	// `"\U0001F4E4"` — valid but ugly to read in the file. Convert them
-	// back to UTF-8 in the wire form. Literal-backslash escapes
-	// (`\\U…`) are skipped so we don't corrupt content authored that way.
+	// requested scalar style; convert ONLY the non-ASCII (>= 0x80) ones
+	// back to UTF-8 so icons like "📤" stay readable. ASCII escapes
+	// ( - ) are left intact: those are either (a) control
+	// chars that MUST stay escaped to keep the YAML valid, or (b) a
+	// literal `A` the editor typed in their description, which we
+	// would silently rewrite into `A` if we touched ASCII codepoints.
 	return unescapeUnicode(out), nil
 }
 
-// unescapeUnicode rewrites \uXXXX and \UXXXXXXXX escape sequences in b back
-// into the UTF-8 bytes of the rune they represent — but only when the
-// preceding byte isn't itself a backslash (which would mean an escaped
-// backslash, not a Unicode escape).
+// isMultiDoc returns true when raw contains more than one YAML document. yaml.v3
+// silently ignores everything past the first DocumentNode, so DiscoverGuides
+// and ProposedGuideYAML would be invisible to (and would corrupt edits of)
+// guides living past a `---` separator. Rather than partially support it, we
+// reject the file with a clear error and ask the author to split it.
+func isMultiDoc(raw []byte) bool {
+	d := yaml.NewDecoder(bytes.NewReader(raw))
+	count := 0
+	for {
+		var n yaml.Node
+		if err := d.Decode(&n); err != nil {
+			break
+		}
+		count++
+		if count > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// unescapeUnicode rewrites \uXXXX / \UXXXXXXXX escape sequences inside
+// yaml.v3-emitted double-quoted scalars back into UTF-8, so that icons like
+// "📤" stay readable rather than rendering as "\U0001F4E4". Scoping the
+// rewrite to "..." regions is critical: yaml.v3 emits user content in plain
+// style verbatim (the YAML spec only interprets \u escapes in double-quoted
+// scalars), so a literal "A" typed by the editor must survive
+// untouched. We also restrict to codepoints >= 0x80 — inside a double-quoted
+// string, an ASCII \uXXXX is much more likely a literal the editor wrote
+// than a yaml.v3 emit, and control chars MUST stay escaped for the YAML to
+// remain valid.
+//
+// The line-based scan handles the typical yaml.v3 output (one scalar per
+// line) and gracefully leaves anything it can't pair (unterminated quotes)
+// alone.
 func unescapeUnicode(b []byte) []byte {
-	out := make([]byte, 0, len(b))
-	for i := 0; i < len(b); i++ {
-		c := b[i]
-		if c == '\\' && i+1 < len(b) && (i == 0 || b[i-1] != '\\') {
+	var out bytes.Buffer
+	out.Grow(len(b))
+	lines := bytes.Split(b, []byte("\n"))
+	for i, line := range lines {
+		out.Write(unescapeDoubleQuotedRegions(line))
+		if i < len(lines)-1 {
+			out.WriteByte('\n')
+		}
+	}
+	return out.Bytes()
+}
+
+// unescapeDoubleQuotedRegions walks one YAML line, finds each well-formed
+// "..." segment (handling \" and \\ escape pairs inside), and unescapes
+// only the non-ASCII Unicode escapes within those segments. Bytes outside
+// any quoted region are passed through untouched.
+func unescapeDoubleQuotedRegions(line []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(line))
+	i := 0
+	for i < len(line) {
+		c := line[i]
+		if c == '"' {
+			end := findQuoteClose(line, i+1)
+			if end >= 0 {
+				out.WriteByte('"')
+				out.Write(unescapeNonASCIIInDQ(line[i+1 : end]))
+				out.WriteByte('"')
+				i = end + 1
+				continue
+			}
+			// Unterminated — give up scanning this line and copy verbatim
+			// so we never corrupt content we can't structure.
+			out.Write(line[i:])
+			return out.Bytes()
+		}
+		out.WriteByte(c)
+		i++
+	}
+	return out.Bytes()
+}
+
+// findQuoteClose returns the index of the matching unescaped close-quote
+// starting from start, or -1 if the line ends without one.
+func findQuoteClose(line []byte, start int) int {
+	for j := start; j < len(line); j++ {
+		if line[j] == '\\' && j+1 < len(line) {
+			j++ // skip the escaped char
+			continue
+		}
+		if line[j] == '"' {
+			return j
+		}
+	}
+	return -1
+}
+
+// unescapeNonASCIIInDQ decodes \uXXXX / \UXXXXXXXX → UTF-8 inside the
+// already-validated double-quoted span, only for codepoints >= 0x80.
+func unescapeNonASCIIInDQ(span []byte) []byte {
+	var out bytes.Buffer
+	out.Grow(len(span))
+	for i := 0; i < len(span); i++ {
+		c := span[i]
+		if c == '\\' && i+1 < len(span) {
+			nx := span[i+1]
 			width := 0
-			switch b[i+1] {
+			switch nx {
 			case 'u':
 				width = 4
 			case 'U':
 				width = 8
 			}
-			if width > 0 && i+2+width <= len(b) {
-				if r, ok := parseHexRune(b[i+2 : i+2+width]); ok {
-					out = append(out, []byte(string(r))...)
+			if width > 0 && i+2+width <= len(span) {
+				if r, ok := parseHexRune(span[i+2 : i+2+width]); ok && r >= 0x80 {
+					out.WriteString(string(r))
 					i += 1 + width
 					continue
 				}
 			}
 		}
-		out = append(out, c)
+		out.WriteByte(c)
 	}
-	return out
+	return out.Bytes()
 }
 
 // parseHexRune turns a hex byte slice into a rune. Returns false on any
@@ -307,8 +419,12 @@ func scalarStyleFor(v string) yaml.Style {
 	return 0
 }
 
-// writeFileAtomic writes data to path via a same-directory tempfile + rename
-// so a crash mid-write can't leave a truncated YAML on disk.
+// writeFileAtomic writes data to path via a same-directory tempfile + rename.
+// fsyncs both the file (so its data blocks reach disk before rename) and the
+// containing directory (so the rename itself is durable), which closes the
+// crash window where rename completes but the file ends up zero-length on
+// next boot — the YAML this writes IS the docs-generator source-of-truth,
+// so a torn write would surface as broken docs after a power loss.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".cms-*.yaml")
@@ -327,6 +443,11 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		cleanup()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		cleanup()
 		return err
@@ -334,6 +455,13 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.Rename(tmpPath, path); err != nil {
 		cleanup()
 		return err
+	}
+	// Sync the directory entry so the rename is durable across crash.
+	// Non-fatal on platforms where opening the dir fails (e.g. some Windows
+	// configs) — best effort.
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
 	}
 	return nil
 }

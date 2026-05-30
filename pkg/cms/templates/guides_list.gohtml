@@ -23,7 +23,7 @@
         <td>{{.Icon}}</td>
         <td>{{.Title}}</td>
         <td>{{if .HasDraft}}<span class="badge badge-draft">📝 draft</span>{{end}}</td>
-        <td><a class="btn btn-link" href="/guides/edit?file={{.FilePath}}&id={{.ID}}">Edit</a></td>
+        <td><a class="btn btn-link" href="/guides/edit?file={{.FilePath | urlquery}}&amp;id={{.ID | urlquery}}">Edit</a></td>
       </tr>
     {{end}}
     </tbody>

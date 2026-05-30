@@ -22,16 +22,16 @@ type Store struct {
 
 // OpenStore opens (creating if absent) the SQLite database at path and applies
 // the embedded schema. Pass ":memory:" for tests.
+//
+// Pragmas are appended to the DSN so modernc.org/sqlite runs them on EVERY
+// connection it opens — running PRAGMA via db.Exec only configures the one
+// pooled connection that happens to serve that call, which is a known
+// foot-gun for foreign_keys and busy_timeout (both per-connection settings).
 func OpenStore(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+	dsn := buildDSN(path)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
-	}
-	// SQLite default is a serialized single connection. WAL gives concurrent
-	// reads while one writer; foreign_keys must be enabled per-connection.
-	if _, err := db.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("set pragmas: %w", err)
 	}
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
@@ -39,6 +39,22 @@ func OpenStore(path string) (*Store, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// buildDSN appends the per-connection PRAGMAs we depend on. WAL is a database-
+// wide setting and persists in the file, so it only needs to run once — but
+// inviting it on every connection is harmless and keeps the intent visible.
+// busy_timeout makes SQLite wait up to 5s for the writer lock instead of
+// returning SQLITE_BUSY immediately, which is the right tradeoff for an
+// interactive admin tool where two near-simultaneous saves shouldn't 500.
+// foreign_keys=ON ensures any future schema with FK references is enforced
+// — today's schema has none but the comment in migrate() anticipates growth.
+func buildDSN(path string) string {
+	if path == ":memory:" {
+		// Pure in-memory; pragmas still apply but the path stays bare.
+		return ":memory:?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
+	}
+	return "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
 }
 
 // Close releases the underlying database handle.

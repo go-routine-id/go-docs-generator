@@ -221,6 +221,137 @@ func TestProposedGuideYAML_DoesNotWriteFile(t *testing.T) {
 	}
 }
 
+// TestSaveGuide_PreservesLiteralBackslashU is the regression guard for bug #3:
+// unescapeUnicode used to rewrite ANY backslash-u-XXXX byte pattern in the
+// marshaled output, including ones the editor typed literally. An editor's
+// description containing the six-char literal sequence backslash+u+0+0+4+1
+// must survive round-trip unchanged.
+func TestSaveGuide_PreservesLiteralBackslashU(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    description: original
+`)
+	bs := "\\"
+	literal := "Use " + bs + "u0041 to escape A and " + bs + "U0001F680 for the rocket."
+	if err := SaveGuide(file, GuideEntry{ID: "x", Title: "T", Description: literal}); err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	if !strings.Contains(string(out), bs+"u0041") {
+		t.Errorf("literal backslash-u0041 was destroyed by unescapeUnicode — output:\n%s", out)
+	}
+	if !strings.Contains(string(out), bs+"U0001F680") {
+		t.Errorf("literal backslash-U0001F680 was destroyed by unescapeUnicode — output:\n%s", out)
+	}
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide after save: %v", err)
+	}
+	if got.Description != literal {
+		t.Errorf("round-trip lost content:\n got: %q\nwant: %q", got.Description, literal)
+	}
+}
+
+// TestSaveGuide_PreservesEmojiUnescaped guards the OTHER direction of the same
+// bug: emoji icons MUST be unescaped (otherwise the file is unreadable for
+// humans), even though we now leave ASCII escapes alone.
+func TestSaveGuide_PreservesEmojiUnescaped(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    icon: ⭐
+    title: T
+`)
+	if err := SaveGuide(file, GuideEntry{ID: "x", Icon: "🚀", Title: "T"}); err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	if strings.Contains(string(out), `\U0001F680`) {
+		t.Errorf("emoji icon was left escaped instead of unescaped — output:\n%s", out)
+	}
+	if !strings.Contains(string(out), "🚀") {
+		t.Errorf("emoji icon missing from output:\n%s", out)
+	}
+}
+
+// TestSaveGuide_PreservesControlCharEscapes is the regression guard for bug #4:
+// unescapeUnicode used to decode control-character escapes into raw control
+// bytes that yaml.v3 cannot re-parse from a plain scalar. The escapes must
+// stay as escapes. yaml.v3 emits ESC (0x1B) as the short form "\e", so we
+// verify that survives unchanged and round-trips back to ESC on parse.
+func TestSaveGuide_PreservesControlCharEscapes(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    description: original
+`)
+	bs := "\\"
+	escEmit := bs + "e" // yaml.v3 emits ESC as \e
+	withEsc := "an ESC \x1b in the middle"
+	if err := SaveGuide(file, GuideEntry{ID: "x", Title: "T", Description: withEsc}); err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	if strings.Contains(string(out), "\x1b") {
+		t.Errorf("control char (0x1B) was written as a raw byte:\n%q", out)
+	}
+	if !strings.Contains(string(out), escEmit) {
+		t.Errorf("yaml.v3's \\e escape form should be preserved; got:\n%s", out)
+	}
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide after save: %v", err)
+	}
+	if got.Description != withEsc {
+		t.Errorf("control-char round-trip wrong:\n got: %q\nwant: %q", got.Description, withEsc)
+	}
+}
+
+// TestSaveGuide_RejectsMultiDocYAML is the regression guard for bug #9:
+// yaml.v3 silently ignores everything past Content[0]; SaveGuide used to be
+// able to edit only the first document while the editor thought they were
+// targeting a guide in the second. Refuse the file with a clear error.
+func TestSaveGuide_RejectsMultiDocYAML(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/multi.yaml", `guides:
+  - id: alpha
+    title: Alpha
+---
+guides:
+  - id: beta
+    title: Beta
+`)
+	err := SaveGuide(file, GuideEntry{ID: "alpha", Title: "edited"})
+	if err == nil {
+		t.Fatal("SaveGuide should reject multi-document YAML, got nil err")
+	}
+	if !strings.Contains(err.Error(), "multi-document") {
+		t.Errorf("error should mention multi-document; got: %v", err)
+	}
+}
+
+// TestDiscoverGuides_RejectsMultiDocYAML guards the read side: a multi-doc
+// file must fail discovery so the editor sees the error in the list view
+// instead of silently editing only doc 1.
+func TestDiscoverGuides_RejectsMultiDocYAML(t *testing.T) {
+	dir := t.TempDir()
+	writeYAML(t, dir, "guides/multi.yaml", `guides:
+  - id: alpha
+    title: Alpha
+---
+guides:
+  - id: beta
+    title: Beta
+`)
+	_, err := DiscoverGuides(dir)
+	if err == nil || !strings.Contains(err.Error(), "multi-document") {
+		t.Errorf("DiscoverGuides should reject multi-doc files; got err=%v", err)
+	}
+}
+
 // TestLoadGuide_ReadsFields verifies the pre-fill path the edit form depends on.
 func TestLoadGuide_ReadsFields(t *testing.T) {
 	dir := t.TempDir()

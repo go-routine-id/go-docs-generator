@@ -9,7 +9,7 @@
 <body>
 {{template "topbar" .}}
 <main class="page">
-  <p><a href="/guides/edit?file={{.File}}&id={{.ID}}">← Back to edit</a></p>
+  <p><a href="/guides/edit?file={{.File | urlquery}}&amp;id={{.ID | urlquery}}">← Back to edit</a></p>
   <h1>Preview: <code>{{.ID}}</code></h1>
   <p class="muted">
     Below is the exact diff publish will write to <code>{{.File}}</code>.
@@ -18,7 +18,7 @@
   {{if .NoChanges}}
   <div class="banner banner-info">No differences between the draft and the current YAML. Nothing to publish.</div>
   <div class="row">
-    <a class="btn" href="/guides/edit?file={{.File}}&id={{.ID}}">Back to edit</a>
+    <a class="btn" href="/guides/edit?file={{.File | urlquery}}&amp;id={{.ID | urlquery}}">Back to edit</a>
   </div>
   {{else}}
   <div class="card">
@@ -27,12 +27,11 @@
       <span class="diff-stat diff-stat-add">+{{.Stats.Added}}</span>
       <span class="diff-stat diff-stat-del">−{{.Stats.Removed}}</span>
     </div>
-    <pre class="diff">{{range .DiffLines}}<span class="diff-line diff-{{.Kind}}">{{.Text}}</span>
-{{end}}</pre>
+    <pre class="diff">{{range .DiffLines}}<span class="diff-line diff-{{.Kind}}">{{.Text}}</span>{{end}}</pre>
   </div>
-  <form method="POST" action="/guides/publish?file={{.File}}&id={{.ID}}" class="row" style="margin-top:1rem;">
+  <form method="POST" action="/guides/publish?file={{.File | urlquery}}&amp;id={{.ID | urlquery}}" class="row" style="margin-top:1rem;">
     <button type="submit" class="btn-primary" onclick="return confirm('Publish this change to {{.File}}?');">Publish</button>
-    <a class="btn" href="/guides/edit?file={{.File}}&id={{.ID}}">Back to edit</a>
+    <a class="btn" href="/guides/edit?file={{.File | urlquery}}&amp;id={{.ID | urlquery}}">Back to edit</a>
   </form>
   {{end}}
 </main>

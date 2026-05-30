@@ -26,12 +26,17 @@ type Server struct {
 }
 
 // NewServer wires the dependencies and parses the embedded templates. specDir
-// is resolved to an absolute path so subsequent traversal guards have a stable
-// prefix to check against.
+// is resolved to an absolute path AND symlinks are followed so subsequent
+// traversal guards compare against the real filesystem root — otherwise a
+// symlinked subdirectory inside specDir could let writes escape the sandbox
+// (e.g. spec/escape -> /etc would pass the HasPrefix(abs, specDir+sep) check).
 func NewServer(store *Store, auth *Authenticator, specDir string) (*Server, error) {
 	abs, err := filepath.Abs(specDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve spec dir: %w", err)
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
 	}
 	tmpl, err := template.New("").ParseFS(TemplateFS, "templates/*.gohtml")
 	if err != nil {
@@ -65,6 +70,19 @@ func (s *Server) RegisterRoutes(r *gin.Engine) {
 	authed.POST("/guides/draft/discard", s.handleGuideDraftDiscard)
 	authed.POST("/guides/preview", s.handleGuidePreview)
 	authed.POST("/guides/publish", s.handleGuidePublish)
+	// Backwards-compat shim: the pre-draft MVP exposed POST /guides/edit
+	// as a direct publish. Bookmarks, browser form-resubmits, and the
+	// implicit-submit fallback for the edit form would otherwise 404; 307
+	// preserves method+body so the POST replays cleanly through the
+	// preview flow (which is the safer default — it persists a draft and
+	// shows the diff rather than writing the file).
+	authed.POST("/guides/edit", func(c *gin.Context) {
+		target := "/guides/preview"
+		if q := c.Request.URL.RawQuery; q != "" {
+			target += "?" + q
+		}
+		c.Redirect(http.StatusTemporaryRedirect, target)
+	})
 }
 
 // render executes one of the embedded templates and writes the result.
@@ -163,11 +181,28 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "load guide: "+err.Error())
 		return
 	}
+	// The draft banner is shown for THREE cases so the editor always has a
+	// path to inspect/clear an out-of-band draft:
+	//   1. Healthy draft present → pre-fill form with draft values
+	//   2. Corrupt draft (decode fails) → show error banner + discard button
+	//   3. DB error reading drafts → surface the error in the banner
+	// Previously any non-ErrDraftNotFound error silently fell through, which
+	// left the list-view "📝 draft" badge orphaned with no UI to clear it.
 	var draftBanner string
-	if d, err := s.store.GetDraft(abs, id); err == nil {
-		if drafted, derr := decodeGuidePayload(d.Payload); derr == nil {
-			// Preserve the (relative) display path; overwrite only the
-			// editable fields with the draft values.
+	var hasDraft bool
+	d, err := s.store.GetDraft(abs, id)
+	switch {
+	case errors.Is(err, ErrDraftNotFound):
+		// no draft — happy path
+	case err != nil:
+		hasDraft = true
+		draftBanner = "Could not load draft: " + err.Error() + "."
+	default:
+		hasDraft = true
+		drafted, derr := decodeGuidePayload(d.Payload)
+		if derr != nil {
+			draftBanner = "A draft exists but its payload is corrupt (" + derr.Error() + "). Discard it to start over."
+		} else {
 			guide.Icon = drafted.Icon
 			guide.Title = drafted.Title
 			guide.Description = drafted.Description
@@ -179,6 +214,7 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 		"User":        sessionUser(c),
 		"Guide":       guide,
 		"DraftBanner": draftBanner,
+		"HasDraft":    hasDraft,
 		"Flash":       c.Query("flash"),
 		"Error":       c.Query("error"),
 	})
@@ -193,11 +229,7 @@ func (s *Server) handleGuideDraftSave(c *gin.Context) {
 	}
 	if err := s.persistDraft(abs, id, update); err != nil {
 		slog.Error("save draft", "err", err)
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file":  {file},
-			"id":    {id},
-			"error": {"Save draft failed: " + err.Error()},
-		})
+		s.editError(c, file, id, "Save draft failed: "+err.Error())
 		return
 	}
 	s.redirectWithQuery(c, "/guides/edit", url.Values{
@@ -208,7 +240,10 @@ func (s *Server) handleGuideDraftSave(c *gin.Context) {
 }
 
 // handleGuideDraftDiscard removes the draft for a guide. The next edit form
-// load will fall back to the published YAML.
+// load will fall back to the published YAML. DB errors are surfaced to the
+// editor instead of being silently swallowed with a success flash — the
+// "Draft discarded." message would otherwise lie to the user when the
+// underlying delete failed.
 func (s *Server) handleGuideDraftDiscard(c *gin.Context) {
 	file, id := c.Query("file"), c.Query("id")
 	abs, err := s.resolveSpecPath(file)
@@ -217,7 +252,13 @@ func (s *Server) handleGuideDraftDiscard(c *gin.Context) {
 		return
 	}
 	if err := s.store.DeleteDraft(abs, id); err != nil {
-		slog.Warn("delete draft", "err", err)
+		slog.Error("delete draft", "err", err)
+		s.redirectWithQuery(c, "/guides/edit", url.Values{
+			"file":  {file},
+			"id":    {id},
+			"error": {"Discard failed: " + err.Error()},
+		})
+		return
 	}
 	s.redirectWithQuery(c, "/guides/edit", url.Values{
 		"file":  {file},
@@ -226,37 +267,34 @@ func (s *Server) handleGuideDraftDiscard(c *gin.Context) {
 	})
 }
 
-// handleGuidePreview persists the form as a draft and renders the diff page:
-// "publish this draft, or go back and keep editing". Persisting the form
-// means the Publish button on the preview page is just "apply latest draft"
-// — no hidden form fields to keep in sync.
+// handleGuidePreview reads the current YAML and computes the proposed YAML
+// FIRST, then persists the draft only on success — that way a missing /
+// renamed file at preview time aborts cleanly without stranding the editor
+// with a saved draft they can't reach (the edit form would also 404 on the
+// missing file, leaving the badge with no UI path to discard).
 func (s *Server) handleGuidePreview(c *gin.Context) {
 	file, id, update, abs, ok := s.collectEditForm(c)
 	if !ok {
 		return
 	}
-	if err := s.persistDraft(abs, id, update); err != nil {
-		slog.Error("preview: persist draft", "err", err)
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file": {file}, "id": {id},
-			"error": {"Save draft failed: " + err.Error()},
-		})
-		return
-	}
 	current, err := s.fileBytes(abs)
 	if err != nil {
-		s.previewError(c, file, id, "Read current YAML failed: "+err.Error())
+		s.editError(c, file, id, "Read current YAML failed: "+err.Error())
 		return
 	}
-	proposed, err := ProposedGuideYAML(abs, update)
+	proposed, err := ProposedGuideYAMLFromBytes(abs, current, update)
 	if err != nil {
-		s.previewError(c, file, id, "Render proposed YAML failed: "+err.Error())
+		s.editError(c, file, id, "Render proposed YAML failed: "+err.Error())
 		return
 	}
-	rel := file
-	lines, stats, err := DiffYAML(current, proposed, rel+" (current)", rel+" (draft)")
+	if err := s.persistDraft(abs, id, update); err != nil {
+		slog.Error("preview: persist draft", "err", err)
+		s.editError(c, file, id, "Save draft failed: "+err.Error())
+		return
+	}
+	lines, stats, err := DiffYAML(current, proposed, file+" (current)", file+" (draft)")
 	if err != nil {
-		s.previewError(c, file, id, "Diff failed: "+err.Error())
+		s.editError(c, file, id, "Diff failed: "+err.Error())
 		return
 	}
 	s.render(c, "guide_preview", gin.H{
@@ -295,17 +333,23 @@ func (s *Server) handleGuidePublish(c *gin.Context) {
 	update, err := decodeGuidePayload(d.Payload)
 	if err != nil {
 		slog.Error("publish: decode draft", "err", err)
-		c.String(http.StatusInternalServerError, "decode draft: "+err.Error())
+		s.editError(c, file, id, "Decode draft failed: "+err.Error())
 		return
 	}
 	update.FilePath = abs
 	update.ID = id
+	// Re-validate Title here — collectEditForm's check only runs when the
+	// editor posts the form. A draft persisted by a previous build, a manual
+	// DB edit, or a future migration could leave the row with an empty Title;
+	// publishing it as-is would silently break the invariant the edit form
+	// is supposed to enforce.
+	if strings.TrimSpace(update.Title) == "" {
+		s.editError(c, file, id, "Cannot publish: draft has an empty Title. Open the edit form and provide one.")
+		return
+	}
 	if err := SaveGuide(abs, update); err != nil {
 		slog.Error("publish: save guide", "err", err)
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file": {file}, "id": {id},
-			"error": {"Publish failed: " + err.Error()},
-		})
+		s.editError(c, file, id, "Publish failed: "+err.Error())
 		return
 	}
 	if err := s.store.DeleteDraft(abs, id); err != nil {
@@ -338,11 +382,7 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		Description: c.PostForm("description"),
 	}
 	if update.Title == "" {
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file":  {file},
-			"id":    {id},
-			"error": {"Title cannot be empty."},
-		})
+		s.editError(c, file, id, "Title cannot be empty.")
 		return file, id, update, "", false
 	}
 	return file, id, update, abs, true
@@ -357,9 +397,11 @@ func (s *Server) persistDraft(abs, id string, update GuideEntry) error {
 	return s.store.UpsertDraft(abs, id, payload)
 }
 
-// previewError sends the editor back to the edit form with the message in the
-// error banner. Used when something goes wrong AFTER the draft was already saved.
-func (s *Server) previewError(c *gin.Context, file, id, msg string) {
+// editError sends the editor back to the edit form with the message rendered
+// in the error banner. The handful of "save/preview/publish failed" branches
+// all went through near-identical url.Values blocks; consolidating here keeps
+// the error UX consistent and the handlers focused on their happy paths.
+func (s *Server) editError(c *gin.Context, file, id, msg string) {
 	s.redirectWithQuery(c, "/guides/edit", url.Values{
 		"file":  {file},
 		"id":    {id},
@@ -445,9 +487,19 @@ func humanAgo(t time.Time) string {
 // ---- helpers ----
 
 // resolveSpecPath turns a user-supplied (relative) path into an absolute one
-// after asserting it lives inside specDir. Rejects empty paths, ".." escapes,
-// and absolute paths pointing elsewhere — the CMS must never write outside
-// its configured root.
+// after asserting it lives inside specDir, with symlinks resolved on both
+// sides. Rejects empty paths, ".." escapes, absolute paths pointing
+// elsewhere, and symlinks that target outside specDir — the CMS must never
+// write outside its configured root.
+//
+// EvalSymlinks on the candidate is the critical guard: filepath.Abs is a
+// purely textual operation, so a symlink `<specDir>/escape -> /etc` would
+// have an `abs` that lives inside specDir textually but resolves to /etc
+// at IO time. We resolve and re-check the prefix on the canonical path.
+//
+// EvalSymlinks fails for non-existent files (the CMS only ever edits
+// existing guides, so this is the expected case), so we resolve as far as
+// the existing parent of the target and append the trailing components.
 func (s *Server) resolveSpecPath(input string) (string, error) {
 	if input == "" {
 		return "", errors.New("missing file parameter")
@@ -460,12 +512,40 @@ func (s *Server) resolveSpecPath(input string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve path: %w", err)
 	}
-	// filepath.Clean has already normalized; check the prefix to block escapes.
+	resolved, err := evalSymlinksLenient(abs)
+	if err != nil {
+		return "", fmt.Errorf("resolve symlinks: %w", err)
+	}
 	rootWithSep := s.specDir + string(filepath.Separator)
-	if abs != s.specDir && !strings.HasPrefix(abs, rootWithSep) {
+	if resolved != s.specDir && !strings.HasPrefix(resolved, rootWithSep) {
 		return "", errors.New("path escapes spec dir")
 	}
-	return abs, nil
+	return resolved, nil
+}
+
+// evalSymlinksLenient resolves symlinks for path, including for non-existent
+// targets — it walks up to the deepest existing ancestor, resolves THAT, and
+// re-joins the remaining tail. Plain filepath.EvalSymlinks errors out the
+// moment any path component doesn't exist, which would reject any path the
+// editor uses for a file not yet on disk (we don't do that today, but the
+// guard should not become brittle if we add a "create new guide" flow).
+func evalSymlinksLenient(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty path")
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		return resolved, nil
+	}
+	parent, base := filepath.Split(path)
+	parent = filepath.Clean(parent)
+	if parent == path || parent == "" {
+		return path, nil
+	}
+	resolvedParent, err := evalSymlinksLenient(parent)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(resolvedParent, base), nil
 }
 
 // redirectWithQuery is a convenience for sending the editor back to a page
