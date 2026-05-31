@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -47,14 +48,24 @@ func OpenStore(path string) (*Store, error) {
 // busy_timeout makes SQLite wait up to 5s for the writer lock instead of
 // returning SQLITE_BUSY immediately, which is the right tradeoff for an
 // interactive admin tool where two near-simultaneous saves shouldn't 500.
-// foreign_keys=ON ensures any future schema with FK references is enforced
-// — today's schema has none but the comment in migrate() anticipates growth.
+// foreign_keys=ON ensures any future schema with FK references is enforced.
+//
+// For `:memory:` we use the `file::memory:?cache=shared` form so the SAME
+// in-memory DB is shared across every pooled connection — without
+// cache=shared, modernc.org/sqlite gives each pool connection a private empty
+// DB, which surfaces as 'no such table' once database/sql opens a second
+// connection under load. Tests pass without it only because they serialise.
+//
+// For file paths we use net/url to escape reserved characters (spaces, `?`,
+// `#`, `%`) so paths like `/var/lib/Museum Docs/cms.db` open correctly
+// instead of breaking the DSN at the first space.
 func buildDSN(path string) string {
+	pragmas := "_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
 	if path == ":memory:" {
-		// Pure in-memory; pragmas still apply but the path stays bare.
-		return ":memory:?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
+		return "file::memory:?cache=shared&" + pragmas
 	}
-	return "file:" + path + "?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
+	u := &url.URL{Scheme: "file", Path: path, RawQuery: pragmas}
+	return u.String()
 }
 
 // Close releases the underlying database handle.
@@ -217,6 +228,32 @@ func (s *Store) GetDraft(filePath, guideID string) (*Draft, error) {
 func (s *Store) DeleteDraft(filePath, guideID string) error {
 	_, err := s.db.Exec(`DELETE FROM drafts WHERE file_path = ? AND guide_id = ?`, filePath, guideID)
 	return err
+}
+
+// RekeyDraft updates a draft's file_path key, used by the startup migration
+// that brings draft keys saved by the pre-EvalSymlinks binary in line with
+// the resolved paths the post-fix resolver returns. If a draft already exists
+// at the new key (e.g. the symlink and its target were both edited), we
+// drop the old row — last writer wins, matching upsert semantics.
+func (s *Store) RekeyDraft(oldPath, guideID, newPath string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(
+		`DELETE FROM drafts WHERE file_path = ? AND guide_id = ?`,
+		newPath, guideID,
+	); err != nil {
+		return fmt.Errorf("clear target draft: %w", err)
+	}
+	if _, err := tx.Exec(
+		`UPDATE drafts SET file_path = ? WHERE file_path = ? AND guide_id = ?`,
+		newPath, oldPath, guideID,
+	); err != nil {
+		return fmt.Errorf("rekey draft: %w", err)
+	}
+	return tx.Commit()
 }
 
 // ListDrafts returns all current drafts so the guides list can flag which

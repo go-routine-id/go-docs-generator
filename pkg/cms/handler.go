@@ -30,6 +30,12 @@ type Server struct {
 // traversal guards compare against the real filesystem root — otherwise a
 // symlinked subdirectory inside specDir could let writes escape the sandbox
 // (e.g. spec/escape -> /etc would pass the HasPrefix(abs, specDir+sep) check).
+//
+// As a one-shot upgrade migration, NewServer also rekeys any draft rows
+// whose file_path was stored as a pre-EvalSymlinks textual abs path (from
+// an older binary) so they remain reachable under the new resolved-key
+// lookup. Pre-existing drafts on a deployment where specDir was a symlink
+// would otherwise be silently orphaned.
 func NewServer(store *Store, auth *Authenticator, specDir string) (*Server, error) {
 	abs, err := filepath.Abs(specDir)
 	if err != nil {
@@ -42,7 +48,43 @@ func NewServer(store *Store, auth *Authenticator, specDir string) (*Server, erro
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
-	return &Server{store: store, auth: auth, specDir: abs, tmpl: tmpl}, nil
+	srv := &Server{store: store, auth: auth, specDir: abs, tmpl: tmpl}
+	if err := srv.migrateDraftPaths(); err != nil {
+		slog.Warn("migrate draft paths (some drafts may stay orphaned)", "err", err)
+	}
+	return srv, nil
+}
+
+// migrateDraftPaths walks every draft row and, if its stored file_path
+// resolves through symlinks to a path that still lives inside specDir,
+// updates the row to use that resolved path. Idempotent — once a draft's
+// path is canonical, EvalSymlinks returns the same value and the row is
+// left alone. Drafts whose path no longer exists OR resolves outside
+// specDir are LEFT in place (the operator can clean them up via the UI
+// once they re-import the file, or directly via the DB).
+func (s *Server) migrateDraftPaths() error {
+	drafts, err := s.store.ListDrafts()
+	if err != nil {
+		return err
+	}
+	rootSep := s.specDir + string(filepath.Separator)
+	for _, d := range drafts {
+		resolved, err := filepath.EvalSymlinks(d.FilePath)
+		if err != nil || resolved == d.FilePath {
+			continue
+		}
+		if resolved != s.specDir && !strings.HasPrefix(resolved, rootSep) {
+			slog.Warn("draft path resolves outside spec dir; leaving as-is",
+				"old", d.FilePath, "resolved", resolved, "guide", d.GuideID)
+			continue
+		}
+		if err := s.store.RekeyDraft(d.FilePath, d.GuideID, resolved); err != nil {
+			slog.Warn("rekey draft path", "old", d.FilePath, "new", resolved, "guide", d.GuideID, "err", err)
+			continue
+		}
+		slog.Info("migrated draft path", "old", d.FilePath, "new", resolved, "guide", d.GuideID)
+	}
+	return nil
 }
 
 // SpecDir returns the resolved absolute path to the YAML root. Exposed so
@@ -163,7 +205,10 @@ func (s *Server) handleGuidesList(c *gin.Context) {
 // handleGuideEditForm shows the edit form. When a saved draft exists for the
 // (file, guide) pair it pre-fills from the draft and surfaces a banner so the
 // editor knows what they're editing — otherwise it falls back to the
-// published YAML.
+// published YAML. If the on-disk guide is missing AND a draft exists, the
+// form still renders (with draft values) so the editor has a discard path —
+// otherwise a transient file-rename mid-flow would orphan the draft with
+// no UI to clear it.
 func (s *Server) handleGuideEditForm(c *gin.Context) {
 	file, id := c.Query("file"), c.Query("id")
 	abs, err := s.resolveSpecPath(file)
@@ -171,52 +216,75 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
-	guide, err := LoadGuide(abs, id)
-	if errors.Is(err, ErrGuideNotFound) {
-		c.String(http.StatusNotFound, "guide not found")
-		return
-	}
-	if err != nil {
-		slog.Error("load guide", "file", abs, "id", id, "err", err)
-		c.String(http.StatusInternalServerError, "load guide: "+err.Error())
-		return
-	}
-	// The draft banner is shown for THREE cases so the editor always has a
-	// path to inspect/clear an out-of-band draft:
-	//   1. Healthy draft present → pre-fill form with draft values
-	//   2. Corrupt draft (decode fails) → show error banner + discard button
-	//   3. DB error reading drafts → surface the error in the banner
-	// Previously any non-ErrDraftNotFound error silently fell through, which
-	// left the list-view "📝 draft" badge orphaned with no UI to clear it.
-	var draftBanner string
-	var hasDraft bool
-	d, err := s.store.GetDraft(abs, id)
+
+	// Try the disk first; tolerate ErrGuideNotFound and ENOENT-style errors
+	// when we have a draft to render from (the editor can then Discard).
+	guide, loadErr := LoadGuide(abs, id)
+	guideOnDisk := loadErr == nil
+
+	// Inspect draft state. The draft is shown for FOUR cases (healthy /
+	// corrupt / DB-error / missing-disk-but-draft-exists) so the editor
+	// always has a path to inspect or clear it.
+	var (
+		draftBanner  string
+		hasDraft     bool
+		draftCorrupt bool
+	)
+	d, dErr := s.store.GetDraft(abs, id)
 	switch {
-	case errors.Is(err, ErrDraftNotFound):
+	case errors.Is(dErr, ErrDraftNotFound):
 		// no draft — happy path
-	case err != nil:
+	case dErr != nil:
 		hasDraft = true
-		draftBanner = "Could not load draft: " + err.Error() + "."
+		draftBanner = "Could not load draft: " + dErr.Error() + "."
 	default:
 		hasDraft = true
-		drafted, derr := decodeGuidePayload(d.Payload)
-		if derr != nil {
-			draftBanner = "A draft exists but its payload is corrupt (" + derr.Error() + "). Discard it to start over."
+		drafted, decodeErr := decodeGuidePayload(d.Payload)
+		if decodeErr != nil {
+			draftCorrupt = true
+			draftBanner = "A draft exists but its payload is corrupt (" + decodeErr.Error() + "). Discard it to start over."
 		} else {
+			if !guideOnDisk {
+				// Synthesise a placeholder so the form has fields to render
+				// — the editor's only useful action here is Discard.
+				guide = &GuideEntry{ID: id}
+			}
 			guide.Icon = drafted.Icon
 			guide.Title = drafted.Title
 			guide.Description = drafted.Description
 			draftBanner = "Editing an unsaved draft from " + humanAgo(d.UpdatedAt) + "."
 		}
 	}
+
+	// No disk guide AND nothing useful in drafts — surface a 404 like before.
+	if !guideOnDisk && guide == nil {
+		if errors.Is(loadErr, ErrGuideNotFound) {
+			c.String(http.StatusNotFound, "guide not found")
+			return
+		}
+		slog.Error("load guide", "file", abs, "id", id, "err", loadErr)
+		c.String(http.StatusInternalServerError, "load guide: "+loadErr.Error())
+		return
+	}
+
+	// Corrupt-draft case: blank the form so Save Draft can't silently overwrite
+	// the corrupt payload with disk values — force the editor to either type
+	// new content explicitly or click Discard.
+	if draftCorrupt {
+		guide.Icon = ""
+		guide.Title = ""
+		guide.Description = ""
+	}
+
 	guide.FilePath = file
 	s.render(c, "guide_edit", gin.H{
-		"User":        sessionUser(c),
-		"Guide":       guide,
-		"DraftBanner": draftBanner,
-		"HasDraft":    hasDraft,
-		"Flash":       c.Query("flash"),
-		"Error":       c.Query("error"),
+		"User":         sessionUser(c),
+		"Guide":        guide,
+		"DraftBanner":  draftBanner,
+		"HasDraft":     hasDraft,
+		"DraftCorrupt": draftCorrupt,
+		"Flash":        c.Query("flash"),
+		"Error":        c.Query("error"),
 	})
 }
 
@@ -232,11 +300,7 @@ func (s *Server) handleGuideDraftSave(c *gin.Context) {
 		s.editError(c, file, id, "Save draft failed: "+err.Error())
 		return
 	}
-	s.redirectWithQuery(c, "/guides/edit", url.Values{
-		"file":  {file},
-		"id":    {id},
-		"flash": {"Draft saved."},
-	})
+	s.editFlash(c, file, id, "Draft saved.")
 }
 
 // handleGuideDraftDiscard removes the draft for a guide. The next edit form
@@ -253,28 +317,30 @@ func (s *Server) handleGuideDraftDiscard(c *gin.Context) {
 	}
 	if err := s.store.DeleteDraft(abs, id); err != nil {
 		slog.Error("delete draft", "err", err)
-		s.redirectWithQuery(c, "/guides/edit", url.Values{
-			"file":  {file},
-			"id":    {id},
-			"error": {"Discard failed: " + err.Error()},
-		})
+		s.editError(c, file, id, "Discard failed: "+err.Error())
 		return
 	}
-	s.redirectWithQuery(c, "/guides/edit", url.Values{
-		"file":  {file},
-		"id":    {id},
-		"flash": {"Draft discarded."},
-	})
+	s.editFlash(c, file, id, "Draft discarded.")
 }
 
-// handleGuidePreview reads the current YAML and computes the proposed YAML
-// FIRST, then persists the draft only on success — that way a missing /
-// renamed file at preview time aborts cleanly without stranding the editor
-// with a saved draft they can't reach (the edit form would also 404 on the
-// missing file, leaving the badge with no UI path to discard).
+// handleGuidePreview persists the form as a draft FIRST so the editor's typed
+// input is never lost to a transient render error, then reads the current
+// YAML and renders the diff. If reading or rendering fails the editor is
+// redirected back to /guides/edit with an explanation; their work is safe in
+// the drafts table and the badge on the guides list reflects that.
+//
+// The edit form is tolerant of a missing-on-disk guide AS LONG AS a draft
+// exists (handleGuideEditForm uses the draft as the source of truth when
+// LoadGuide can't find anything), so the editor isn't stranded with a 404
+// after a transient FS error.
 func (s *Server) handleGuidePreview(c *gin.Context) {
 	file, id, update, abs, ok := s.collectEditForm(c)
 	if !ok {
+		return
+	}
+	if err := s.persistDraft(abs, id, update); err != nil {
+		slog.Error("preview: persist draft", "err", err)
+		s.editError(c, file, id, "Save draft failed: "+err.Error())
 		return
 	}
 	current, err := s.fileBytes(abs)
@@ -285,11 +351,6 @@ func (s *Server) handleGuidePreview(c *gin.Context) {
 	proposed, err := ProposedGuideYAMLFromBytes(abs, current, update)
 	if err != nil {
 		s.editError(c, file, id, "Render proposed YAML failed: "+err.Error())
-		return
-	}
-	if err := s.persistDraft(abs, id, update); err != nil {
-		slog.Error("preview: persist draft", "err", err)
-		s.editError(c, file, id, "Save draft failed: "+err.Error())
 		return
 	}
 	lines, stats, err := DiffYAML(current, proposed, file+" (current)", file+" (draft)")
@@ -320,9 +381,7 @@ func (s *Server) handleGuidePublish(c *gin.Context) {
 	}
 	d, err := s.store.GetDraft(abs, id)
 	if errors.Is(err, ErrDraftNotFound) {
-		s.redirectWithQuery(c, "/guides", url.Values{
-			"flash": {"Nothing to publish — no draft for this guide."},
-		})
+		s.guidesFlash(c, "Nothing to publish — no draft for this guide.")
 		return
 	}
 	if err != nil {
@@ -356,9 +415,7 @@ func (s *Server) handleGuidePublish(c *gin.Context) {
 		slog.Warn("publish: delete draft (state may be stale)", "err", err)
 	}
 	slog.Info("guide published", "file", abs, "id", id, "user", sessionUser(c))
-	s.redirectWithQuery(c, "/guides", url.Values{
-		"flash": {fmt.Sprintf("Published %s (%s).", id, file)},
-	})
+	s.guidesFlash(c, fmt.Sprintf("Published %s (%s).", id, file))
 }
 
 // collectEditForm pulls the editable fields out of a POST and resolves the
@@ -381,7 +438,10 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		Title:       strings.TrimSpace(c.PostForm("title")),
 		Description: c.PostForm("description"),
 	}
-	if update.Title == "" {
+	// Title was already TrimSpaced above; matches the publish-side guard
+	// `strings.TrimSpace(update.Title) == ""` so whitespace-only titles
+	// are rejected consistently at every gate.
+	if strings.TrimSpace(update.Title) == "" {
 		s.editError(c, file, id, "Title cannot be empty.")
 		return file, id, update, "", false
 	}
@@ -407,6 +467,24 @@ func (s *Server) editError(c *gin.Context, file, id, msg string) {
 		"id":    {id},
 		"error": {msg},
 	})
+}
+
+// editFlash is the sibling of editError for the success/info branches that
+// land back on the edit form ("Draft saved.", "Draft discarded."). Keeps the
+// flash-key contract in one place — adding a new success message no longer
+// risks misspelling "flash" or forgetting the file/id round-trip.
+func (s *Server) editFlash(c *gin.Context, file, id, msg string) {
+	s.redirectWithQuery(c, "/guides/edit", url.Values{
+		"file":  {file},
+		"id":    {id},
+		"flash": {msg},
+	})
+}
+
+// guidesFlash redirects to the list view with a flash message (after
+// publish / "nothing to publish"). Same rationale as editFlash.
+func (s *Server) guidesFlash(c *gin.Context, msg string) {
+	s.redirectWithQuery(c, "/guides", url.Values{"flash": {msg}})
 }
 
 // draftKeySet returns the set of (file, id) keys that currently have drafts,
@@ -492,14 +570,13 @@ func humanAgo(t time.Time) string {
 // elsewhere, and symlinks that target outside specDir — the CMS must never
 // write outside its configured root.
 //
-// EvalSymlinks on the candidate is the critical guard: filepath.Abs is a
-// purely textual operation, so a symlink `<specDir>/escape -> /etc` would
-// have an `abs` that lives inside specDir textually but resolves to /etc
-// at IO time. We resolve and re-check the prefix on the canonical path.
-//
-// EvalSymlinks fails for non-existent files (the CMS only ever edits
-// existing guides, so this is the expected case), so we resolve as far as
-// the existing parent of the target and append the trailing components.
+// We use STRICT filepath.EvalSymlinks (no lenient walk-up-for-missing-leaf
+// fallback) so a DANGLING symlink — link exists, target doesn't — cannot
+// pass through as if it were an ordinary path component and let the caller
+// create the target outside specDir. The CMS only edits files that already
+// exist on disk; a future create-new-guide flow MUST do its own resolution
+// at the handler (EvalSymlinks the parent directory then join the leaf)
+// rather than reach back through a shared lenient helper.
 func (s *Server) resolveSpecPath(input string) (string, error) {
 	if input == "" {
 		return "", errors.New("missing file parameter")
@@ -512,7 +589,7 @@ func (s *Server) resolveSpecPath(input string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve path: %w", err)
 	}
-	resolved, err := evalSymlinksLenient(abs)
+	resolved, err := filepath.EvalSymlinks(abs)
 	if err != nil {
 		return "", fmt.Errorf("resolve symlinks: %w", err)
 	}
@@ -521,31 +598,6 @@ func (s *Server) resolveSpecPath(input string) (string, error) {
 		return "", errors.New("path escapes spec dir")
 	}
 	return resolved, nil
-}
-
-// evalSymlinksLenient resolves symlinks for path, including for non-existent
-// targets — it walks up to the deepest existing ancestor, resolves THAT, and
-// re-joins the remaining tail. Plain filepath.EvalSymlinks errors out the
-// moment any path component doesn't exist, which would reject any path the
-// editor uses for a file not yet on disk (we don't do that today, but the
-// guard should not become brittle if we add a "create new guide" flow).
-func evalSymlinksLenient(path string) (string, error) {
-	if path == "" {
-		return "", errors.New("empty path")
-	}
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		return resolved, nil
-	}
-	parent, base := filepath.Split(path)
-	parent = filepath.Clean(parent)
-	if parent == path || parent == "" {
-		return path, nil
-	}
-	resolvedParent, err := evalSymlinksLenient(parent)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(resolvedParent, base), nil
 }
 
 // redirectWithQuery is a convenience for sending the editor back to a page

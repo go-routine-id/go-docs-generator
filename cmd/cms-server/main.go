@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,14 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+// run is the actual entry point as a function returning an exit code so a
+// single deferred-cleanup path covers BOTH the graceful-shutdown branch and
+// the fatal-listen-error branch — main's prior direct os.Exit(1) skipped
+// `defer store.Close()` AND the gcCancel/Wait synchronisation entirely.
+func run() int {
 	var (
 		specDir = flag.String("spec-dir", "./spec", "Path to the YAML spec directory the CMS authors against.")
 		dbPath  = flag.String("db", "./cms.db", "Path to the SQLite database file.")
@@ -36,32 +45,32 @@ func main() {
 	password := os.Getenv("CMS_ADMIN_PASSWORD")
 	if password == "" {
 		slog.Error("CMS_ADMIN_PASSWORD env var is not set — refusing to start")
-		os.Exit(2)
+		return 2
 	}
 
 	info, err := os.Stat(*specDir)
 	if err != nil || !info.IsDir() {
 		slog.Error("spec-dir must be an existing directory", "path", *specDir, "err", err)
-		os.Exit(2)
+		return 2
 	}
 
 	store, err := cms.OpenStore(*dbPath)
 	if err != nil {
 		slog.Error("open store", "path", *dbPath, "err", err)
-		os.Exit(1)
+		return 1
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	auth, err := cms.NewAuthenticator(store, password)
 	if err != nil {
 		slog.Error("init auth", "err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	srv, err := cms.NewServer(store, auth, *specDir)
 	if err != nil {
 		slog.Error("init server", "err", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if !*dev {
@@ -74,14 +83,31 @@ func main() {
 	}
 	srv.RegisterRoutes(r)
 
-	// gcLoop runs against store, which is closed via defer above. Cancel its
-	// context BEFORE Shutdown returns so the ticker goroutine exits before
-	// the deferred close runs — otherwise the next tick would Exec on a
-	// closed DB and log a noisy "sql: database is closed" warning at every
-	// shutdown.
+	// gcLoop runs against store, which is closed via defer above. The
+	// cancel/Wait pair below joins the goroutine BEFORE this function
+	// returns and the deferred store.Close() runs — otherwise the next
+	// tick would Exec on a closed DB and log a noisy
+	// "sql: database is closed" warning at every shutdown.
 	gcCtx, gcCancel := context.WithCancel(context.Background())
-	gcDone := make(chan struct{})
-	go gcLoop(gcCtx, store, gcDone)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		gcLoop(gcCtx, store)
+	}()
+	defer func() {
+		gcCancel()
+		// Bound the wait so a single in-flight GarbageCollect on a huge
+		// sessions table can't block shutdown indefinitely; the deferred
+		// store.Close() will then interrupt the Exec via the driver.
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			slog.Warn("gcLoop did not exit within 3s; continuing shutdown")
+		}
+	}()
 
 	httpSrv := &http.Server{
 		Addr:              *addr,
@@ -99,27 +125,25 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	exitCode := 0
 	select {
 	case sig := <-stop:
 		slog.Info("shutdown signal", "signal", sig.String())
 	case err := <-errCh:
 		if !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("listen", "err", err)
-			os.Exit(1)
+			exitCode = 1
 		}
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(shutdownCtx)
-	gcCancel()
-	<-gcDone
+	return exitCode
 }
 
 // gcLoop runs the session-table garbage collector on a slow tick so expired
-// rows don't pile up. Exits when ctx is cancelled; closes done before
-// returning so main can synchronise its shutdown sequence with the goroutine.
-func gcLoop(ctx context.Context, store *cms.Store, done chan<- struct{}) {
-	defer close(done)
+// rows don't pile up. Exits when ctx is cancelled.
+func gcLoop(ctx context.Context, store *cms.Store) {
 	t := time.NewTicker(1 * time.Hour)
 	defer t.Stop()
 	for {

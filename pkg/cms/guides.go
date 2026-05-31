@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -72,19 +74,11 @@ func guidesInFile(path string) ([]GuideEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if isMultiDoc(raw) {
-		return nil, fmt.Errorf("%s: multi-document YAML files are not supported by the CMS (split into one document per file)", path)
+	doc, seq, err := parseGuidesDoc(path, raw)
+	if err != nil {
+		return nil, err
 	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("parse yaml: %w", err)
-	}
-	root := documentRoot(&doc)
-	if root == nil || root.Kind != yaml.MappingNode {
-		return nil, nil
-	}
-	seq := childValue(root, "guides")
-	if seq == nil || seq.Kind != yaml.SequenceNode {
+	if doc == nil || seq == nil {
 		return nil, nil
 	}
 	var out []GuideEntry
@@ -161,19 +155,14 @@ func ProposedGuideYAML(path string, update GuideEntry) ([]byte, error) {
 // only for error context. Pulled out so callers (the preview handler) can
 // produce both the unchanged baseline and the proposed result from one read.
 func ProposedGuideYAMLFromBytes(path string, raw []byte, update GuideEntry) ([]byte, error) {
-	if isMultiDoc(raw) {
-		return nil, fmt.Errorf("%s: multi-document YAML files are not supported by the CMS (split into one document per file)", path)
+	doc, seq, err := parseGuidesDoc(path, raw)
+	if err != nil {
+		return nil, err
 	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("parse yaml: %w", err)
-	}
-	root := documentRoot(&doc)
-	if root == nil || root.Kind != yaml.MappingNode {
+	if doc == nil {
 		return nil, fmt.Errorf("%s: top-level YAML is not a mapping", path)
 	}
-	seq := childValue(root, "guides")
-	if seq == nil || seq.Kind != yaml.SequenceNode {
+	if seq == nil {
 		return nil, fmt.Errorf("%s: no top-level `guides:` sequence", path)
 	}
 
@@ -200,11 +189,14 @@ func ProposedGuideYAMLFromBytes(path string, raw []byte, update GuideEntry) ([]b
 	return unescapeUnicode(out), nil
 }
 
-// isMultiDoc returns true when raw contains more than one YAML document. yaml.v3
-// silently ignores everything past the first DocumentNode, so DiscoverGuides
-// and ProposedGuideYAML would be invisible to (and would corrupt edits of)
-// guides living past a `---` separator. Rather than partially support it, we
-// reject the file with a clear error and ask the author to split it.
+// isMultiDoc returns true when raw contains more than one YAML document with
+// non-empty content. yaml.v3 silently ignores everything past the first
+// DocumentNode, so DiscoverGuides and ProposedGuideYAML would be invisible
+// to (and would corrupt edits of) guides living past a `---` separator.
+//
+// Empty/null documents — emitted by yaml.v3 for trailing `---`/`...` markers
+// or for `---\n---\n` runs — are NOT counted, otherwise a legitimate single-
+// document file with a trailing end-marker would be falsely rejected.
 func isMultiDoc(raw []byte) bool {
 	d := yaml.NewDecoder(bytes.NewReader(raw))
 	count := 0
@@ -213,8 +205,33 @@ func isMultiDoc(raw []byte) bool {
 		if err := d.Decode(&n); err != nil {
 			break
 		}
+		if isEmptyDocNode(&n) {
+			continue
+		}
 		count++
 		if count > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// isEmptyDocNode reports whether a top-level decoded node carries no actual
+// content — the shapes yaml.v3 emits for `---\n` separators with nothing
+// (or only null) between them.
+func isEmptyDocNode(n *yaml.Node) bool {
+	if n == nil || n.Kind == 0 {
+		return true
+	}
+	if n.Kind == yaml.DocumentNode && len(n.Content) == 0 {
+		return true
+	}
+	if n.Kind == yaml.DocumentNode && len(n.Content) == 1 {
+		inner := n.Content[0]
+		if inner == nil || inner.Kind == 0 {
+			return true
+		}
+		if inner.Kind == yaml.ScalarNode && (inner.Tag == "!!null" || inner.Value == "") {
 			return true
 		}
 	}
@@ -295,12 +312,23 @@ func findQuoteClose(line []byte, start int) int {
 
 // unescapeNonASCIIInDQ decodes \uXXXX / \UXXXXXXXX → UTF-8 inside the
 // already-validated double-quoted span, only for codepoints >= 0x80.
+//
+// The literal-backslash guard (skip when the preceding byte is itself `\`)
+// is critical: yaml.v3 emits a user's literal `\U0001F680` as `\\U0001F680`
+// (two backslashes). Without the guard, the second `\U` would be decoded
+// as a real unicode escape and the editor's text would be silently
+// destroyed. parseHexRune-derived runes are also validated against
+// utf8.ValidRune so surrogate halves and out-of-range codepoints don't
+// silently turn into U+FFFD.
 func unescapeNonASCIIInDQ(span []byte) []byte {
 	var out bytes.Buffer
 	out.Grow(len(span))
 	for i := 0; i < len(span); i++ {
 		c := span[i]
-		if c == '\\' && i+1 < len(span) {
+		// Only treat \u / \U as escape introducers when the preceding byte
+		// isn't itself a backslash — otherwise this is the second half of
+		// an escaped literal backslash that opens user content.
+		if c == '\\' && i+1 < len(span) && (i == 0 || span[i-1] != '\\') {
 			nx := span[i+1]
 			width := 0
 			switch nx {
@@ -310,7 +338,7 @@ func unescapeNonASCIIInDQ(span []byte) []byte {
 				width = 8
 			}
 			if width > 0 && i+2+width <= len(span) {
-				if r, ok := parseHexRune(span[i+2 : i+2+width]); ok && r >= 0x80 {
+				if r, ok := parseHexRune(span[i+2 : i+2+width]); ok && r >= 0x80 && utf8.ValidRune(r) {
 					out.WriteString(string(r))
 					i += 1 + width
 					continue
@@ -341,6 +369,37 @@ func parseHexRune(b []byte) (rune, bool) {
 		r = r<<4 | d
 	}
 	return r, true
+}
+
+// parseGuidesDoc runs the shared prologue: reject multi-doc → yaml.Unmarshal
+// → strip the DocumentNode wrapper → return the `guides:` sequence if present.
+//
+// The caller distinguishes three success states by the (doc, seq) tuple:
+//   - (nil, nil)            top-level YAML is not a mapping (caller may want
+//     to treat as "no guides here" or as an error)
+//   - (doc, nil)            it IS a mapping but has no top-level `guides:`
+//   - (doc, seq)            we have a `guides:` sequence to operate on
+//
+// Centralising this prologue keeps the multi-doc rejection message, the
+// "parse yaml" error wrap, and the field-name "guides" all in one place
+// so future schema edits land once instead of three times.
+func parseGuidesDoc(path string, raw []byte) (root *yaml.Node, guides *yaml.Node, err error) {
+	if isMultiDoc(raw) {
+		return nil, nil, fmt.Errorf("%s: multi-document YAML files are not supported by the CMS (split into one document per file)", path)
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, nil, fmt.Errorf("parse yaml: %w", err)
+	}
+	r := documentRoot(&doc)
+	if r == nil || r.Kind != yaml.MappingNode {
+		return nil, nil, nil
+	}
+	seq := childValue(r, "guides")
+	if seq == nil || seq.Kind != yaml.SequenceNode {
+		return r, nil, nil
+	}
+	return r, seq, nil
 }
 
 // documentRoot strips the DocumentNode wrapper that yaml.v3 always emits at
@@ -457,11 +516,18 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	// Sync the directory entry so the rename is durable across crash.
-	// Non-fatal on platforms where opening the dir fails (e.g. some Windows
-	// configs) — best effort.
+	// Open/Sync errors are logged but not propagated — many platforms can't
+	// open a dir for fsync (Windows, some FUSE backends), and a fsync error
+	// after the rename means the file is still on disk, just maybe not in
+	// the resilient state we'd prefer. Silently swallowing would let
+	// "claims-to-be-atomic" diverge from reality without a single log line.
 	if d, err := os.Open(dir); err == nil {
-		_ = d.Sync()
+		if syncErr := d.Sync(); syncErr != nil {
+			slog.Warn("writeFileAtomic: dir fsync failed", "dir", dir, "err", syncErr)
+		}
 		_ = d.Close()
+	} else if !os.IsNotExist(err) {
+		slog.Warn("writeFileAtomic: dir open for fsync failed", "dir", dir, "err", err)
 	}
 	return nil
 }

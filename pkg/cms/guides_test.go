@@ -369,3 +369,65 @@ func TestLoadGuide_ReadsFields(t *testing.T) {
 		t.Errorf("got %+v", got)
 	}
 }
+
+// TestSaveGuide_PreservesEscapedBackslashU is the regression guard for the
+// re-added literal-backslash guard in unescapeNonASCIIInDQ. yaml.v3 emits a
+// user's literal `\U0001F680` inside a double-quoted scalar as `\\U0001F680`
+// (escaped backslash). Without the guard, the second `\U` would be decoded
+// to the rocket emoji and the editor's text silently destroyed. We force
+// double-quoting by including a tab character in the description.
+func TestSaveGuide_PreservesEscapedBackslashU(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    description: original
+`)
+	bs := "\\"
+	// Tab forces yaml.v3 into double-quoted style.
+	withLiteral := "Use " + bs + "U0001F680 verbatim\there"
+	if err := SaveGuide(file, GuideEntry{ID: "x", Title: "T", Description: withLiteral}); err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	// The bytes-on-disk must contain the escaped form `\\U0001F680` so that
+	// yaml.v3 re-parses it as the literal `\U0001F680` the editor typed.
+	if !strings.Contains(string(out), bs+bs+"U0001F680") {
+		t.Errorf("expected escaped literal `\\\\U0001F680` in file; emoji decode would mean data loss. Got:\n%s", out)
+	}
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if got.Description != withLiteral {
+		t.Errorf("round-trip lost content:\n got: %q\nwant: %q", got.Description, withLiteral)
+	}
+}
+
+// TestSaveGuide_AllowsTrailingDocSeparator guards the regression where
+// isMultiDoc treated a single document with a trailing `---` or `...` as
+// multi-doc, locking the file out of the CMS.
+func TestSaveGuide_AllowsTrailingDocSeparator(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/trailing.yaml", `guides:
+  - id: x
+    title: T
+---
+`)
+	if err := SaveGuide(file, GuideEntry{ID: "x", Title: "Edited"}); err != nil {
+		t.Errorf("trailing --- on single-doc file should be allowed; got: %v", err)
+	}
+}
+
+// TestParseHexRune_RejectsInvalidRunes pins the parseHexRune + utf8.ValidRune
+// guard: surrogate halves and out-of-range codepoints must NOT be silently
+// emitted as U+FFFD. We test indirectly via unescapeUnicode on a yaml.v3-shaped
+// input.
+func TestUnescapeUnicode_LeavesInvalidEscapesIntact(t *testing.T) {
+	// `\uD800` is a lone surrogate half — valid hex but not a valid rune.
+	input := []byte(`key: "before\uD800after"`)
+	out := unescapeUnicode(input)
+	if !strings.Contains(string(out), `\uD800`) {
+		t.Errorf("invalid escape should be preserved (not rewritten to U+FFFD); got:\n%s", out)
+	}
+}
