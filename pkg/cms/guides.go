@@ -24,6 +24,27 @@ type GuideEntry struct {
 	Icon        string
 	Title       string
 	Description string
+	Flow        []FlowStep
+}
+
+// FlowStep mirrors the editable subset of a single step inside a guide's
+// `flow:` array. Non-editable nested fields (endpoint.service, endpoint.fields[],
+// endpoint.auth_methods, endpoint.permission, endpoint.content_type, and any
+// future addition) are NOT mirrored here — the round-trip preserves them
+// byte-for-byte by walking yaml.Node directly.
+//
+// OrigKey is opaque to the editor; the form ships it back as a hidden field
+// so the server can match a submitted step to its original yaml.Node and
+// keep the non-editable nested fields intact. New steps (added via the UI)
+// carry OrigKey == "" so the server knows to synthesise a fresh node.
+type FlowStep struct {
+	OrigKey         string // opaque key for round-trip matching; "" = newly added
+	Title           string
+	EndpointMethod  string
+	EndpointPath    string
+	CurlJWT         string
+	CurlAPIKey      string
+	ResponseExample string
 }
 
 // editableField lists the keys the CMS lets editors mutate. Anything outside
@@ -102,9 +123,149 @@ func guidesInFile(path string) ([]GuideEntry, error) {
 		if entry.ID == "" {
 			continue // ID-less guide isn't editable — we can't address it later
 		}
+		if flowSeq := childValue(g, "flow"); flowSeq != nil && flowSeq.Kind == yaml.SequenceNode {
+			entry.Flow = flowStepsFromSeq(flowSeq)
+		}
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// applyFlowEdits replaces the guide's `flow:` sequence with one assembled
+// from `updates`, while preserving the nested non-editable fields of any
+// existing step the editor matched by OrigKey. The rules:
+//
+//   - updates == nil → caller has no opinion about flow; leave the existing
+//     sequence untouched. This is the metadata-only edit path (callers
+//     that only set icon/title/description).
+//   - update.OrigKey != "" → match an existing step by key; reuse its
+//     yaml.Node so endpoint.service / endpoint.fields[] / auth_methods /
+//     permission / content_type and any future field stay byte-identical.
+//   - update.OrigKey == "" → newly added step; synthesise a minimal mapping
+//     with only the editable fields.
+//   - Existing steps NOT referenced by any update → dropped (the editor
+//     used the remove button).
+//   - Output order follows `updates` so reordering works naturally.
+//
+// If the guide has no `flow:` field but updates is non-empty, a new
+// sequence is appended. Editors who explicitly remove every step (sending
+// a non-nil zero-length slice) end up with an empty `flow:` sequence
+// rather than the field being deleted entirely; that keeps the YAML
+// shape stable for downstream tooling that expects the key to exist.
+func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
+	if updates == nil {
+		return
+	}
+	existing := childValue(guide, "flow")
+	byKey := map[string]*yaml.Node{}
+	if existing != nil && existing.Kind == yaml.SequenceNode {
+		for i, n := range existing.Content {
+			byKey[flowStepKey(n, i)] = n
+		}
+	}
+
+	newContent := make([]*yaml.Node, 0, len(updates))
+	for _, u := range updates {
+		var node *yaml.Node
+		if u.OrigKey != "" {
+			node = byKey[u.OrigKey]
+		}
+		if node == nil {
+			node = &yaml.Node{Kind: yaml.MappingNode}
+		}
+		applyFlowStep(node, u)
+		newContent = append(newContent, node)
+	}
+
+	if existing != nil {
+		existing.Content = newContent
+		return
+	}
+	// No prior flow field — append one.
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: "flow"}
+	seqNode := &yaml.Node{Kind: yaml.SequenceNode, Content: newContent}
+	guide.Content = append(guide.Content, keyNode, seqNode)
+}
+
+// applyFlowStep mutates one step mapping in place to match the editable
+// fields of u. `step:`, `title`, `curl_example_jwt`, `curl_example_api_key`,
+// and `response_example` live at the top of the step; method/path live one
+// level deeper inside `endpoint:`. All other fields on the node — service,
+// auth_methods, permission, content_type, fields[] — are left alone.
+func applyFlowStep(node *yaml.Node, u FlowStep) {
+	setOrAppendScalar(node, "title", u.Title)
+	// Preserve OrigKey as the step's `step:` value when it was a real
+	// author-declared key (e.g. "1", "2a"); skip the synthetic "idx:N"
+	// placeholder so we don't leak that into authored YAML.
+	if u.OrigKey != "" && !strings.HasPrefix(u.OrigKey, "idx:") {
+		setOrAppendScalar(node, "step", u.OrigKey)
+	}
+
+	ep := childValue(node, "endpoint")
+	if ep == nil {
+		// Endpoint mapping doesn't exist yet — create one with just the
+		// editable fields. Non-editable sub-fields will be added by the
+		// editor through some future flow (or by manual YAML editing).
+		ep = &yaml.Node{Kind: yaml.MappingNode}
+		node.Content = append(node.Content,
+			&yaml.Node{Kind: yaml.ScalarNode, Value: "endpoint"},
+			ep,
+		)
+	}
+	setOrAppendScalar(ep, "method", u.EndpointMethod)
+	setOrAppendScalar(ep, "path", u.EndpointPath)
+
+	setOrAppendScalar(node, "curl_example_jwt", u.CurlJWT)
+	setOrAppendScalar(node, "curl_example_api_key", u.CurlAPIKey)
+	setOrAppendScalar(node, "response_example", u.ResponseExample)
+}
+
+// flowStepsFromSeq reads a `flow:` sequence into the editor's flat view.
+// OrigKey is the textual `step:` value (e.g. "1", "2a") because that's how
+// authors anchor their flows in prose; if absent we fall back to the index
+// so the position is still round-trippable. The form ships OrigKey back so
+// SaveGuide can match a submitted step to its source yaml.Node and preserve
+// nested non-editable fields verbatim.
+func flowStepsFromSeq(seq *yaml.Node) []FlowStep {
+	out := make([]FlowStep, 0, len(seq.Content))
+	for i, n := range seq.Content {
+		if n.Kind != yaml.MappingNode {
+			continue
+		}
+		step := FlowStep{OrigKey: flowStepKey(n, i)}
+		if v := childValue(n, "title"); v != nil {
+			step.Title = v.Value
+		}
+		if ep := childValue(n, "endpoint"); ep != nil && ep.Kind == yaml.MappingNode {
+			if v := childValue(ep, "method"); v != nil {
+				step.EndpointMethod = v.Value
+			}
+			if v := childValue(ep, "path"); v != nil {
+				step.EndpointPath = v.Value
+			}
+		}
+		if v := childValue(n, "curl_example_jwt"); v != nil {
+			step.CurlJWT = v.Value
+		}
+		if v := childValue(n, "curl_example_api_key"); v != nil {
+			step.CurlAPIKey = v.Value
+		}
+		if v := childValue(n, "response_example"); v != nil {
+			step.ResponseExample = v.Value
+		}
+		out = append(out, step)
+	}
+	return out
+}
+
+// flowStepKey returns a stable identifier for a step node, preferring the
+// author-declared `step:` value and falling back to the array index. Used
+// as the form's hidden round-trip key — never shown to the editor.
+func flowStepKey(n *yaml.Node, idx int) string {
+	if v := childValue(n, "step"); v != nil && v.Value != "" {
+		return v.Value
+	}
+	return fmt.Sprintf("idx:%d", idx)
 }
 
 // ErrGuideNotFound is returned when SaveGuide / LoadGuide can't find a guide
@@ -174,6 +335,7 @@ func ProposedGuideYAMLFromBytes(path string, raw []byte, update GuideEntry) ([]b
 	setOrAppendScalar(target, "icon", update.Icon)
 	setOrAppendScalar(target, "title", update.Title)
 	setOrAppendScalar(target, "description", update.Description)
+	applyFlowEdits(target, update.Flow)
 
 	out, err := yaml.Marshal(&doc)
 	if err != nil {

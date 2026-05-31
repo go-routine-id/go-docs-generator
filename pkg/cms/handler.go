@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +45,7 @@ func NewServer(store *Store, auth *Authenticator, specDir string) (*Server, erro
 	if real, err := filepath.EvalSymlinks(abs); err == nil {
 		abs = real
 	}
-	tmpl, err := template.New("").ParseFS(TemplateFS, "templates/*.gohtml")
+	tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(TemplateFS, "templates/*.gohtml")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
@@ -437,6 +438,7 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		Icon:        strings.TrimSpace(c.PostForm("icon")),
 		Title:       strings.TrimSpace(c.PostForm("title")),
 		Description: c.PostForm("description"),
+		Flow:        collectFlowSteps(c),
 	}
 	// Title was already TrimSpaced above; matches the publish-side guard
 	// `strings.TrimSpace(update.Title) == ""` so whitespace-only titles
@@ -446,6 +448,58 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		return file, id, update, "", false
 	}
 	return file, id, update, abs, true
+}
+
+// collectFlowSteps reads the per-step form fields the new flow editor
+// submits. Returns nil — NOT an empty slice — when the form does not
+// include a `step_count` hidden field at all, so legacy metadata-only
+// posts and any caller that doesn't know about flow editing still get
+// the "leave existing flow alone" semantics in SaveGuide.
+//
+// Form contract (i runs 0 .. step_count-1):
+//
+//	step_count                : integer count of submitted steps
+//	step_<i>_orig             : hidden original key (e.g. "1", "2a", or "")
+//	step_<i>_title            : step title
+//	step_<i>_method           : endpoint.method
+//	step_<i>_path             : endpoint.path
+//	step_<i>_curl_jwt         : curl_example_jwt (multi-line)
+//	step_<i>_curl_apikey      : curl_example_api_key (multi-line)
+//	step_<i>_response         : response_example (multi-line)
+//
+// Steps appear in submission order; the editor uses up/down buttons to
+// reorder them client-side before submit.
+func collectFlowSteps(c *gin.Context) []FlowStep {
+	raw := c.PostForm("step_count")
+	if raw == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return nil
+	}
+	out := make([]FlowStep, 0, n)
+	for i := 0; i < n; i++ {
+		p := "step_" + strconv.Itoa(i) + "_"
+		title := strings.TrimSpace(c.PostForm(p + "title"))
+		// Skip rows where the editor cleared the title — the editor probably
+		// meant to delete the step but missed the Remove button. This is
+		// conservative; if they really wanted an empty title, the
+		// publish-time guard would reject the whole guide anyway.
+		if title == "" {
+			continue
+		}
+		out = append(out, FlowStep{
+			OrigKey:         c.PostForm(p + "orig"),
+			Title:           title,
+			EndpointMethod:  strings.TrimSpace(c.PostForm(p + "method")),
+			EndpointPath:    strings.TrimSpace(c.PostForm(p + "path")),
+			CurlJWT:         c.PostForm(p + "curl_jwt"),
+			CurlAPIKey:      c.PostForm(p + "curl_apikey"),
+			ResponseExample: c.PostForm(p + "response"),
+		})
+	}
+	return out
 }
 
 // persistDraft JSON-encodes update and upserts it into the drafts table.
@@ -511,15 +565,35 @@ func (s *Server) fileBytes(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// encodeGuidePayload serialises only the editable subset of a GuideEntry —
-// FilePath / ID live in the table key columns so duplicating them in the JSON
-// payload would just be data-drift waiting to happen.
+// guidePayload is the serialised shape of a draft. Promoted to a named type
+// so encode/decode can't drift apart (the prior anonymous-struct duplication
+// was a real footgun: any field renamed in one and not the other would
+// silently drop on round-trip). FilePath/ID are not part of the payload —
+// they live in the table key columns.
+//
+// Flow is a pointer to a slice so nil-vs-empty is preserved across JSON:
+//   - nil          → editor didn't touch the flow (metadata-only edit);
+//     SaveGuide leaves the existing on-disk flow alone.
+//   - non-nil []   → editor explicitly cleared every step;
+//     SaveGuide writes an empty `flow:` sequence.
+//   - non-nil [N]  → N steps in submission order.
+type guidePayload struct {
+	Icon        string      `json:"icon"`
+	Title       string      `json:"title"`
+	Description string      `json:"description"`
+	Flow        *[]FlowStep `json:"flow,omitempty"`
+}
+
 func encodeGuidePayload(g GuideEntry) (string, error) {
-	body := struct {
-		Icon        string `json:"icon"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-	}{g.Icon, g.Title, g.Description}
+	body := guidePayload{
+		Icon:        g.Icon,
+		Title:       g.Title,
+		Description: g.Description,
+	}
+	if g.Flow != nil {
+		flow := g.Flow
+		body.Flow = &flow
+	}
 	b, err := json.Marshal(body)
 	if err != nil {
 		return "", err
@@ -527,18 +601,16 @@ func encodeGuidePayload(g GuideEntry) (string, error) {
 	return string(b), nil
 }
 
-// decodeGuidePayload is the reverse — populates only the editable fields, the
-// rest of the GuideEntry (FilePath, ID) is supplied by the caller.
 func decodeGuidePayload(s string) (GuideEntry, error) {
-	var body struct {
-		Icon        string `json:"icon"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-	}
+	var body guidePayload
 	if err := json.Unmarshal([]byte(s), &body); err != nil {
 		return GuideEntry{}, err
 	}
-	return GuideEntry{Icon: body.Icon, Title: body.Title, Description: body.Description}, nil
+	g := GuideEntry{Icon: body.Icon, Title: body.Title, Description: body.Description}
+	if body.Flow != nil {
+		g.Flow = *body.Flow
+	}
+	return g, nil
 }
 
 // humanAgo renders a duration like "a few seconds ago" / "5 minutes ago" /
@@ -615,4 +687,34 @@ func sessionUser(c *gin.Context) string {
 		}
 	}
 	return AdminUser
+}
+
+// templateFuncs returns the small set of helpers the CMS templates need.
+// `dict` is the standard escape hatch for passing multiple values into a
+// sub-template (Go templates only accept one argument); `add` is the
+// counterpart for the 1-based step index labels; `newFlowStep` provides
+// the empty struct the JS template element renders for "Add step".
+func templateFuncs() template.FuncMap {
+	return template.FuncMap{
+		"dict":        tmplDict,
+		"add":         func(a, b int) int { return a + b },
+		"newFlowStep": func() FlowStep { return FlowStep{} },
+	}
+}
+
+// tmplDict packs alternating key/value arguments into a map so a sub-template
+// can be invoked with multiple named parameters: {{template "x" (dict "A" 1 "B" 2)}}.
+func tmplDict(pairs ...any) (map[string]any, error) {
+	if len(pairs)%2 != 0 {
+		return nil, errors.New("dict expects an even number of arguments")
+	}
+	out := make(map[string]any, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("dict key at index %d is not a string", i)
+		}
+		out[key] = pairs[i+1]
+	}
+	return out, nil
 }

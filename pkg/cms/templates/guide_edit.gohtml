@@ -12,8 +12,11 @@
   <p><a href="/guides">← Back to guides</a></p>
   <h1>Edit guide</h1>
   <p class="muted">
-    Editable fields: <code>icon</code>, <code>title</code>, <code>description</code>.
-    Everything else in the guide (<code>flow</code>, comments, key order) is preserved on publish.
+    Editable: metadata (icon/title/description) and the flow's step title +
+    endpoint method/path + curl examples + response example. Endpoint
+    sub-fields like <code>service</code>, <code>auth_methods</code>,
+    <code>permission</code>, and request <code>fields[]</code> are preserved
+    byte-for-byte on publish — edit those by hand in the YAML.
   </p>
   {{if .Flash}}<div class="banner banner-ok">{{.Flash}}</div>{{end}}
   {{if .Error}}<div class="banner banner-error">{{.Error}}</div>{{end}}
@@ -25,7 +28,7 @@
     </form>
   </div>
   {{end}}
-  <form method="POST" action="/guides/preview?file={{.Guide.FilePath | urlquery}}&amp;id={{.Guide.ID | urlquery}}" class="card stack">
+  <form method="POST" action="/guides/preview?file={{.Guide.FilePath | urlquery}}&amp;id={{.Guide.ID | urlquery}}" class="card stack" id="guide-form">
     <label>
       <span>File</span>
       <input type="text" value="{{.Guide.FilePath}}" disabled>
@@ -46,6 +49,25 @@
       <span>Description</span>
       <textarea name="description" rows="6">{{.Guide.Description}}</textarea>
     </label>
+
+    <fieldset class="flow-editor">
+      <legend>Flow steps</legend>
+      <p class="muted">
+        Each step describes one endpoint call in the user journey. Reorder
+        with ↑/↓, remove with ✕, append with “Add step”. Step titles must be
+        non-empty — an empty title is treated as “remove”.
+      </p>
+      <div id="flow-steps">
+        {{range $i, $step := .Guide.Flow}}
+        {{template "flow_step" (dict "I" $i "S" $step)}}
+        {{end}}
+      </div>
+      <div class="row">
+        <button type="button" id="flow-add" class="btn">+ Add step</button>
+      </div>
+      <input type="hidden" name="step_count" id="step_count" value="{{len .Guide.Flow}}">
+    </fieldset>
+
     <div class="row">
       {{if .DraftCorrupt}}
       <span class="muted">Corrupt draft — clear the form fields and Save Draft to start fresh, or Discard the existing draft above.</span>
@@ -55,7 +77,107 @@
       <a class="btn btn-link" href="/guides">Cancel</a>
     </div>
   </form>
+
+  <!-- Template clone for newly-added steps; index is rewritten on insert. -->
+  <template id="flow-step-template">
+    {{template "flow_step" (dict "I" 0 "S" (newFlowStep))}}
+  </template>
 </main>
+
+<script>
+(function () {
+  var container = document.getElementById('flow-steps');
+  var countInput = document.getElementById('step_count');
+  var template = document.getElementById('flow-step-template');
+
+  function renumber() {
+    var rows = container.querySelectorAll('.flow-step');
+    rows.forEach(function (row, i) {
+      row.querySelectorAll('[data-name]').forEach(function (el) {
+        el.name = 'step_' + i + '_' + el.dataset.name;
+      });
+      var label = row.querySelector('.flow-step-index');
+      if (label) label.textContent = String(i + 1);
+    });
+    countInput.value = rows.length;
+  }
+
+  function addStep() {
+    var clone = template.content.firstElementChild.cloneNode(true);
+    container.appendChild(clone);
+    renumber();
+  }
+
+  function removeStep(btn) {
+    var row = btn.closest('.flow-step');
+    if (!row) return;
+    if (!confirm('Remove this step?')) return;
+    row.parentNode.removeChild(row);
+    renumber();
+  }
+
+  function moveStep(btn, dir) {
+    var row = btn.closest('.flow-step');
+    if (!row) return;
+    var sibling = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (dir === 'up') row.parentNode.insertBefore(row, sibling);
+    else row.parentNode.insertBefore(sibling, row);
+    renumber();
+  }
+
+  document.getElementById('flow-add').addEventListener('click', addStep);
+  container.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.action === 'remove') { e.preventDefault(); removeStep(b); }
+    if (b.dataset.action === 'up')     { e.preventDefault(); moveStep(b, 'up'); }
+    if (b.dataset.action === 'down')   { e.preventDefault(); moveStep(b, 'down'); }
+  });
+
+  renumber();
+})();
+</script>
 </body>
 </html>
+{{end}}
+
+{{define "flow_step"}}
+<div class="flow-step">
+  <div class="flow-step-header">
+    <span class="flow-step-badge">Step <span class="flow-step-index">{{add .I 1}}</span></span>
+    <div class="flow-step-controls">
+      <button type="button" data-action="up"     title="Move up">↑</button>
+      <button type="button" data-action="down"   title="Move down">↓</button>
+      <button type="button" data-action="remove" title="Remove step" class="btn-danger">✕</button>
+    </div>
+  </div>
+  <input type="hidden" data-name="orig" name="step_{{.I}}_orig" value="{{.S.OrigKey}}">
+  <label>
+    <span>Title</span>
+    <input type="text" data-name="title" name="step_{{.I}}_title" value="{{.S.Title}}" required>
+  </label>
+  <div class="row gap">
+    <label class="grow-1">
+      <span>Method</span>
+      <input type="text" data-name="method" name="step_{{.I}}_method" value="{{.S.EndpointMethod}}" placeholder="GET">
+    </label>
+    <label class="grow-3">
+      <span>Path</span>
+      <input type="text" data-name="path" name="step_{{.I}}_path" value="{{.S.EndpointPath}}" placeholder="/api/...">
+    </label>
+  </div>
+  <label>
+    <span>cURL example (JWT)</span>
+    <textarea data-name="curl_jwt" name="step_{{.I}}_curl_jwt" rows="3">{{.S.CurlJWT}}</textarea>
+  </label>
+  <label>
+    <span>cURL example (API key)</span>
+    <textarea data-name="curl_apikey" name="step_{{.I}}_curl_apikey" rows="3">{{.S.CurlAPIKey}}</textarea>
+  </label>
+  <label>
+    <span>Response example</span>
+    <textarea data-name="response" name="step_{{.I}}_response" rows="4">{{.S.ResponseExample}}</textarea>
+  </label>
+</div>
 {{end}}

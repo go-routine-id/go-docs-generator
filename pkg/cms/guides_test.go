@@ -431,3 +431,200 @@ func TestUnescapeUnicode_LeavesInvalidEscapesIntact(t *testing.T) {
 		t.Errorf("invalid escape should be preserved (not rewritten to U+FFFD); got:\n%s", out)
 	}
 }
+
+// TestLoadGuide_ReadsFlowSteps verifies the editor pre-fill path reads each
+// step's editable fields and an OrigKey we can round-trip on save.
+func TestLoadGuide_ReadsFlowSteps(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: First
+        endpoint:
+          method: POST
+          path: /a
+        curl_example_jwt: |
+          curl -X POST /a
+        response_example: |
+          {"ok":true}
+      - step: 2
+        title: Second
+        endpoint:
+          method: GET
+          path: /b
+`)
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if len(got.Flow) != 2 {
+		t.Fatalf("want 2 steps, got %d", len(got.Flow))
+	}
+	s1 := got.Flow[0]
+	if s1.OrigKey != "1" || s1.Title != "First" || s1.EndpointMethod != "POST" || s1.EndpointPath != "/a" {
+		t.Errorf("step 1 wrong: %+v", s1)
+	}
+	if !strings.Contains(s1.CurlJWT, "curl -X POST /a") {
+		t.Errorf("step 1 curl_jwt wrong: %q", s1.CurlJWT)
+	}
+	if !strings.Contains(s1.ResponseExample, "ok") {
+		t.Errorf("step 1 response wrong: %q", s1.ResponseExample)
+	}
+}
+
+// TestSaveGuide_FlowPreservesNonEditableFields is the headline guarantee for
+// Slice A: editing flow steps must NOT clobber endpoint.service /
+// endpoint.fields[] / endpoint.auth_methods / endpoint.permission /
+// endpoint.content_type. Silent loss of those fields would be catastrophic
+// for any guide built with file_upload.yaml-style richness.
+func TestSaveGuide_FlowPreservesNonEditableFields(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/upload.yaml", `guides:
+  - id: upload
+    title: Upload
+    flow:
+      - step: 1
+        title: Upload to Media Service
+        endpoint:
+          method: POST
+          path: /api/v1/upload
+          service: Media Service
+          content_type: multipart/form-data
+          auth: required
+          auth_methods: [Bearer JWT, X-API-Key]
+          permission: media:upload
+          fields:
+            - name: file
+              type: binary
+              required: true
+              description: The file to upload
+        curl_example_jwt: |
+          curl -X POST -H "Authorization: Bearer T" /api/v1/upload
+        curl_example_api_key: |
+          curl -X POST -H "X-API-Key: K" /api/v1/upload
+        response_example: |
+          {"media_id":"abc"}
+`)
+
+	// Editor renames the step + tweaks the method. Everything else stays.
+	err := SaveGuide(file, GuideEntry{
+		ID:    "upload",
+		Title: "Upload",
+		Flow: []FlowStep{
+			{
+				OrigKey:         "1",
+				Title:           "Upload to Media Service (edited)",
+				EndpointMethod:  "PUT", // changed
+				EndpointPath:    "/api/v1/upload",
+				CurlJWT:         "curl -X POST -H \"Authorization: Bearer T\" /api/v1/upload\n",
+				CurlAPIKey:      "curl -X POST -H \"X-API-Key: K\" /api/v1/upload\n",
+				ResponseExample: "{\"media_id\":\"abc\"}\n",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+
+	// Editable fields applied.
+	if !strings.Contains(s, "Upload to Media Service (edited)") {
+		t.Errorf("title not updated:\n%s", s)
+	}
+	if !strings.Contains(s, "method: PUT") {
+		t.Errorf("method not updated to PUT:\n%s", s)
+	}
+	// Non-editable nested fields MUST survive.
+	for _, want := range []string{
+		"service: Media Service",
+		"content_type: multipart/form-data",
+		"permission: media:upload",
+		"name: file",
+		"type: binary",
+		"required: true",
+		"The file to upload",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("non-editable field %q was destroyed by flow edit\n---\n%s", want, s)
+		}
+	}
+}
+
+// TestSaveGuide_FlowAddRemoveReorder exercises the three structural edits.
+func TestSaveGuide_FlowAddRemoveReorder(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: A
+        endpoint: { method: GET, path: /a }
+      - step: 2
+        title: B
+        endpoint: { method: GET, path: /b }
+      - step: 3
+        title: C
+        endpoint: { method: GET, path: /c }
+`)
+	// Editor: removes B, reorders to C/A, then adds a fresh step at the end.
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "3", Title: "C", EndpointMethod: "GET", EndpointPath: "/c"},
+			{OrigKey: "1", Title: "A", EndpointMethod: "GET", EndpointPath: "/a"},
+			{OrigKey: "", Title: "D (new)", EndpointMethod: "POST", EndpointPath: "/d"}, // added
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if len(got.Flow) != 3 {
+		t.Fatalf("want 3 steps after reorder/add/remove, got %d", len(got.Flow))
+	}
+	if got.Flow[0].Title != "C" || got.Flow[1].Title != "A" || got.Flow[2].Title != "D (new)" {
+		t.Errorf("order wrong: [%q %q %q]", got.Flow[0].Title, got.Flow[1].Title, got.Flow[2].Title)
+	}
+	if got.Flow[2].EndpointMethod != "POST" || got.Flow[2].EndpointPath != "/d" {
+		t.Errorf("new step endpoint wrong: %+v", got.Flow[2])
+	}
+}
+
+// TestSaveGuide_FlowNilLeavesExisting verifies the no-opinion path: when
+// callers pass Flow==nil (metadata-only edits), the existing flow array
+// is preserved byte-for-byte. This is the guard that lets the original
+// metadata editors keep working without learning about Flow.
+func TestSaveGuide_FlowNilLeavesExisting(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: Original
+    flow:
+      - step: 1
+        title: Untouched
+        endpoint: { method: GET, path: /a }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID:    "x",
+		Title: "Updated",
+		Flow:  nil, // <-- the contract under test
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	if !strings.Contains(s, "title: Updated") {
+		t.Errorf("title not updated:\n%s", s)
+	}
+	if !strings.Contains(s, "title: Untouched") {
+		t.Errorf("nil Flow should leave existing flow alone — Untouched is gone\n%s", s)
+	}
+}

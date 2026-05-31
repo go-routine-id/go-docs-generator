@@ -244,3 +244,161 @@ func extractFormActions(body string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// TestFlowEditor_EndToEnd verifies the full flow-editor path through the
+// HTTP handler: form fields → collectFlowSteps → persistDraft → publish →
+// YAML on disk. This is the integration guard that the Slice A feature
+// hangs together — earlier unit tests verified each layer in isolation.
+func TestFlowEditor_EndToEnd(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "upload.yaml")
+	original := `guides:
+  - id: upload
+    title: T
+    flow:
+      - step: 1
+        title: Step 1
+        endpoint:
+          method: POST
+          path: /a
+          service: Media Service
+          permission: media:upload
+      - step: 2
+        title: Step 2
+        endpoint: { method: GET, path: /b }
+`
+	if err := os.WriteFile(yamlPath, []byte(original), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Form: reorder to [2, 1], add new step. Use url.Values for clarity.
+	body := url.Values{
+		"title":         {"T"},
+		"description":   {""},
+		"icon":          {""},
+		"step_count":    {"3"},
+		"step_0_orig":   {"2"},
+		"step_0_title":  {"Was step 2"},
+		"step_0_method": {"GET"},
+		"step_0_path":   {"/b"},
+		"step_1_orig":   {"1"},
+		"step_1_title":  {"Step 1 edited"},
+		"step_1_method": {"PUT"}, // changed
+		"step_1_path":   {"/a"},
+		"step_2_orig":   {""},
+		"step_2_title":  {"Brand new"},
+		"step_2_method": {"DELETE"},
+		"step_2_path":   {"/c"},
+	}
+
+	post := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost,
+			path+"?file=guides/upload.yaml&id=upload",
+			strings.NewReader(body.Encode()))
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	if w := post("/guides/draft"); w.Code != http.StatusSeeOther {
+		t.Fatalf("draft: status=%d body=%s", w.Code, w.Body.String())
+	}
+	// File is untouched after draft.
+	after, _ := os.ReadFile(yamlPath)
+	if string(after) != original {
+		t.Fatalf("file mutated by draft save:\n%s", after)
+	}
+	// Draft has the new flow.
+	d, err := store.GetDraft(yamlPath, "upload")
+	if err != nil {
+		t.Fatalf("GetDraft: %v", err)
+	}
+	g, err := decodeGuidePayload(d.Payload)
+	if err != nil {
+		t.Fatalf("decode draft: %v", err)
+	}
+	if len(g.Flow) != 3 {
+		t.Fatalf("want 3 flow steps in draft, got %d", len(g.Flow))
+	}
+	if g.Flow[0].OrigKey != "2" || g.Flow[1].OrigKey != "1" || g.Flow[2].OrigKey != "" {
+		t.Errorf("draft flow OrigKeys wrong: [%q %q %q]",
+			g.Flow[0].OrigKey, g.Flow[1].OrigKey, g.Flow[2].OrigKey)
+	}
+
+	// Publish.
+	if w := post("/guides/publish"); w.Code != http.StatusSeeOther {
+		t.Fatalf("publish: status=%d body=%s", w.Code, w.Body.String())
+	}
+	// Drain the form body to publish actually reads the latest from draft.
+	// (Publish ignores the body — it reads from drafts table.)
+
+	out, _ := os.ReadFile(yamlPath)
+	s := string(out)
+	// Order in file: step 2 first, then 1, then new.
+	idx2 := strings.Index(s, "Was step 2")
+	idx1 := strings.Index(s, "Step 1 edited")
+	idxN := strings.Index(s, "Brand new")
+	if idx2 < 0 || idx1 < 0 || idxN < 0 {
+		t.Fatalf("not all flow step titles present in output:\n%s", s)
+	}
+	if !(idx2 < idx1 && idx1 < idxN) {
+		t.Errorf("order wrong (want 2, 1, new; got positions %d %d %d):\n%s", idx2, idx1, idxN, s)
+	}
+	// Non-editable preserved on step 1.
+	if !strings.Contains(s, "service: Media Service") {
+		t.Errorf("endpoint.service was destroyed by flow edit:\n%s", s)
+	}
+	if !strings.Contains(s, "permission: media:upload") {
+		t.Errorf("endpoint.permission was destroyed by flow edit:\n%s", s)
+	}
+	// Step 1 method updated.
+	if !strings.Contains(s, "method: PUT") {
+		t.Errorf("step 1 method should be PUT:\n%s", s)
+	}
+}
+
+// TestFlowEditor_NoStepCountLeavesFlowAlone ensures the legacy metadata-only
+// form (no step_count field) doesn't accidentally clear the flow.
+func TestFlowEditor_NoStepCountLeavesFlowAlone(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	original := "guides:\n  - id: x\n    title: T\n    flow:\n      - step: 1\n        title: keep me\n"
+	if err := os.WriteFile(yamlPath, []byte(original), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	body := url.Values{
+		"title":       {"T edited"},
+		"description": {""},
+		"icon":        {""},
+		// no step_count — simulates a legacy / metadata-only post
+	}
+	req := httptest.NewRequest(http.MethodPost,
+		"/guides/draft?file=guides/x.yaml&id=x",
+		strings.NewReader(body.Encode()))
+	req.AddCookie(cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("draft: status=%d body=%s", w.Code, w.Body.String())
+	}
+	d, err := store.GetDraft(yamlPath, "x")
+	if err != nil {
+		t.Fatalf("GetDraft: %v", err)
+	}
+	g, err := decodeGuidePayload(d.Payload)
+	if err != nil {
+		t.Fatalf("decode draft: %v", err)
+	}
+	if g.Flow != nil {
+		t.Errorf("missing step_count should produce nil Flow (leave-existing semantics); got %+v", g.Flow)
+	}
+}
