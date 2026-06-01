@@ -50,12 +50,14 @@
       <textarea name="description" rows="6">{{.Guide.Description}}</textarea>
     </label>
 
+    {{if .ShowFlow}}
     <fieldset class="flow-editor">
       <legend>Flow steps</legend>
       <p class="muted">
         Each step describes one endpoint call in the user journey. Reorder
-        with ↑/↓, remove with ✕, append with “Add step”. Step titles must be
-        non-empty — an empty title is treated as “remove”.
+        with ↑/↓, remove with ✕, append with “Add step”. Step titles are
+        required — clear a title and Save will refuse with an error so an
+        empty title can't silently drop the step and its nested fields.
       </p>
       <div id="flow-steps">
         {{range $i, $step := .Guide.Flow}}
@@ -67,6 +69,7 @@
       </div>
       <input type="hidden" name="step_count" id="step_count" value="{{len .Guide.Flow}}">
     </fieldset>
+    {{end}}
 
     <div class="row">
       {{if .DraftCorrupt}}
@@ -79,9 +82,11 @@
   </form>
 
   <!-- Template clone for newly-added steps; index is rewritten on insert. -->
+  {{if .ShowFlow}}
   <template id="flow-step-template">
     {{template "flow_step" (dict "I" 0 "S" (newFlowStep))}}
   </template>
+  {{end}}
 </main>
 
 <script>
@@ -89,6 +94,9 @@
   var container = document.getElementById('flow-steps');
   var countInput = document.getElementById('step_count');
   var template = document.getElementById('flow-step-template');
+  // Flow editor is suppressed on the corrupt-draft path (ShowFlow=false);
+  // bail out so we don't NPE looking for the missing DOM.
+  if (!container || !countInput || !template) return;
 
   function renumber() {
     var rows = container.querySelectorAll('.flow-step');

@@ -92,15 +92,37 @@ func (s *Server) migrateDraftPaths() error {
 // main can log it on startup.
 func (s *Server) SpecDir() string { return s.specDir }
 
+// maxRequestBody caps the size of any single POST body the CMS will read.
+// 2 MiB is generous for the editor's form (six free-form textareas × ~50
+// steps would still fit comfortably) and small enough that an attacker
+// can't OOM the process by pasting a multi-GB blob into response_example.
+// pkg/docs/handler.go's ServeValidate uses 1 MiB for the same reason.
+const maxRequestBody = 2 << 20
+
+// boundRequestBody wraps the request body in http.MaxBytesReader so any
+// downstream PostForm / ReadAll fails fast past the cap. Installed once
+// at the authed group; /healthz and /login are tiny enough to skip.
+func boundRequestBody() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.ContentLength > maxRequestBody {
+			c.String(http.StatusRequestEntityTooLarge, "request body too large")
+			c.Abort()
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRequestBody)
+		c.Next()
+	}
+}
+
 // RegisterRoutes wires all CMS endpoints onto r. The auth split is:
 //   - /login (GET/POST), /healthz: public
-//   - everything else: behind RequireAuth
+//   - everything else: behind RequireAuth + boundRequestBody
 func (s *Server) RegisterRoutes(r *gin.Engine) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 	r.GET("/login", s.handleLoginForm)
 	r.POST("/login", s.handleLoginSubmit)
 
-	authed := r.Group("/", s.auth.RequireAuth())
+	authed := r.Group("/", s.auth.RequireAuth(), boundRequestBody())
 	authed.POST("/logout", s.handleLogout)
 	authed.GET("/", s.handleRoot)
 	authed.GET("/guides", s.handleGuidesList)
@@ -253,6 +275,13 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 			guide.Icon = drafted.Icon
 			guide.Title = drafted.Title
 			guide.Description = drafted.Description
+			// IMPORTANT: copy Flow too. Skipping this caused the form to
+			// re-render the on-disk flow when the editor reopened the page
+			// after a flow Save Draft — making it look like their work was
+			// lost (it wasn't; publish still applied the draft, but a
+			// subsequent Save Draft would write the disk flow back over
+			// their edits).
+			guide.Flow = drafted.Flow
 			draftBanner = "Editing an unsaved draft from " + humanAgo(d.UpdatedAt) + "."
 		}
 	}
@@ -270,11 +299,15 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 
 	// Corrupt-draft case: blank the form so Save Draft can't silently overwrite
 	// the corrupt payload with disk values — force the editor to either type
-	// new content explicitly or click Discard.
+	// new content explicitly or click Discard. Includes Flow=nil so the
+	// template emits no step_count hidden field; otherwise an empty form
+	// would persist Flow=[] which on Publish would wipe a restored on-disk
+	// flow back to empty.
 	if draftCorrupt {
 		guide.Icon = ""
 		guide.Title = ""
 		guide.Description = ""
+		guide.Flow = nil
 	}
 
 	guide.FilePath = file
@@ -284,8 +317,15 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 		"DraftBanner":  draftBanner,
 		"HasDraft":     hasDraft,
 		"DraftCorrupt": draftCorrupt,
-		"Flash":        c.Query("flash"),
-		"Error":        c.Query("error"),
+		// ShowFlow gates the flow editor + its hidden step_count field. We
+		// suppress both on the corrupt-draft path: emitting step_count=0
+		// would push collectFlowSteps into "explicitly cleared all steps"
+		// semantics, which on Publish would WIPE a restored on-disk flow
+		// back to []. With ShowFlow=false the form's flow stays nil and
+		// SaveGuide's metadata-only path keeps the existing flow intact.
+		"ShowFlow": !draftCorrupt,
+		"Flash":    c.Query("flash"),
+		"Error":    c.Query("error"),
 	})
 }
 
@@ -432,13 +472,18 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		c.String(http.StatusBadRequest, err.Error())
 		return file, id, update, "", false
 	}
+	flow, flowErr := collectFlowSteps(c)
+	if flowErr != nil {
+		s.editError(c, file, id, flowErr.Error())
+		return file, id, update, "", false
+	}
 	update = GuideEntry{
 		FilePath:    abs,
 		ID:          id,
 		Icon:        strings.TrimSpace(c.PostForm("icon")),
 		Title:       strings.TrimSpace(c.PostForm("title")),
 		Description: c.PostForm("description"),
-		Flow:        collectFlowSteps(c),
+		Flow:        flow,
 	}
 	// Title was already TrimSpaced above; matches the publish-side guard
 	// `strings.TrimSpace(update.Title) == ""` so whitespace-only titles
@@ -450,17 +495,39 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 	return file, id, update, abs, true
 }
 
-// collectFlowSteps reads the per-step form fields the new flow editor
-// submits. Returns nil — NOT an empty slice — when the form does not
-// include a `step_count` hidden field at all, so legacy metadata-only
-// posts and any caller that doesn't know about flow editing still get
-// the "leave existing flow alone" semantics in SaveGuide.
+// maxFlowSteps caps the number of steps the form may submit. The form's
+// `step_count` value is attacker-controllable (authenticated editor or
+// session-stolen attacker), so the unbounded `make([]FlowStep, 0, n)`
+// the pre-fix code did was an easy OOM lever. 200 is well above any
+// realistic editor scenario; we surface an error past that.
+const maxFlowSteps = 200
+
+// errMalformedStepCount is the sentinel collectFlowSteps returns when
+// step_count exists but doesn't parse as a non-negative int (or exceeds
+// the cap). Distinguishing this from "step_count absent" lets handlers
+// surface a clear 4xx instead of silently degrading to the legacy
+// metadata-only path (where the editor's flow edits would vanish without
+// trace).
+var errMalformedStepCount = errors.New("malformed step_count form field")
+
+// collectFlowSteps reads the per-step form fields the flow editor submits.
+// Returns (nil, nil) when the form has no step_count field at all
+// — that's the legacy metadata-only path and preserves "leave flow alone"
+// in SaveGuide. Returns (nil, errMalformedStepCount) when step_count is
+// present but invalid (out-of-range, non-numeric, over maxFlowSteps) so
+// the handler can refuse the request with diagnostic feedback. Returns a
+// possibly-empty non-nil slice on success.
+//
+// Empty-title steps surface as errEmptyStepTitle on the FIRST occurrence;
+// silently dropping the row would also drop the step's non-editable
+// nested fields (endpoint.service, fields[], etc.), so we'd rather force
+// the editor to confirm via Remove or fix the title.
 //
 // Form contract (i runs 0 .. step_count-1):
 //
 //	step_count                : integer count of submitted steps
 //	step_<i>_orig             : hidden original key (e.g. "1", "2a", or "")
-//	step_<i>_title            : step title
+//	step_<i>_title            : step title (required)
 //	step_<i>_method           : endpoint.method
 //	step_<i>_path             : endpoint.path
 //	step_<i>_curl_jwt         : curl_example_jwt (multi-line)
@@ -469,25 +536,24 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 //
 // Steps appear in submission order; the editor uses up/down buttons to
 // reorder them client-side before submit.
-func collectFlowSteps(c *gin.Context) []FlowStep {
+func collectFlowSteps(c *gin.Context) ([]FlowStep, error) {
 	raw := c.PostForm("step_count")
 	if raw == "" {
-		return nil
+		return nil, nil
 	}
 	n, err := strconv.Atoi(raw)
 	if err != nil || n < 0 {
-		return nil
+		return nil, errMalformedStepCount
+	}
+	if n > maxFlowSteps {
+		return nil, fmt.Errorf("%w: %d > %d", errMalformedStepCount, n, maxFlowSteps)
 	}
 	out := make([]FlowStep, 0, n)
 	for i := 0; i < n; i++ {
 		p := "step_" + strconv.Itoa(i) + "_"
 		title := strings.TrimSpace(c.PostForm(p + "title"))
-		// Skip rows where the editor cleared the title — the editor probably
-		// meant to delete the step but missed the Remove button. This is
-		// conservative; if they really wanted an empty title, the
-		// publish-time guard would reject the whole guide anyway.
 		if title == "" {
-			continue
+			return nil, fmt.Errorf("step %d has an empty title — fill it in or use Remove", i+1)
 		}
 		out = append(out, FlowStep{
 			OrigKey:         c.PostForm(p + "orig"),
@@ -499,7 +565,7 @@ func collectFlowSteps(c *gin.Context) []FlowStep {
 			ResponseExample: c.PostForm(p + "response"),
 		})
 	}
-	return out
+	return out, nil
 }
 
 // persistDraft JSON-encodes update and upserts it into the drafts table.

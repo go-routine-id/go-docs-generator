@@ -402,3 +402,226 @@ func TestFlowEditor_NoStepCountLeavesFlowAlone(t *testing.T) {
 		t.Errorf("missing step_count should produce nil Flow (leave-existing semantics); got %+v", g.Flow)
 	}
 }
+
+// TestFlowEditor_EmptyStepTitleRejected guards the collectFlowSteps fix that
+// surfaces an error instead of silently dropping a row with empty title —
+// silent drop also threw away the step's nested non-editable fields.
+func TestFlowEditor_EmptyStepTitleRejected(t *testing.T) {
+	r, _, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	original := "guides:\n  - id: x\n    title: T\n    flow:\n      - step: 1\n        title: orig\n        endpoint: { method: GET, path: /a, service: S }\n"
+	if err := os.WriteFile(yamlPath, []byte(original), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	body := url.Values{
+		"title":         {"T"},
+		"description":   {""},
+		"icon":          {""},
+		"step_count":    {"1"},
+		"step_0_orig":   {"1"},
+		"step_0_title":  {""}, // editor cleared the title — should be rejected
+		"step_0_method": {"GET"},
+		"step_0_path":   {"/a"},
+	}
+	req := httptest.NewRequest(http.MethodPost,
+		"/guides/draft?file=guides/x.yaml&id=x",
+		strings.NewReader(body.Encode()))
+	req.AddCookie(cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "error=") {
+		t.Errorf("expected error in redirect; got: %s", loc)
+	}
+	if !strings.Contains(loc, "empty+title") && !strings.Contains(loc, "empty%20title") {
+		t.Errorf("expected error to mention empty title; got: %s", loc)
+	}
+	// File untouched.
+	after, _ := os.ReadFile(yamlPath)
+	if string(after) != original {
+		t.Errorf("file was mutated by a rejected draft:\n%s", after)
+	}
+}
+
+// TestFlowEditor_StepCountOverflowRejected guards the DoS mitigation:
+// step_count past maxFlowSteps is rejected instead of allocating a huge
+// slice.
+func TestFlowEditor_StepCountOverflowRejected(t *testing.T) {
+	r, _, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte("guides:\n  - id: x\n    title: T\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	body := url.Values{
+		"title":      {"T"},
+		"step_count": {"100000000"}, // way past maxFlowSteps
+	}
+	req := httptest.NewRequest(http.MethodPost,
+		"/guides/draft?file=guides/x.yaml&id=x",
+		strings.NewReader(body.Encode()))
+	req.AddCookie(cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect with error, got %d", w.Code)
+	}
+	loc := w.Header().Get("Location")
+	if !strings.Contains(loc, "error=") {
+		t.Errorf("step_count overflow should produce an error redirect; got: %s", loc)
+	}
+}
+
+// TestFlowEditor_DraftFlowOverlayPersists is the regression guard for the
+// draft.Flow-not-copied bug: editor saves a flow draft, reopens the form,
+// must see the DRAFT's flow not the disk's flow. Otherwise a subsequent
+// Save Draft would write disk flow back over their edits.
+func TestFlowEditor_DraftFlowOverlayPersists(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte(`guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: ON_DISK
+        endpoint: { method: GET, path: /a }
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Persist a draft directly with a different flow title.
+	payload := `{"icon":"","title":"T","description":"","flow":[{"orig_key":"1","title":"FROM_DRAFT","endpoint_method":"GET","endpoint_path":"/a"}]}`
+	if err := store.UpsertDraft(yamlPath, "x", payload); err != nil {
+		t.Fatalf("upsert draft: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet,
+		"/guides/edit?file=guides/x.yaml&id=x", nil)
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "FROM_DRAFT") {
+		t.Errorf("edit form should pre-fill flow from draft; missing FROM_DRAFT in body")
+	}
+	if strings.Contains(body, "ON_DISK") {
+		t.Errorf("edit form rendered on-disk flow title instead of draft's — draft.Flow overlay dropped")
+	}
+}
+
+// TestFlowEditor_CorruptDraftSuppressesFlowEditor guards the corrupt-draft
+// path: when the draft can't be decoded the flow editor must be suppressed
+// entirely (no step_count input), so a metadata-only save can't push an
+// empty Flow that would later wipe a restored on-disk flow.
+func TestFlowEditor_CorruptDraftSuppressesFlowEditor(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte("guides:\n  - id: x\n    title: T\n    flow:\n      - step: 1\n        title: precious\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Plant an undecodable draft payload.
+	if err := store.UpsertDraft(yamlPath, "x", "{not valid json"); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet,
+		"/guides/edit?file=guides/x.yaml&id=x", nil)
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, `name="step_count"`) {
+		t.Errorf("corrupt-draft path must NOT emit step_count (would wipe restored flow on save):\n%s", body)
+	}
+	if strings.Contains(body, `class="flow-editor"`) {
+		t.Errorf("corrupt-draft path must NOT render the flow editor:\n%s", body)
+	}
+}
+
+// TestFlowEditor_FieldNameContract is the contract test for the form-field
+// protocol: fill every editable field with a distinct sentinel, POST it
+// through the actual handler, publish, then re-parse the YAML and verify
+// each sentinel survived. Catches drift between the template's name=
+// attributes and collectFlowSteps' c.PostForm keys.
+func TestFlowEditor_FieldNameContract(t *testing.T) {
+	r, _, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte("guides:\n  - id: x\n    title: T\n    flow:\n      - step: 1\n        title: orig\n        endpoint: { method: GET, path: /a }\n"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Each field gets a unique sentinel so we can assert each survived.
+	body := url.Values{
+		"title":              {"GUIDE_TITLE"},
+		"description":        {"GUIDE_DESC"},
+		"icon":               {""},
+		"step_count":         {"1"},
+		"step_0_orig":        {"1"},
+		"step_0_title":       {"STEP_TITLE"},
+		"step_0_method":      {"PATCH"},
+		"step_0_path":        {"/STEP/PATH"},
+		"step_0_curl_jwt":    {"STEP_CURL_JWT"},
+		"step_0_curl_apikey": {"STEP_CURL_APIKEY"},
+		"step_0_response":    {"STEP_RESPONSE"},
+	}
+	for _, path := range []string{"/guides/draft", "/guides/publish"} {
+		req := httptest.NewRequest(http.MethodPost,
+			path+"?file=guides/x.yaml&id=x",
+			strings.NewReader(body.Encode()))
+		req.AddCookie(cookie)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("%s: status=%d body=%s", path, w.Code, w.Body.String())
+		}
+	}
+	got, err := LoadGuide(yamlPath, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if len(got.Flow) != 1 {
+		t.Fatalf("want 1 step, got %d", len(got.Flow))
+	}
+	s := got.Flow[0]
+	if s.Title != "STEP_TITLE" {
+		t.Errorf("Title: got %q, want STEP_TITLE — name= attr drift?", s.Title)
+	}
+	if s.EndpointMethod != "PATCH" {
+		t.Errorf("Method: got %q, want PATCH", s.EndpointMethod)
+	}
+	if s.EndpointPath != "/STEP/PATH" {
+		t.Errorf("Path: got %q, want /STEP/PATH", s.EndpointPath)
+	}
+	if !strings.Contains(s.CurlJWT, "STEP_CURL_JWT") {
+		t.Errorf("CurlJWT: got %q, want STEP_CURL_JWT", s.CurlJWT)
+	}
+	if !strings.Contains(s.CurlAPIKey, "STEP_CURL_APIKEY") {
+		t.Errorf("CurlAPIKey: got %q, want STEP_CURL_APIKEY", s.CurlAPIKey)
+	}
+	if !strings.Contains(s.ResponseExample, "STEP_RESPONSE") {
+		t.Errorf("Response: got %q, want STEP_RESPONSE", s.ResponseExample)
+	}
+}

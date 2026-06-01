@@ -628,3 +628,185 @@ func TestSaveGuide_FlowNilLeavesExisting(t *testing.T) {
 		t.Errorf("nil Flow should leave existing flow alone — Untouched is gone\n%s", s)
 	}
 }
+
+// TestSaveGuide_FlowDuplicateOrigKey is the regression guard for the
+// applyFlowEdits byKey-collision bug: two updates sharing an OrigKey used
+// to both look up the SAME yaml.Node, last-write-wins, and emit two
+// identical YAML rows.
+func TestSaveGuide_FlowDuplicateOrigKey(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: A
+        endpoint: { method: GET, path: /a, service: First }
+      - step: 1
+        title: B
+        endpoint: { method: GET, path: /b, service: Second }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "First", EndpointMethod: "GET", EndpointPath: "/a"},
+			{OrigKey: "1", Title: "Second", EndpointMethod: "GET", EndpointPath: "/b"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	got, _ := LoadGuide(file, "x")
+	if len(got.Flow) != 2 {
+		t.Fatalf("want 2 steps after dup-key save, got %d", len(got.Flow))
+	}
+	if got.Flow[0].Title != "First" || got.Flow[1].Title != "Second" {
+		t.Errorf("titles wrong: [%q %q]", got.Flow[0].Title, got.Flow[1].Title)
+	}
+}
+
+// TestSaveGuide_EndpointNullReplacedNotMutated guards the endpoint:null
+// silent-loss bug: applyFlowStep used to call setOrAppendScalar on a
+// ScalarNode whose Content yaml.v3 ignores at marshal time, so the editor's
+// method/path edits were silently discarded.
+func TestSaveGuide_EndpointNullReplacedNotMutated(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: Placeholder
+        endpoint: null
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "Placeholder", EndpointMethod: "GET", EndpointPath: "/a"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	if !strings.Contains(s, "method: GET") || !strings.Contains(s, "path: /a") {
+		t.Errorf("method/path lost when source had `endpoint: null`:\n%s", s)
+	}
+	if strings.Contains(s, "endpoint: null") {
+		t.Errorf("endpoint: null was not replaced:\n%s", s)
+	}
+}
+
+// TestSaveGuide_NoEmptyCurlFields guards the diff-pollution fix: applyFlowStep
+// used to write `curl_example_jwt:`, `curl_example_api_key:`, and
+// `response_example:` even when the value was empty and the field didn't
+// exist on disk, polluting every save with empty keys.
+func TestSaveGuide_NoEmptyCurlFields(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: Old
+        endpoint: { method: GET, path: /a }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "New", EndpointMethod: "GET", EndpointPath: "/a"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	for _, polluted := range []string{
+		"curl_example_jwt:",
+		"curl_example_api_key:",
+		"response_example:",
+	} {
+		if strings.Contains(s, polluted) {
+			t.Errorf("empty optional field %q was emitted into a save that didn't set it\n%s", polluted, s)
+		}
+	}
+}
+
+// TestSaveGuide_FlowReorderDoesNotRewriteStepKey guards the dual-purpose-
+// `step:` regression: applyFlowStep used to write OrigKey back as `step:`,
+// producing non-contiguous step numbers (e.g. `step: 3` at array position
+// 0) on every reorder. Now the existing `step:` field on each yaml.Node
+// is preserved untouched — the CMS doesn't own that field.
+func TestSaveGuide_FlowReorderDoesNotRewriteStepKey(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: A
+        endpoint: { method: GET, path: /a }
+      - step: 2
+        title: B
+        endpoint: { method: GET, path: /b }
+`)
+	// Reorder to [2, 1] — the rows swap positions.
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "2", Title: "B", EndpointMethod: "GET", EndpointPath: "/b"},
+			{OrigKey: "1", Title: "A", EndpointMethod: "GET", EndpointPath: "/a"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	// Step labels must travel with their original content — the row labelled
+	// `step: 2` is now at position 0 (titled B), the row labelled `step: 1`
+	// is now at position 1 (titled A). Crucially neither is mutated:
+	// `step: 1` stays a bare integer, NOT promoted to `step: "1"`.
+	if !strings.Contains(s, "step: 2") || !strings.Contains(s, "step: 1") {
+		t.Errorf("step labels lost in reorder:\n%s", s)
+	}
+	if strings.Contains(s, "step: \"1\"") || strings.Contains(s, "step: '1'") {
+		t.Errorf("integer step value was quote-promoted on save:\n%s", s)
+	}
+}
+
+// TestSaveGuide_FlowStringTypeConfusion guards against scalar-style auto-
+// typing: an editor's title or path that happens to look like "42", "true",
+// "null" must round-trip as a STRING (single-quoted), not as int/bool/null.
+func TestSaveGuide_FlowStringTypeConfusion(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: old
+        endpoint: { method: GET, path: /a }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "true", EndpointMethod: "GET", EndpointPath: "42"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if got.Flow[0].Title != "true" {
+		t.Errorf("title \"true\" round-tripped as %q (likely promoted to bool)", got.Flow[0].Title)
+	}
+	if got.Flow[0].EndpointPath != "42" {
+		t.Errorf("path \"42\" round-tripped as %q (likely promoted to int)", got.Flow[0].EndpointPath)
+	}
+}
