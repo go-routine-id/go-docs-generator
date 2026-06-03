@@ -43,7 +43,11 @@ type GuideEntry struct {
 // stores is decoupled from Go field names. A future field rename in this
 // struct won't silently invalidate every existing draft row.
 type FlowStep struct {
-	OrigKey         string `json:"orig_key,omitempty"`
+	OrigKey string `json:"orig_key,omitempty"`
+	// Title is required at every gate (form, draft, publish). Deliberately
+	// NOT marked omitempty: an absent JSON field decodes as "" which the
+	// guide-validation chain (collectFlowSteps, publish guard) rejects;
+	// marking it omitempty would mask that signal during decode.
 	Title           string `json:"title"`
 	EndpointMethod  string `json:"endpoint_method,omitempty"`
 	EndpointPath    string `json:"endpoint_path,omitempty"`
@@ -148,43 +152,26 @@ func guidesInFile(path string) ([]GuideEntry, error) {
 //     permission / content_type and any future field stay byte-identical.
 //     Each key is consumed AT MOST ONCE — a duplicate OrigKey in updates
 //     synthesises a fresh node for the second occurrence rather than
-//     aliasing the same yaml.Node into two slots (which would corrupt the
-//     output by last-write-wins on the shared node and drop one of the
-//     original nodes' nested fields).
+//     aliasing the same yaml.Node into two slots.
 //   - update.OrigKey == "" → newly added step; synthesise a minimal mapping
 //     with only the editable fields.
 //   - Existing steps NOT referenced by any update → dropped (the editor
 //     used the remove button).
 //   - Output order follows `updates` so reordering works naturally.
 //
-// The author's `step:` value on each existing node is left UNTOUCHED — we
-// don't rewrite it, don't strip it from existing steps, and don't add it
-// to new ones. The previous behaviour (write OrigKey back as `step:`)
-// produced non-contiguous numbering after reorder (step:3 at position 0)
-// AND mutated integer `step: 1` to quoted-string `step: "1"` on every
-// save. Authors who care about step labels can edit YAML by hand; the
-// CMS only owns the editable fields and the array order.
+// Position is propagated into applyFlowStep so it can synthesise a `step:`
+// value (1-based, integer) when the node doesn't have one — without it the
+// docs-generator (pkg/docs.Step is `int`) zero-defaults newly-added steps
+// to "Step 0:" on the rendered page.
 func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 	if updates == nil {
 		return
 	}
 	existing := childValue(guide, "flow")
-	byKey := map[string]*yaml.Node{}
-	if existing != nil && existing.Kind == yaml.SequenceNode {
-		for i, n := range existing.Content {
-			if n.Kind != yaml.MappingNode {
-				continue // mirror the read path; never alias non-mappings
-			}
-			k := flowStepKey(n, i)
-			if _, dup := byKey[k]; dup {
-				continue // duplicate `step:` value in source — keep first
-			}
-			byKey[k] = n
-		}
-	}
+	byKey := buildFlowKeyMap(existing)
 
 	newContent := make([]*yaml.Node, 0, len(updates))
-	for _, u := range updates {
+	for i, u := range updates {
 		var node *yaml.Node
 		if u.OrigKey != "" {
 			if n, ok := byKey[u.OrigKey]; ok {
@@ -195,7 +182,7 @@ func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 		if node == nil {
 			node = &yaml.Node{Kind: yaml.MappingNode}
 		}
-		applyFlowStep(node, u)
+		applyFlowStep(node, u, i+1)
 		newContent = append(newContent, node)
 	}
 
@@ -203,29 +190,68 @@ func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 		existing.Content = newContent
 		return
 	}
-	// No prior flow field — append one.
 	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: "flow"}
 	seqNode := &yaml.Node{Kind: yaml.SequenceNode, Content: newContent}
 	guide.Content = append(guide.Content, keyNode, seqNode)
 }
 
+// buildFlowKeyMap walks a `flow:` sequence and returns a map from each
+// row's disambiguated key (computed via disambigKey) to its *yaml.Node.
+// The same algorithm runs on the READ side (flowStepsFromSeq), so a guide
+// with duplicate `step:` values produces unique keys per occurrence on
+// both sides — the round-trip preserves nodeB's nested fields instead of
+// collapsing them onto nodeA.
+func buildFlowKeyMap(existing *yaml.Node) map[string]*yaml.Node {
+	out := map[string]*yaml.Node{}
+	if existing == nil || existing.Kind != yaml.SequenceNode {
+		return out
+	}
+	seen := map[string]int{}
+	for i, n := range existing.Content {
+		if n.Kind != yaml.MappingNode {
+			continue
+		}
+		k := disambigKey(flowStepKey(n, i), seen)
+		out[k] = n
+	}
+	return out
+}
+
+// disambigKey appends a `#N` occurrence suffix when `base` has already
+// been seen, so duplicate `step:` values produce distinct round-trip keys.
+// The counter is updated in place. The READ and WRITE sides MUST call this
+// in the same iteration order over the same input to stay symmetric.
+func disambigKey(base string, seen map[string]int) string {
+	occ := seen[base]
+	seen[base] = occ + 1
+	if occ == 0 {
+		return base
+	}
+	return base + "#" + strconv.Itoa(occ)
+}
+
 // applyFlowStep mutates one step mapping in place to match the editable
-// fields of u. `title`, `curl_example_jwt`, `curl_example_api_key`, and
-// `response_example` live at the top of the step; method/path live one
-// level deeper inside `endpoint:`.
+// fields of u. position is the 1-based array index used to synthesise a
+// `step:` value when the node doesn't have one — without it, newly-added
+// steps render as "Step 0:" on the docs page because pkg/docs.Step is
+// `int` and zero-defaults.
 //
-// Fields are skipped when the new value is empty AND the field is not
-// already present on the node — that prevents `curl_example_api_key: ""`
-// (and similar empties) from polluting every save's diff with new lines
-// the author never wrote.
-//
-// If `endpoint:` exists but is NOT a MappingNode (e.g. `endpoint: null`,
-// a placeholder), we replace the value with a fresh MappingNode rather
-// than appending key/value pairs to a ScalarNode — yaml.v3 ignores
-// Content on non-mappings at marshal time, so the editor's method/path
-// would have been silently discarded.
-func applyFlowStep(node *yaml.Node, u FlowStep) {
+// If `endpoint:` exists but is NOT a MappingNode (e.g. `endpoint: null`),
+// the value is REPLACED with a fresh MappingNode rather than mutated in
+// place — yaml.v3 ignores Content on non-mappings at marshal time, so the
+// editor's method/path edits would otherwise be silently discarded.
+func applyFlowStep(node *yaml.Node, u FlowStep, position int) {
 	setOrAppendScalar(node, "title", u.Title)
+
+	// Synthesise a step: value only when the node doesn't have one. Keeps
+	// the author's chosen labels (e.g. "2a") intact across edits while
+	// closing the "Step 0:" rendering bug for new steps. Tagged !!int so
+	// pkg/docs's `Step int` field parses it as a number — going through
+	// setOrAppendScalar would force string-typing via mustQuoteToStayString
+	// and the docs-generator would zero-default the int.
+	if childValue(node, "step") == nil {
+		appendIntScalar(node, "step", position)
+	}
 
 	ep := childValue(node, "endpoint")
 	if ep == nil {
@@ -236,57 +262,108 @@ func applyFlowStep(node *yaml.Node, u FlowStep) {
 		)
 	} else if ep.Kind != yaml.MappingNode {
 		fresh := &yaml.Node{Kind: yaml.MappingNode}
-		replaceChildValue(node, "endpoint", fresh)
+		if !replaceChildValue(node, "endpoint", fresh) {
+			// Belt-and-braces: replaceChildValue must succeed here since
+			// childValue just returned a non-nil ep, but if a future
+			// refactor decouples the two, fall through to an append.
+			node.Content = append(node.Content,
+				&yaml.Node{Kind: yaml.ScalarNode, Value: "endpoint"},
+				fresh,
+			)
+		}
 		ep = fresh
 	}
 	setOrAppendScalar(ep, "method", u.EndpointMethod)
 	setOrAppendScalar(ep, "path", u.EndpointPath)
 
-	setScalarIfPresentOrNonEmpty(node, "curl_example_jwt", u.CurlJWT)
-	setScalarIfPresentOrNonEmpty(node, "curl_example_api_key", u.CurlAPIKey)
-	setScalarIfPresentOrNonEmpty(node, "response_example", u.ResponseExample)
+	setScalarOptional(node, "curl_example_jwt", u.CurlJWT)
+	setScalarOptional(node, "curl_example_api_key", u.CurlAPIKey)
+	setScalarOptional(node, "response_example", u.ResponseExample)
 }
 
-// setScalarIfPresentOrNonEmpty is setOrAppendScalar with a guard: do nothing
-// when value is empty AND the key doesn't already exist on the mapping.
-// Used for optional step fields (curl_example_*, response_example) so a
-// no-op save doesn't materialise empty keys the author never wrote.
-func setScalarIfPresentOrNonEmpty(m *yaml.Node, key, value string) {
-	if value == "" && childValue(m, key) == nil {
+// setScalarOptional handles a step's optional scalar field — three states:
+//
+//   - value != ""  → set or append the scalar (write the new value)
+//   - value == "" and field absent → no-op (don't pollute the YAML with
+//     empty keys the author never wrote)
+//   - value == "" and field PRESENT → DELETE the field (editor cleared the
+//     textarea intending to remove it; leaving a stale `field: ”` would
+//     either render differently from absent or force the author to drop
+//     into raw YAML to delete the key)
+//
+// Replaces the prior setScalarIfPresentOrNonEmpty which only covered the
+// first two cases and left stale empties in the YAML on clear-to-delete.
+func setScalarOptional(m *yaml.Node, key, value string) {
+	if value != "" {
+		setOrAppendScalar(m, key, value)
 		return
 	}
-	setOrAppendScalar(m, key, value)
+	deleteChild(m, key)
 }
 
-// replaceChildValue swaps the value node for the named key in a MappingNode.
-// No-op if the key isn't present. Used when an existing key holds a value
-// of the wrong kind (e.g. `endpoint: null` instead of a mapping) and we
-// need to replace it rather than mutate it in place.
-func replaceChildValue(m *yaml.Node, key string, newValue *yaml.Node) {
+// appendIntScalar appends `key: <value>` to a MappingNode as a !!int-tagged
+// scalar so the next yaml.Unmarshal targeting an `int` field parses it as
+// a number. Plain decimal style.
+func appendIntScalar(m *yaml.Node, key string, value int) {
+	if m.Kind != yaml.MappingNode {
+		return
+	}
+	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
+	valueNode := &yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Tag:   "!!int",
+		Value: strconv.Itoa(value),
+	}
+	m.Content = append(m.Content, keyNode, valueNode)
+}
+
+// deleteChild removes a key/value pair from a MappingNode. No-op when the
+// key is absent or m isn't a MappingNode.
+func deleteChild(m *yaml.Node, key string) {
 	if m.Kind != yaml.MappingNode {
 		return
 	}
 	for i := 0; i+1 < len(m.Content); i += 2 {
 		if m.Content[i].Value == key {
-			m.Content[i+1] = newValue
+			m.Content = append(m.Content[:i], m.Content[i+2:]...)
 			return
 		}
 	}
 }
 
+// replaceChildValue swaps the value node for the named key in a MappingNode
+// and reports whether the swap happened. Returns false when the key isn't
+// present or m isn't a MappingNode — the previous void return invited
+// future callers to assume the swap succeeded.
+func replaceChildValue(m *yaml.Node, key string, newValue *yaml.Node) bool {
+	if m.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			m.Content[i+1] = newValue
+			return true
+		}
+	}
+	return false
+}
+
 // flowStepsFromSeq reads a `flow:` sequence into the editor's flat view.
 // OrigKey is the textual `step:` value (e.g. "1", "2a") because that's how
 // authors anchor their flows in prose; if absent we fall back to the index
-// so the position is still round-trippable. The form ships OrigKey back so
-// SaveGuide can match a submitted step to its source yaml.Node and preserve
-// nested non-editable fields verbatim.
+// so the position is still round-trippable. Duplicate `step:` values get
+// disambiguated with a `#N` suffix so each row has a UNIQUE OrigKey — the
+// matching algorithm in buildFlowKeyMap on the write side uses the same
+// counter so a guide with two `step: 1` rows round-trips both nodes
+// faithfully instead of collapsing nodeB onto nodeA.
 func flowStepsFromSeq(seq *yaml.Node) []FlowStep {
 	out := make([]FlowStep, 0, len(seq.Content))
+	seen := map[string]int{}
 	for i, n := range seq.Content {
 		if n.Kind != yaml.MappingNode {
 			continue
 		}
-		step := FlowStep{OrigKey: flowStepKey(n, i)}
+		step := FlowStep{OrigKey: disambigKey(flowStepKey(n, i), seen)}
 		if v := childValue(n, "title"); v != nil {
 			step.Title = v.Value
 		}
@@ -703,22 +780,45 @@ func scalarStyleFor(v string) yaml.Style {
 
 // mustQuoteToStayString reports whether the YAML core schema would tag the
 // emitted plain scalar as something other than !!str — i.e. we'd lose the
-// string type if we emitted it unquoted. Covers the canonical bool/null
-// spellings plus anything strconv can parse as a number.
+// string type if we emitted it unquoted. The list below is informed by
+// yaml.v3's resolver: covers the canonical bool / null spellings, signed
+// & unsigned ints in decimal/hex/octal/binary (via ParseInt base 0), all
+// strconv-parseable floats, AND the YAML-specific float specials that
+// strconv doesn't recognise (`.inf`, `.Inf`, `.INF`, `+.inf`, `-.inf`,
+// `.nan`, `.NaN`, `.NAN`).
 func mustQuoteToStayString(v string) bool {
 	if v == "" {
-		// Empty string in plain style is the canonical empty, but yaml.v3
-		// may also interpret it as null in some contexts; quote to be safe.
+		// An empty plain scalar is canonical YAML null on parse; quote to
+		// keep it as the empty string.
 		return true
 	}
 	switch strings.ToLower(v) {
 	case "true", "false", "yes", "no", "on", "off", "null", "~":
 		return true
 	}
-	if _, err := strconv.ParseInt(v, 10, 64); err == nil {
+	if isYAMLFloatSpecial(v) {
+		return true
+	}
+	// Base 0 lets ParseInt accept `0x1F`, `0o17`, `0b101` in addition to
+	// plain decimals — yaml.v3 tags all of those as !!int on parse, so
+	// they would round-trip from string to int if emitted plain.
+	if _, err := strconv.ParseInt(v, 0, 64); err == nil {
 		return true
 	}
 	if _, err := strconv.ParseFloat(v, 64); err == nil {
+		return true
+	}
+	return false
+}
+
+// isYAMLFloatSpecial covers the dotted-inf / dotted-nan literals YAML's
+// core schema treats as !!float but strconv.ParseFloat doesn't recognise.
+func isYAMLFloatSpecial(v string) bool {
+	switch v {
+	case ".inf", ".Inf", ".INF",
+		"+.inf", "+.Inf", "+.INF",
+		"-.inf", "-.Inf", "-.INF",
+		".nan", ".NaN", ".NAN":
 		return true
 	}
 	return false

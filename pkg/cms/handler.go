@@ -100,8 +100,10 @@ func (s *Server) SpecDir() string { return s.specDir }
 const maxRequestBody = 2 << 20
 
 // boundRequestBody wraps the request body in http.MaxBytesReader so any
-// downstream PostForm / ReadAll fails fast past the cap. Installed once
-// at the authed group; /healthz and /login are tiny enough to skip.
+// downstream PostForm / ReadAll fails fast past the cap. Mounted at the
+// engine root (Use) — applies BEFORE auth so an unauthenticated attacker
+// can't DoS /login by streaming a multi-GB body; the prior placement on
+// the authed group only left /login (the one public POST) unbounded.
 func boundRequestBody() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxRequestBody {
@@ -114,15 +116,17 @@ func boundRequestBody() gin.HandlerFunc {
 	}
 }
 
-// RegisterRoutes wires all CMS endpoints onto r. The auth split is:
-//   - /login (GET/POST), /healthz: public
-//   - everything else: behind RequireAuth + boundRequestBody
+// RegisterRoutes wires all CMS endpoints onto r. boundRequestBody is
+// applied to ALL routes (including /login) so the body-size cap protects
+// the unauthenticated attack surface too.
 func (s *Server) RegisterRoutes(r *gin.Engine) {
+	r.Use(boundRequestBody())
+
 	r.GET("/healthz", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 	r.GET("/login", s.handleLoginForm)
 	r.POST("/login", s.handleLoginSubmit)
 
-	authed := r.Group("/", s.auth.RequireAuth(), boundRequestBody())
+	authed := r.Group("/", s.auth.RequireAuth())
 	authed.POST("/logout", s.handleLogout)
 	authed.GET("/", s.handleRoot)
 	authed.GET("/guides", s.handleGuidesList)
@@ -275,13 +279,18 @@ func (s *Server) handleGuideEditForm(c *gin.Context) {
 			guide.Icon = drafted.Icon
 			guide.Title = drafted.Title
 			guide.Description = drafted.Description
-			// IMPORTANT: copy Flow too. Skipping this caused the form to
-			// re-render the on-disk flow when the editor reopened the page
-			// after a flow Save Draft — making it look like their work was
-			// lost (it wasn't; publish still applied the draft, but a
-			// subsequent Save Draft would write the disk flow back over
-			// their edits).
-			guide.Flow = drafted.Flow
+			// Copy Flow ONLY when the draft actually carried one. An
+			// unconditional copy would blank the disk flow whenever a
+			// metadata-only draft (Flow == nil after decode) overlays a
+			// guide with on-disk flow steps — the template would then
+			// emit step_count=0 and the editor's next Save would persist
+			// a non-nil empty Flow that on Publish wipes the on-disk
+			// flow. The nil check preserves the "draft has no opinion
+			// about flow" semantics that distinguishes metadata-only
+			// drafts from explicit-clear-all.
+			if drafted.Flow != nil {
+				guide.Flow = drafted.Flow
+			}
 			draftBanner = "Editing an unsaved draft from " + humanAgo(d.UpdatedAt) + "."
 		}
 	}
@@ -472,11 +481,12 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		c.String(http.StatusBadRequest, err.Error())
 		return file, id, update, "", false
 	}
+
+	// Build the GuideEntry from form fields BEFORE validation so the
+	// failure branches can re-render the form with the editor's typed
+	// values intact instead of redirecting (which would reload from
+	// disk/draft and discard the in-flight session).
 	flow, flowErr := collectFlowSteps(c)
-	if flowErr != nil {
-		s.editError(c, file, id, flowErr.Error())
-		return file, id, update, "", false
-	}
 	update = GuideEntry{
 		FilePath:    abs,
 		ID:          id,
@@ -485,14 +495,72 @@ func (s *Server) collectEditForm(c *gin.Context) (file, id string, update GuideE
 		Description: c.PostForm("description"),
 		Flow:        flow,
 	}
-	// Title was already TrimSpaced above; matches the publish-side guard
-	// `strings.TrimSpace(update.Title) == ""` so whitespace-only titles
-	// are rejected consistently at every gate.
+
+	// If a multi-MB textarea paste tripped MaxBytesReader mid-PostForm,
+	// gin returns empty strings for every field. Detect that BEFORE the
+	// generic "Title cannot be empty" branch so the editor sees the real
+	// cause ("request body too large") rather than a misleading message.
+	if maxBytesExceeded(c) {
+		s.renderEditFormInline(c, file, id, update, "Request body too large — reduce the size of long fields (curl examples, response_example).")
+		return file, id, update, "", false
+	}
+
+	// Empty-title rows from collectFlowSteps come back paired with
+	// errEmptyStepTitle AND with the parsed slice still populated — we
+	// re-render the form INLINE so the editor's other typed fields aren't
+	// lost. Other collectFlowSteps errors (malformed step_count) are
+	// structural and can use the redirect path.
+	if flowErr != nil && errors.Is(flowErr, errEmptyStepTitle) {
+		s.renderEditFormInline(c, file, id, update, flowErr.Error())
+		return file, id, update, "", false
+	}
+	if flowErr != nil {
+		s.editError(c, file, id, flowErr.Error())
+		return file, id, update, "", false
+	}
+
 	if strings.TrimSpace(update.Title) == "" {
-		s.editError(c, file, id, "Title cannot be empty.")
+		s.renderEditFormInline(c, file, id, update, "Title cannot be empty.")
 		return file, id, update, "", false
 	}
 	return file, id, update, abs, true
+}
+
+// renderEditFormInline re-renders guide_edit with the editor's current
+// (unvalidated) form values plus an error banner — no redirect, no reload
+// from disk/draft. Used on every validation failure that would otherwise
+// destroy the editor's session state on the redirect-and-reload path.
+//
+// The draft banner machinery is skipped (HasDraft=false) because the
+// editor IS the source of truth right now; loading the disk draft on top
+// would overwrite the values they're trying to fix.
+func (s *Server) renderEditFormInline(c *gin.Context, file, id string, formGuide GuideEntry, errorMsg string) {
+	formGuide.FilePath = file
+	formGuide.ID = id
+	s.render(c, "guide_edit", gin.H{
+		"User":         sessionUser(c),
+		"Guide":        formGuide,
+		"DraftBanner":  "",
+		"HasDraft":     false,
+		"DraftCorrupt": false,
+		"ShowFlow":     true,
+		"Flash":        "",
+		"Error":        errorMsg,
+	})
+}
+
+// maxBytesExceeded reports whether MaxBytesReader rejected the request
+// body during PostForm parsing. gin swallows the underlying error; the
+// most reliable signal is checking c.Errors for the *http.MaxBytesError
+// gin's body-binder records there.
+func maxBytesExceeded(c *gin.Context) bool {
+	for _, e := range c.Errors {
+		var mbe *http.MaxBytesError
+		if errors.As(e.Err, &mbe) {
+			return true
+		}
+	}
+	return false
 }
 
 // maxFlowSteps caps the number of steps the form may submit. The form's
@@ -510,18 +578,25 @@ const maxFlowSteps = 200
 // trace).
 var errMalformedStepCount = errors.New("malformed step_count form field")
 
+// errEmptyStepTitle is the sentinel collectFlowSteps returns when ANY
+// submitted step has an empty title. Callers (the handlers) can
+// errors.Is-detect it to render the form INLINE with the editor's typed
+// values preserved instead of redirecting — a redirect would reload from
+// disk/draft and discard every other field the editor was typing.
+var errEmptyStepTitle = errors.New("empty step title")
+
 // collectFlowSteps reads the per-step form fields the flow editor submits.
-// Returns (nil, nil) when the form has no step_count field at all
-// — that's the legacy metadata-only path and preserves "leave flow alone"
-// in SaveGuide. Returns (nil, errMalformedStepCount) when step_count is
-// present but invalid (out-of-range, non-numeric, over maxFlowSteps) so
-// the handler can refuse the request with diagnostic feedback. Returns a
-// possibly-empty non-nil slice on success.
 //
-// Empty-title steps surface as errEmptyStepTitle on the FIRST occurrence;
-// silently dropping the row would also drop the step's non-editable
-// nested fields (endpoint.service, fields[], etc.), so we'd rather force
-// the editor to confirm via Remove or fix the title.
+// Returns (nil, nil) when the form has no step_count field at all — the
+// legacy metadata-only path that preserves "leave flow alone" semantics
+// in SaveGuide. Returns (nil, errMalformedStepCount) when step_count
+// itself is invalid (non-numeric, negative, > maxFlowSteps).
+//
+// Otherwise returns the parsed slice — even if one or more steps are
+// invalid (empty title) — paired with errEmptyStepTitle. Callers
+// errors.Is-detect that case and re-render the edit form INLINE with the
+// returned data so the editor's other typed fields aren't lost to a
+// redirect.
 //
 // Form contract (i runs 0 .. step_count-1):
 //
@@ -549,11 +624,12 @@ func collectFlowSteps(c *gin.Context) ([]FlowStep, error) {
 		return nil, fmt.Errorf("%w: %d > %d", errMalformedStepCount, n, maxFlowSteps)
 	}
 	out := make([]FlowStep, 0, n)
+	var firstEmptyIdx = -1
 	for i := 0; i < n; i++ {
 		p := "step_" + strconv.Itoa(i) + "_"
 		title := strings.TrimSpace(c.PostForm(p + "title"))
-		if title == "" {
-			return nil, fmt.Errorf("step %d has an empty title — fill it in or use Remove", i+1)
+		if title == "" && firstEmptyIdx == -1 {
+			firstEmptyIdx = i
 		}
 		out = append(out, FlowStep{
 			OrigKey:         c.PostForm(p + "orig"),
@@ -564,6 +640,9 @@ func collectFlowSteps(c *gin.Context) ([]FlowStep, error) {
 			CurlAPIKey:      c.PostForm(p + "curl_apikey"),
 			ResponseExample: c.PostForm(p + "response"),
 		})
+	}
+	if firstEmptyIdx >= 0 {
+		return out, fmt.Errorf("%w: step %d has an empty title — fill it in or use Remove", errEmptyStepTitle, firstEmptyIdx+1)
 	}
 	return out, nil
 }
@@ -577,11 +656,25 @@ func (s *Server) persistDraft(abs, id string, update GuideEntry) error {
 	return s.store.UpsertDraft(abs, id, payload)
 }
 
+// maxEditErrorLen caps the length of the error message we round-trip
+// through the redirect Location header. Even with the auth cookie + the
+// file/id values, 512 chars of error leaves plenty of room before the
+// 8 KiB header limit common reverse proxies (nginx default) enforce. A
+// future error that interpolates yaml-parse traces or user textarea
+// excerpts would otherwise produce a redirect that the proxy refuses.
+const maxEditErrorLen = 512
+
 // editError sends the editor back to the edit form with the message rendered
 // in the error banner. The handful of "save/preview/publish failed" branches
 // all went through near-identical url.Values blocks; consolidating here keeps
 // the error UX consistent and the handlers focused on their happy paths.
+// Messages over maxEditErrorLen are truncated to keep the Location header
+// safely below proxy limits — better a truncated diagnostic than a silent
+// 502 from the reverse proxy.
 func (s *Server) editError(c *gin.Context, file, id, msg string) {
+	if len(msg) > maxEditErrorLen {
+		msg = msg[:maxEditErrorLen-3] + "..."
+	}
 	s.redirectWithQuery(c, "/guides/edit", url.Values{
 		"file":  {file},
 		"id":    {id},
@@ -656,9 +749,12 @@ func encodeGuidePayload(g GuideEntry) (string, error) {
 		Title:       g.Title,
 		Description: g.Description,
 	}
+	// Pointer-to-slice preserves the nil-vs-empty distinction across JSON.
+	// Taking the address of g.Flow directly works because g is a value
+	// parameter (its fields are addressable); the prior local copy was
+	// just an indirection without a defensive-copy benefit.
 	if g.Flow != nil {
-		flow := g.Flow
-		body.Flow = &flow
+		body.Flow = &g.Flow
 	}
 	b, err := json.Marshal(body)
 	if err != nil {

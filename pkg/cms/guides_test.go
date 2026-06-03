@@ -810,3 +810,189 @@ func TestSaveGuide_FlowStringTypeConfusion(t *testing.T) {
 		t.Errorf("path \"42\" round-tripped as %q (likely promoted to int)", got.Flow[0].EndpointPath)
 	}
 }
+
+// TestSaveGuide_FlowAssignsStepForNewSteps guards the "Step 0" rendering
+// regression: previously, removing the OrigKey-as-step writeback meant
+// newly-added steps had no `step:` field, and pkg/docs.Step (int) zero-
+// defaulted them to "Step 0:" on the docs page. Now applyFlowStep assigns
+// a positional integer when the node has no step: of its own.
+func TestSaveGuide_FlowAssignsStepForNewSteps(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: existing
+        endpoint: { method: GET, path: /a }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "existing"},
+			{OrigKey: "", Title: "NEW step", EndpointMethod: "POST", EndpointPath: "/b"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	// Existing step's author-assigned `step: 1` is preserved untouched.
+	if !strings.Contains(s, "step: 1") {
+		t.Errorf("existing step: 1 was lost:\n%s", s)
+	}
+	// New step got a synthesized step value of its position (2).
+	if !strings.Contains(s, "step: 2") {
+		t.Errorf("new step at position 2 should have synthesised step: 2; got:\n%s", s)
+	}
+	// Round-trip load: both flow steps have non-empty OrigKey now.
+	got, _ := LoadGuide(file, "x")
+	if len(got.Flow) != 2 {
+		t.Fatalf("want 2 steps, got %d", len(got.Flow))
+	}
+	for i, st := range got.Flow {
+		if st.OrigKey == "" {
+			t.Errorf("step[%d] has no OrigKey — would render as Step 0 in docs", i)
+		}
+	}
+}
+
+// TestSaveGuide_FlowDuplicateKeyPreservesNestedFields is the regression
+// guard for the symmetric dup-key bug: flowStepsFromSeq now disambiguates
+// duplicate `step:` values with a #N suffix, and applyFlowEdits' byKey
+// uses the same algorithm, so both rows' nested non-editable fields
+// survive a no-op edit.
+func TestSaveGuide_FlowDuplicateKeyPreservesNestedFields(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: First
+        endpoint:
+          method: GET
+          path: /a
+          service: First-Service
+          permission: first:read
+      - step: 1
+        title: Second
+        endpoint:
+          method: POST
+          path: /b
+          service: Second-Service
+          permission: second:write
+`)
+	// Read both back, then save with no edits (mirroring what a UI no-op
+	// save would look like).
+	got, err := LoadGuide(file, "x")
+	if err != nil {
+		t.Fatalf("LoadGuide: %v", err)
+	}
+	if len(got.Flow) != 2 {
+		t.Fatalf("want 2 steps, got %d", len(got.Flow))
+	}
+	if got.Flow[0].OrigKey == got.Flow[1].OrigKey {
+		t.Errorf("flowStepsFromSeq should disambiguate dup keys; both rows got OrigKey=%q", got.Flow[0].OrigKey)
+	}
+	if err := SaveGuide(file, GuideEntry{ID: "x", Title: "T", Flow: got.Flow}); err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	// BOTH services and BOTH permissions must survive — the headline
+	// data-loss guard.
+	for _, want := range []string{
+		"service: First-Service",
+		"service: Second-Service",
+		"permission: first:read",
+		"permission: second:write",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("dup-key save dropped %q from one of the rows:\n%s", want, s)
+		}
+	}
+}
+
+// TestSaveGuide_DeletesEmptyOptionalField guards setScalarOptional's
+// clear-to-delete behavior: when an editor blanks a textarea whose field
+// EXISTED on disk, the field is deleted from the YAML (not left as a
+// stale `field: ”`).
+func TestSaveGuide_DeletesEmptyOptionalField(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: T
+        endpoint: { method: GET, path: /a }
+        response_example: outdated
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "T", EndpointMethod: "GET", EndpointPath: "/a",
+				ResponseExample: "" /* cleared */},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	if strings.Contains(s, "response_example:") {
+		t.Errorf("response_example should be deleted when editor clears it; got:\n%s", s)
+	}
+	if strings.Contains(s, "outdated") {
+		t.Errorf("outdated response_example value still in file:\n%s", s)
+	}
+}
+
+// TestSaveGuide_HexOctalInfNanStayString extends the type-confusion guard
+// to cover the YAML core schema cases that strconv didn't catch before:
+// hex/octal/binary integers and the dotted-inf/nan float specials.
+func TestSaveGuide_HexOctalInfNanStayString(t *testing.T) {
+	cases := map[string]string{
+		"hex":        "0x1F",
+		"octal":      "0o17",
+		"binary":     "0b101",
+		"dot-inf":    ".inf",
+		"dot-nan-mc": ".NaN",
+		"plain-true": "true",
+		"plain-42":   "42",
+	}
+	for name, value := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: orig
+        endpoint: { method: GET, path: /a }
+`)
+			err := SaveGuide(file, GuideEntry{
+				ID: "x", Title: "T",
+				Flow: []FlowStep{
+					{OrigKey: "1", Title: value, EndpointMethod: "GET", EndpointPath: value},
+				},
+			})
+			if err != nil {
+				t.Fatalf("SaveGuide: %v", err)
+			}
+			got, err := LoadGuide(file, "x")
+			if err != nil {
+				t.Fatalf("LoadGuide: %v", err)
+			}
+			if got.Flow[0].Title != value {
+				t.Errorf("title %q round-tripped as %q — auto-typed by yaml.v3", value, got.Flow[0].Title)
+			}
+			if got.Flow[0].EndpointPath != value {
+				t.Errorf("path %q round-tripped as %q — auto-typed by yaml.v3", value, got.Flow[0].EndpointPath)
+			}
+		})
+	}
+}

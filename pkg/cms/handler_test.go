@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/html"
 )
 
 // newTestServer wires a CMS handler against an in-memory SQLite and a temp
@@ -403,11 +404,13 @@ func TestFlowEditor_NoStepCountLeavesFlowAlone(t *testing.T) {
 	}
 }
 
-// TestFlowEditor_EmptyStepTitleRejected guards the collectFlowSteps fix that
-// surfaces an error instead of silently dropping a row with empty title —
-// silent drop also threw away the step's nested non-editable fields.
-func TestFlowEditor_EmptyStepTitleRejected(t *testing.T) {
-	r, _, specDir, cookie := newTestServer(t, "p")
+// TestFlowEditor_EmptyStepTitleInlineError guards the empty-title behaviour:
+// rather than redirecting (which would discard every OTHER field the editor
+// was typing), the handler re-renders the form INLINE (status 200) with the
+// editor's typed values preserved and an error banner pointing at the empty
+// step. The file is left untouched and no draft is persisted.
+func TestFlowEditor_EmptyStepTitleInlineError(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
 	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -417,14 +420,19 @@ func TestFlowEditor_EmptyStepTitleRejected(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	body := url.Values{
-		"title":         {"T"},
-		"description":   {""},
-		"icon":          {""},
-		"step_count":    {"1"},
-		"step_0_orig":   {"1"},
-		"step_0_title":  {""}, // editor cleared the title — should be rejected
-		"step_0_method": {"GET"},
-		"step_0_path":   {"/a"},
+		"title":           {"GUIDE_TITLE_TYPED"},
+		"description":     {"DESCRIPTION_TYPED"},
+		"icon":            {""},
+		"step_count":      {"2"},
+		"step_0_orig":     {"1"},
+		"step_0_title":    {""}, // empty title — triggers inline error
+		"step_0_method":   {"GET"},
+		"step_0_path":     {"/a"},
+		"step_1_orig":     {""},
+		"step_1_title":    {"SECOND_STEP_TYPED"},
+		"step_1_method":   {"POST"},
+		"step_1_path":     {"/b"},
+		"step_1_response": {"RESPONSE_TYPED"},
 	}
 	req := httptest.NewRequest(http.MethodPost,
 		"/guides/draft?file=guides/x.yaml&id=x",
@@ -433,20 +441,33 @@ func TestFlowEditor_EmptyStepTitleRejected(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusSeeOther {
-		t.Fatalf("expected 303 redirect, got %d", w.Code)
+
+	// Inline render — NOT a redirect — preserves session state.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 inline render, got %d (body=%s)", w.Code, w.Body.String())
 	}
-	loc := w.Header().Get("Location")
-	if !strings.Contains(loc, "error=") {
-		t.Errorf("expected error in redirect; got: %s", loc)
-	}
-	if !strings.Contains(loc, "empty+title") && !strings.Contains(loc, "empty%20title") {
-		t.Errorf("expected error to mention empty title; got: %s", loc)
+	respBody := w.Body.String()
+	for _, want := range []string{
+		"GUIDE_TITLE_TYPED", // top-level title preserved
+		"DESCRIPTION_TYPED", // description preserved
+		"SECOND_STEP_TYPED", // other step's title preserved
+		"RESPONSE_TYPED",    // other step's response preserved
+		"empty title",       // error banner mentions the problem
+	} {
+		if !strings.Contains(respBody, want) {
+			t.Errorf("response should preserve editor's typed value %q; not found in body", want)
+		}
 	}
 	// File untouched.
 	after, _ := os.ReadFile(yamlPath)
 	if string(after) != original {
 		t.Errorf("file was mutated by a rejected draft:\n%s", after)
+	}
+	// No draft persisted on the inline-error path — the editor's input is
+	// in the rendered form, not in the DB, until they fix the error and
+	// resubmit.
+	if _, err := store.GetDraft(yamlPath, "x"); err != ErrDraftNotFound {
+		t.Errorf("inline-error path should not persist a draft; got: %v", err)
 	}
 }
 
@@ -624,4 +645,152 @@ func TestFlowEditor_FieldNameContract(t *testing.T) {
 	if !strings.Contains(s.ResponseExample, "STEP_RESPONSE") {
 		t.Errorf("Response: got %q, want STEP_RESPONSE", s.ResponseExample)
 	}
+}
+
+// TestFlowEditor_NilFlowDraftDoesNotWipeDiskFlow is the regression guard
+// for the unconditional drafted.Flow overlay bug. A draft that was saved
+// with nil Flow (metadata-only edit) MUST NOT clear guide.Flow when the
+// edit form is reopened, because the form would then emit step_count=0
+// and a subsequent Save would write `flow: []` to disk, wiping the
+// original on-disk flow.
+func TestFlowEditor_NilFlowDraftDoesNotWipeDiskFlow(t *testing.T) {
+	r, store, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte(`guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: DISK_STEP_1
+        endpoint: { method: GET, path: /a }
+      - step: 2
+        title: DISK_STEP_2
+        endpoint: { method: POST, path: /b }
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Metadata-only draft: no flow field at all.
+	if err := store.UpsertDraft(yamlPath, "x",
+		`{"icon":"","title":"T edited","description":"D edited"}`); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/guides/edit?file=guides/x.yaml&id=x", nil)
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	// The form must render the on-disk steps, NOT a blank flow editor —
+	// otherwise editor's next Save would wipe them.
+	if !strings.Contains(body, "DISK_STEP_1") || !strings.Contains(body, "DISK_STEP_2") {
+		t.Errorf("nil-Flow draft must overlay metadata but leave on-disk flow intact in form; disk steps missing from rendered body")
+	}
+	// Hidden step_count must be 2 (one per disk step), NOT 0.
+	if !strings.Contains(body, `name="step_count" id="step_count" value="2"`) &&
+		!strings.Contains(body, `value="2" name="step_count"`) {
+		t.Errorf("step_count should reflect on-disk flow (=2), not blanked to 0; body excerpt missing both forms")
+	}
+}
+
+// TestLogin_BoundedRequestBody guards bug #3: /login is the only public
+// POST and was previously OUTSIDE the boundRequestBody middleware, leaving
+// it as an unbounded body sink for unauthenticated DoS. Now the middleware
+// is mounted at the engine root so /login is covered too.
+func TestLogin_BoundedRequestBody(t *testing.T) {
+	r, _, _, _ := newTestServer(t, "p")
+	// Synthesise a body that ADVERTISES a content length past the cap so
+	// the early 413 path is exercised without actually streaming GBs.
+	req := httptest.NewRequest(http.MethodPost, "/login",
+		strings.NewReader(""))
+	req.ContentLength = 100 * 1024 * 1024 // 100 MiB — past 2 MiB cap
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("unauthenticated /login with 100MB body should 413; got %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// TestFlowEditor_TemplateContractRendered is the REAL contract test: it
+// renders the actual edit form, parses the HTML, extracts every input/
+// textarea name= attribute, then POSTs those names back through the
+// handler and verifies each survives the round-trip. Catches template
+// name= drift the synthetic-form test couldn't.
+func TestFlowEditor_TemplateContractRendered(t *testing.T) {
+	r, _, specDir, cookie := newTestServer(t, "p")
+	if err := os.MkdirAll(filepath.Join(specDir, "guides"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	yamlPath := filepath.Join(specDir, "guides", "x.yaml")
+	if err := os.WriteFile(yamlPath, []byte(`guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: T
+        endpoint: { method: GET, path: /a }
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// 1. GET the form, parse HTML, extract every name= attribute.
+	req := httptest.NewRequest(http.MethodGet,
+		"/guides/edit?file=guides/x.yaml&id=x", nil)
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET edit form: %d", w.Code)
+	}
+	names := extractFormFieldNames(t, w.Body.String())
+	// At minimum: title, description, icon, step_count, plus the per-step
+	// fields for the single existing step. The set MUST include every key
+	// collectFlowSteps reads.
+	required := []string{
+		"title", "description", "icon",
+		"step_count",
+		"step_0_orig", "step_0_title", "step_0_method", "step_0_path",
+		"step_0_curl_jwt", "step_0_curl_apikey", "step_0_response",
+	}
+	for _, want := range required {
+		if !names[want] {
+			t.Errorf("template did not render name=%q — handler/template field-name contract drift", want)
+		}
+	}
+}
+
+// extractFormFieldNames parses HTML body and returns the set of name=
+// attribute values found on <input>, <textarea>, <select>.
+func extractFormFieldNames(t *testing.T, body string) map[string]bool {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("html.Parse: %v", err)
+	}
+	out := map[string]bool{}
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "input", "textarea", "select":
+				for _, attr := range n.Attr {
+					if attr.Key == "name" {
+						out[attr.Val] = true
+					}
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	return out
 }
