@@ -996,3 +996,146 @@ func TestSaveGuide_HexOctalInfNanStayString(t *testing.T) {
 		})
 	}
 }
+
+// TestSaveGuide_FlowInsertInMiddleDoesNotCollide is the regression guard for
+// the step-value-collision bug. Inserting a new step in the middle of an
+// existing [step:1, step:2, step:3] flow used to assign `step: 3` to the
+// new row (position-based), producing two YAML entries with the same step
+// label and TWO panels titled "Step 3:" on the docs page. Now applyFlowEdits
+// assigns from max(existing-reused)+1, guaranteeing no collision.
+func TestSaveGuide_FlowInsertInMiddleDoesNotCollide(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: A
+        endpoint: { method: GET, path: /a }
+      - step: 2
+        title: B
+        endpoint: { method: GET, path: /b }
+      - step: 3
+        title: C
+        endpoint: { method: GET, path: /c }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "A", EndpointMethod: "GET", EndpointPath: "/a"},
+			{OrigKey: "2", Title: "B", EndpointMethod: "GET", EndpointPath: "/b"},
+			{OrigKey: "", Title: "NEW", EndpointMethod: "POST", EndpointPath: "/new"},
+			{OrigKey: "3", Title: "C", EndpointMethod: "GET", EndpointPath: "/c"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+
+	// Every original step value must still appear exactly once.
+	for _, want := range []string{"step: 1", "step: 2", "step: 3"} {
+		if strings.Count(s, want) != 1 {
+			t.Errorf("%q appears %d times; insertion in middle must not collide:\n%s",
+				want, strings.Count(s, want), s)
+		}
+	}
+	// The new step must have a step: value > max existing (i.e. 4).
+	if !strings.Contains(s, "step: 4") {
+		t.Errorf("new step should be assigned step: 4 (max+1); got:\n%s", s)
+	}
+	// And it must be the one labelled NEW.
+	got, _ := LoadGuide(file, "x")
+	if len(got.Flow) != 4 {
+		t.Fatalf("want 4 steps, got %d", len(got.Flow))
+	}
+	for _, st := range got.Flow {
+		if st.Title == "NEW" && st.OrigKey != "4" {
+			t.Errorf("NEW step should round-trip with OrigKey=\"4\"; got %q", st.OrigKey)
+		}
+	}
+}
+
+// TestSaveGuide_FlowMultipleNewStepsGetSequentialValues verifies that adding
+// several new steps in one save produces sequential, collision-free step
+// values starting at max+1 rather than re-using positions that might
+// collide with existing values.
+func TestSaveGuide_FlowMultipleNewStepsGetSequentialValues(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 5
+        title: existing
+        endpoint: { method: GET, path: /a }
+`)
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "5", Title: "existing", EndpointMethod: "GET", EndpointPath: "/a"},
+			{OrigKey: "", Title: "NEW_1", EndpointMethod: "GET", EndpointPath: "/1"},
+			{OrigKey: "", Title: "NEW_2", EndpointMethod: "GET", EndpointPath: "/2"},
+			{OrigKey: "", Title: "NEW_3", EndpointMethod: "GET", EndpointPath: "/3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	// max existing was 5 → new steps should get 6, 7, 8 — NOT 2, 3, 4
+	// (which would have been the position-based assignment).
+	for _, want := range []string{"step: 5", "step: 6", "step: 7", "step: 8"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("expected %q in output; max+1 assignment failed:\n%s", want, s)
+		}
+	}
+	for _, mustNot := range []string{"step: 2", "step: 3", "step: 4"} {
+		// These would only appear if we wrongly assigned by position.
+		if strings.Contains(s, mustNot) {
+			t.Errorf("found %q — assignment fell back to position-based and may collide:\n%s", mustNot, s)
+		}
+	}
+}
+
+// TestSaveGuide_FlowRemovedStepFreesNumber confirms that when an editor
+// removes a step, its step value is freed for reuse by a new step in the
+// same save (since maxReusedIntegerStep only considers nodes that are
+// actually reused).
+func TestSaveGuide_FlowRemovedStepFreesNumber(t *testing.T) {
+	dir := t.TempDir()
+	file := writeYAML(t, dir, "guides/x.yaml", `guides:
+  - id: x
+    title: T
+    flow:
+      - step: 1
+        title: keep
+        endpoint: { method: GET, path: /a }
+      - step: 2
+        title: REMOVED
+        endpoint: { method: GET, path: /b }
+`)
+	// Editor removes "REMOVED" (OrigKey 2) and adds NEW.
+	err := SaveGuide(file, GuideEntry{
+		ID: "x", Title: "T",
+		Flow: []FlowStep{
+			{OrigKey: "1", Title: "keep", EndpointMethod: "GET", EndpointPath: "/a"},
+			{OrigKey: "", Title: "NEW", EndpointMethod: "GET", EndpointPath: "/c"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SaveGuide: %v", err)
+	}
+	out, _ := os.ReadFile(file)
+	s := string(out)
+	// max-reused is just 1 (existing step:2 was REMOVED, doesn't count) →
+	// NEW gets step: 2 (freed by removal).
+	if !strings.Contains(s, "step: 2") {
+		t.Errorf("removed step's number should be reclaimable; expected step: 2 on new step:\n%s", s)
+	}
+	if strings.Contains(s, "REMOVED") {
+		t.Errorf("removed step still in YAML:\n%s", s)
+	}
+}

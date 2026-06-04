@@ -159,10 +159,14 @@ func guidesInFile(path string) ([]GuideEntry, error) {
 //     used the remove button).
 //   - Output order follows `updates` so reordering works naturally.
 //
-// Position is propagated into applyFlowStep so it can synthesise a `step:`
-// value (1-based, integer) when the node doesn't have one — without it the
-// docs-generator (pkg/docs.Step is `int`) zero-defaults newly-added steps
-// to "Step 0:" on the rendered page.
+// Steps that end up without a `step:` value get one assigned, starting from
+// max(existing integer step values) + 1 and counting up. Using max+1 instead
+// of position prevents collisions with author-chosen step values: inserting
+// a new step in the middle of [step:1, step:2, step:3] used to write
+// `step: 3` for the new row (because it's at array position 3), producing
+// two YAML entries with `step: 3` and the docs page rendering two panels
+// titled "Step 3:". max+1 guarantees the new step gets a value distinct
+// from anything already in the flow.
 func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 	if updates == nil {
 		return
@@ -170,8 +174,13 @@ func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 	existing := childValue(guide, "flow")
 	byKey := buildFlowKeyMap(existing)
 
+	// Pre-pass: find the max integer step value across the existing nodes
+	// the updates will reuse. Author values that don't parse as int (e.g.
+	// "2a") are not counted — they coexist with the assigned integers.
+	nextStep := maxReusedIntegerStep(updates, byKey) + 1
+
 	newContent := make([]*yaml.Node, 0, len(updates))
-	for i, u := range updates {
+	for _, u := range updates {
 		var node *yaml.Node
 		if u.OrigKey != "" {
 			if n, ok := byKey[u.OrigKey]; ok {
@@ -182,7 +191,11 @@ func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 		if node == nil {
 			node = &yaml.Node{Kind: yaml.MappingNode}
 		}
-		applyFlowStep(node, u, i+1)
+		applyFlowStep(node, u)
+		if childValue(node, "step") == nil {
+			appendIntScalar(node, "step", nextStep)
+			nextStep++
+		}
 		newContent = append(newContent, node)
 	}
 
@@ -193,6 +206,32 @@ func applyFlowEdits(guide *yaml.Node, updates []FlowStep) {
 	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: "flow"}
 	seqNode := &yaml.Node{Kind: yaml.SequenceNode, Content: newContent}
 	guide.Content = append(guide.Content, keyNode, seqNode)
+}
+
+// maxReusedIntegerStep returns the max parseable integer `step:` value among
+// the existing nodes the updates will actually reuse (matched via OrigKey).
+// Existing nodes the editor REMOVED don't contribute — their step values are
+// freed up, so the next assignment can reclaim them without collision. Same
+// for non-integer author values like "2a" — they're skipped.
+func maxReusedIntegerStep(updates []FlowStep, byKey map[string]*yaml.Node) int {
+	max := 0
+	for _, u := range updates {
+		if u.OrigKey == "" {
+			continue
+		}
+		n, ok := byKey[u.OrigKey]
+		if !ok || n == nil {
+			continue
+		}
+		v := childValue(n, "step")
+		if v == nil {
+			continue
+		}
+		if iv, err := strconv.Atoi(v.Value); err == nil && iv > max {
+			max = iv
+		}
+	}
+	return max
 }
 
 // buildFlowKeyMap walks a `flow:` sequence and returns a map from each
@@ -231,27 +270,17 @@ func disambigKey(base string, seen map[string]int) string {
 }
 
 // applyFlowStep mutates one step mapping in place to match the editable
-// fields of u. position is the 1-based array index used to synthesise a
-// `step:` value when the node doesn't have one — without it, newly-added
-// steps render as "Step 0:" on the docs page because pkg/docs.Step is
-// `int` and zero-defaults.
+// fields of u. The `step:` value is NOT touched here — applyFlowEdits owns
+// the assignment policy (max+1 for new steps; author labels preserved for
+// existing) so it can see the full update list and avoid colliding with
+// existing step values.
 //
 // If `endpoint:` exists but is NOT a MappingNode (e.g. `endpoint: null`),
 // the value is REPLACED with a fresh MappingNode rather than mutated in
 // place — yaml.v3 ignores Content on non-mappings at marshal time, so the
 // editor's method/path edits would otherwise be silently discarded.
-func applyFlowStep(node *yaml.Node, u FlowStep, position int) {
+func applyFlowStep(node *yaml.Node, u FlowStep) {
 	setOrAppendScalar(node, "title", u.Title)
-
-	// Synthesise a step: value only when the node doesn't have one. Keeps
-	// the author's chosen labels (e.g. "2a") intact across edits while
-	// closing the "Step 0:" rendering bug for new steps. Tagged !!int so
-	// pkg/docs's `Step int` field parses it as a number — going through
-	// setOrAppendScalar would force string-typing via mustQuoteToStayString
-	// and the docs-generator would zero-default the int.
-	if childValue(node, "step") == nil {
-		appendIntScalar(node, "step", position)
-	}
 
 	ep := childValue(node, "endpoint")
 	if ep == nil {
