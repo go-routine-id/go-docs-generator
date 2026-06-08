@@ -27,8 +27,7 @@
       <span class="diff-stat diff-stat-add">+{{.Stats.Added}}</span>
       <span class="diff-stat diff-stat-del">−{{.Stats.Removed}}</span>
     </div>
-    <pre class="diff">{{range .DiffLines}}<span class="diff-line diff-{{.Kind}}">{{.Text}}</span>
-{{end}}</pre>
+    <pre class="diff">{{range .DiffLines}}<span class="diff-line diff-{{.Kind}}">{{.Text}}</span>{{end}}</pre>
   </div>
   <form method="POST" action="/guides/publish?file={{.File | urlquery}}&amp;id={{.ID | urlquery}}" class="row" style="margin-top:1rem;">
     <button type="submit" class="btn-primary" onclick="return confirm('Publish this change to {{.File}}?');">Publish</button>

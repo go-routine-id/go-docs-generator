@@ -75,7 +75,7 @@
       {{if .DraftCorrupt}}
       <span class="muted">Corrupt draft — clear the form fields and Save Draft to start fresh, or Discard the existing draft above.</span>
       {{end}}
-      <button type="submit" formaction="/guides/preview?file={{.Guide.FilePath | urlquery}}&amp;id={{.Guide.ID | urlquery}}" class="btn-primary">Preview &amp; Publish</button>
+      <button type="submit" formaction="/guides/preview?file={{.Guide.FilePath | urlquery}}&amp;id={{.Guide.ID | urlquery}}" class="btn-primary">Preview</button>
       <button type="submit" formaction="/guides/draft?file={{.Guide.FilePath | urlquery}}&amp;id={{.Guide.ID | urlquery}}">Save draft</button>
       <a class="btn btn-link" href="/guides">Cancel</a>
     </div>
