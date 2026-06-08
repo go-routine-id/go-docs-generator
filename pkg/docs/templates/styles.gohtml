@@ -784,6 +784,19 @@
             color: var(--text);
         }
 
+        /* Fenced code blocks from guide/endpoint markdown. Tight line-height so
+           box-drawing ASCII diagrams connect vertically; no wrapping so the
+           art keeps its columns (wide diagrams scroll via the inherited pre). */
+        pre.md-code {
+            line-height: 1.2;
+            white-space: pre;
+            tab-size: 2;
+        }
+        pre.md-code code { white-space: inherit; }
+
+        /* Chroma syntax-highlighting tokens (light + dark, generated). */
+        {{chromaCSS}}
+
         /* JSON Syntax Highlighting */
         .json-key { color: var(--json-key); }
         .json-string { color: var(--json-string); }
@@ -1035,6 +1048,16 @@
         tr:hover td {
             background: var(--bg-secondary);
         }
+
+        /* Tables rendered from guide/endpoint markdown (| a | b |). Inherits
+           the base table styling above; the outer border frames it as a
+           contained block within prose. */
+        .md-table {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .md-table th:first-child { border-top-left-radius: 8px; }
+        .md-table th:last-child { border-top-right-radius: 8px; }
 
         /* Badge - Google style */
         .badge {

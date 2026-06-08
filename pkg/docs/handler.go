@@ -109,6 +109,7 @@ func NewHandlerWithPrefix(specPath string, devMode bool, prefix string) (*Handle
 		"add":               func(a, b int) int { return a + b },
 		"md":                mdToHTML,
 		"mdi":               mdInline,
+		"chromaCSS":         chromaCSS,
 		"sectionBaseURLs":   sectionBaseURLs,
 		"sectionDefaultURL": sectionDefaultURL,
 		"sectionUsesGlobal": sectionUsesGlobal,
@@ -707,7 +708,10 @@ func mdToHTML(s string) template.HTML {
 	lines := strings.Split(s, "\n")
 	var result strings.Builder
 	var para []string // accumulator for consecutive prose lines
+	var code []string // accumulator for fenced code block lines (verbatim)
+	codeLang := ""    // language hint from the opening fence (```kotlin)
 	inList := false
+	inCode := false
 
 	flushPara := func() {
 		if len(para) == 0 {
@@ -722,14 +726,80 @@ func mdToHTML(s string) template.HTML {
 			inList = false
 		}
 	}
+	flushCode := func() {
+		src := strings.Join(code, "\n")
+		if hl, ok := highlightCode(codeLang, src); ok {
+			result.WriteString("<pre class=\"md-code\"><code class=\"chroma\">" + hl + "</code></pre>")
+		} else {
+			result.WriteString("<pre class=\"md-code\"><code>" + template.HTMLEscapeString(src) + "</code></pre>")
+		}
+		code = code[:0]
+		codeLang = ""
+		inCode = false
+	}
+	emitTable := func(header string, body []string) {
+		flushPara()
+		closeList()
+		result.WriteString("<table class=\"md-table\"><thead><tr>")
+		for _, c := range splitTableRow(header) {
+			result.WriteString("<th>" + inlineFmt(c) + "</th>")
+		}
+		result.WriteString("</tr></thead><tbody>")
+		for _, row := range body {
+			result.WriteString("<tr>")
+			for _, c := range splitTableRow(row) {
+				result.WriteString("<td>" + inlineFmt(c) + "</td>")
+			}
+			result.WriteString("</tr>")
+		}
+		result.WriteString("</tbody></table>")
+	}
 
-	for _, line := range lines {
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		trimmed := strings.TrimSpace(line)
+
+		// Fenced code block: ``` toggles verbatim capture. Inside a fence,
+		// every line (including blanks and indentation) is preserved as-is so
+		// ASCII diagrams and code keep their alignment; only the closing fence
+		// ends the block.
+		if strings.HasPrefix(trimmed, "```") {
+			if inCode {
+				flushCode()
+			} else {
+				flushPara()
+				closeList()
+				codeLang = strings.TrimSpace(trimmed[3:])
+				inCode = true
+			}
+			continue
+		}
+		if inCode {
+			code = append(code, line)
+			continue
+		}
 
 		// Blank line — paragraph break. Close any open paragraph or list.
 		if trimmed == "" {
 			flushPara()
 			closeList()
+			continue
+		}
+
+		// GFM table: a pipe row immediately followed by a delimiter row
+		// (|---|---|). Without this the rows collapse into one paragraph with
+		// literal pipes and dashes. Consume the header, the delimiter, and all
+		// contiguous body rows.
+		if strings.HasPrefix(trimmed, "|") && i+1 < len(lines) && isTableDelimiterRow(lines[i+1]) {
+			header := trimmed
+			j := i + 2
+			var body []string
+			for j < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[j]), "|") {
+				body = append(body, strings.TrimSpace(lines[j]))
+				j++
+			}
+			emitTable(header, body)
+			i = j - 1
 			continue
 		}
 
@@ -771,10 +841,50 @@ func mdToHTML(s string) template.HTML {
 		para = append(para, trimmed)
 	}
 
+	if inCode {
+		flushCode()
+	}
 	flushPara()
 	closeList()
 
 	return template.HTML(result.String())
+}
+
+// tableCellDelimRe matches one GFM table delimiter cell: dashes with optional
+// leading/trailing colons for alignment (---, :--, --:, :-:).
+var tableCellDelimRe = regexp.MustCompile(`^:?-+:?$`)
+
+// isTableDelimiterRow reports whether a line is a GFM table delimiter row such
+// as `|---|---|---|` — the line that turns the row above it into a header.
+func isTableDelimiterRow(line string) bool {
+	s := strings.TrimSpace(line)
+	if !strings.Contains(s, "-") || !strings.Contains(s, "|") {
+		return false
+	}
+	cells := splitTableRow(s)
+	if len(cells) == 0 {
+		return false
+	}
+	for _, c := range cells {
+		if !tableCellDelimRe.MatchString(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// splitTableRow splits `| a | b |` into trimmed cells, dropping the empty cells
+// produced by the leading and trailing pipes.
+func splitTableRow(line string) []string {
+	s := strings.TrimSpace(line)
+	s = strings.TrimPrefix(s, "|")
+	s = strings.TrimSuffix(s, "|")
+	parts := strings.Split(s, "|")
+	cells := make([]string, len(parts))
+	for i, p := range parts {
+		cells[i] = strings.TrimSpace(p)
+	}
+	return cells
 }
 
 // mdInline renders inline-only markdown (bold, italic, code) for contexts
