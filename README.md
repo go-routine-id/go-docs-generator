@@ -19,15 +19,11 @@ Works for **monoliths and microservices**. Per-section base URLs let one documen
 
 ## Screenshoots
 
-<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/618199c0-64ea-4fb3-84b7-22327d46e1b0" />
+<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/e8f6c882-dc5f-4a83-b70b-d02acc69e6a5" />
+<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/203f0030-6fd3-48de-9514-44a53a99fc6e" />
+<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/5b1dc197-f4fc-457e-8df9-b266ab9fd5b3" />
+<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/0119c12b-956f-450b-b679-4f81fcc3ab8d" />
 
-<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/d9ea7dcd-4d4e-4a8d-9356-9114f1f0bd06" />
-
-<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/a42241e5-f51f-44ca-9ef4-2db48b4417ec" />
-
-<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/1e161741-8e0c-4977-a86d-c52a549c0e6b" />
-
-<img width="1800" height="1126" alt="image" src="https://github.com/user-attachments/assets/44155817-1123-4c1f-9777-d41d6eed2edd" />
 
 
 ## Quick start
