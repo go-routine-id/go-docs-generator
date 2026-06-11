@@ -4,11 +4,47 @@
   <nav>
     <a href="/guides">Guides</a>
   </nav>
+  <button type="button" class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+    <span class="theme-icon-light">🌙</span>
+    <span class="theme-icon-dark">☀️</span>
+  </button>
   <form method="POST" action="/logout" class="inline">
-    <span class="muted">{{.User}}</span>
+    <span class="muted hide-mobile">{{.User}}</span>
     <button type="submit" class="btn-link">Sign out</button>
   </form>
 </header>
+<script>
+// Theme toggle delegation. The no-flash bootstrap in themeBootstrap has
+// already set document.documentElement.dataset.theme on load.
+(function () {
+  var btn = document.querySelector('.theme-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var current = document.documentElement.dataset.theme || 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('cms_theme', next); } catch (e) {}
+  });
+})();
+</script>
+{{end}}
+
+{{define "themeBootstrap"}}
+<script>
+// No-flash dark-mode bootstrap. Runs BEFORE the stylesheet evaluates so the
+// first paint already has the chosen theme — otherwise dark-mode users see
+// a light flash on every page load.
+(function () {
+  try {
+    var saved = localStorage.getItem('cms_theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  } catch (e) {
+    // localStorage may throw under strict cookie policies; fall back to light.
+  }
+})();
+</script>
 {{end}}
 
 {{define "styles"}}
@@ -269,4 +305,105 @@ button.btn-link:hover, a.btn-link:hover, .btn-link:hover { background: transpare
 .row.gap { gap: 0.5rem; }
 .grow-1 { flex: 1; }
 .grow-3 { flex: 3; }
+
+/* Theme toggle — small icon button in the topbar, mirrors the docs page UX. */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.55rem;
+  border-radius: 7px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.12s, border-color 0.12s;
+}
+.theme-toggle:hover { background: var(--bg-soft); border-color: var(--border-strong); }
+.theme-toggle .theme-icon-dark { display: none; }
+[data-theme="dark"] .theme-toggle .theme-icon-light { display: none; }
+[data-theme="dark"] .theme-toggle .theme-icon-dark { display: inline; }
+
+/* Universal focus ring — keyboard navigation deserves a clear signal that's
+   consistent with the input :focus style. */
+button:focus-visible, .btn:focus-visible, .theme-toggle:focus-visible,
+.topbar nav a:focus-visible, a.btn:focus-visible, a.btn-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Flow step cards. Use --bg-soft (not --bg which carries the gradient) so
+   they read as a contained surface inside the editor's card. */
+.flow-step { background: var(--bg-soft); }
+
+/* Empty state for the guides list and similar zero-data screens. */
+.empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--card);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.empty .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.empty h3 { font-size: 1.05rem; margin: 0 0 0.4rem; font-weight: 600; }
+.empty p { color: var(--muted); margin: 0; font-size: 0.875rem; }
+
+/* Mobile breakpoint — at <=720px the topbar wraps and table cells get
+   tighter padding. The guides list table stays readable but compact. */
+@media (max-width: 720px) {
+  .topbar { padding: 0.6rem 1rem; gap: 0.75rem; flex-wrap: wrap; }
+  .topbar nav { order: 3; flex-basis: 100%; }
+  .hide-mobile { display: none; }
+  .page { margin: 1.25rem auto; padding: 0 1rem; }
+  .card { padding: 1.1rem; }
+  .rows th, .rows td { padding: 0.55rem 0.6rem; font-size: 0.85rem; }
+  /* Hide noisy meta columns on phone, keep the link column. */
+  .rows th:nth-child(1), .rows td:nth-child(1) { font-size: 0.75rem; }
+  h1 { font-size: 1.4rem; }
+}
+
+/* ---- Dark theme ---- Activates when <html data-theme="dark">. */
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --bg-soft: #161922;
+  --card: #1a1d27;
+  --text: #e6e8ee;
+  --muted: #9aa1ad;
+  --border: #2a2e3a;
+  --border-strong: #3a3f4d;
+  --primary: #8b87ff;
+  --primary-dark: #a39ffd;
+  --primary-soft: rgba(139, 135, 255, 0.14);
+  --ring: rgba(139, 135, 255, 0.32);
+  --ok-bg: rgba(16, 185, 129, 0.14);
+  --ok-fg: #6ee7b7;
+  --err-bg: rgba(248, 113, 113, 0.14);
+  --err-fg: #fca5a5;
+  --info-bg: rgba(139, 135, 255, 0.14);
+  --info-fg: #c4c0ff;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.35);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.35);
+}
+[data-theme="dark"] body {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(139, 135, 255, 0.10) 0%, transparent 55%),
+    radial-gradient(900px 500px at -10% 0%, rgba(139, 135, 255, 0.06) 0%, transparent 50%),
+    var(--bg);
+}
+[data-theme="dark"] code { background: var(--bg-soft); color: #c4c8d0; border-color: var(--border); }
+[data-theme="dark"] .topbar { background: rgba(26, 29, 39, 0.85); }
+[data-theme="dark"] input[type=text], [data-theme="dark"] input[type=password], [data-theme="dark"] textarea {
+  background: var(--bg-soft); color: var(--text); border-color: var(--border-strong);
+}
+[data-theme="dark"] label > span { color: #c4c8d0; }
+[data-theme="dark"] .badge-draft { background: rgba(252, 211, 77, 0.14); color: #fcd34d; border-color: rgba(252, 211, 77, 0.3); }
+[data-theme="dark"] .banner-ok    { border-color: rgba(110, 231, 183, 0.3); }
+[data-theme="dark"] .banner-error { border-color: rgba(252, 165, 165, 0.3); }
+[data-theme="dark"] .banner-info  { border-color: rgba(196, 192, 255, 0.3); }
+[data-theme="dark"] .diff { background: var(--bg-soft); }
+[data-theme="dark"] .diff-add { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+[data-theme="dark"] .diff-del { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+[data-theme="dark"] .diff-hdr { background: var(--bg); color: var(--muted); }
+[data-theme="dark"] .diff-stat-add { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; }
+[data-theme="dark"] .diff-stat-del { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+[data-theme="dark"] .btn-primary { box-shadow: 0 1px 2px rgba(139, 135, 255, 0.35); }
 {{end}}

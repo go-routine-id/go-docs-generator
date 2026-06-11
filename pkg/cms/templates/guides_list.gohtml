@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>Guides — Docs CMS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{{template "themeBootstrap"}}
 <style>{{template "styles"}}</style>
 </head>
 <body>
@@ -29,9 +30,10 @@
     </tbody>
   </table>
   {{else}}
-  <div class="card">
-    <p>No guides found under <code>{{.SpecDir}}</code>.</p>
-    <p class="muted">A guide is any top-level <code>guides:</code> sequence entry in a YAML file under the spec directory.</p>
+  <div class="empty">
+    <div class="empty-icon">📭</div>
+    <h3>No guides yet</h3>
+    <p>Drop a YAML file with a top-level <code>guides:</code> sequence into <code>{{.SpecDir}}</code> and reload.</p>
   </div>
   {{end}}
 </main>
