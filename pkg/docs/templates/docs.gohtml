@@ -19,6 +19,9 @@
                 var saved = localStorage.getItem('docs_theme');
                 var theme = (saved === 'dark' || saved === 'light') ? saved : 'dark';
                 document.documentElement.setAttribute('data-theme', theme);
+                if (localStorage.getItem('docs_sidebar_collapsed') === '1') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
             } catch (e) {
                 /* localStorage may be unavailable (private browsing); fall back to light. */
             }
@@ -179,6 +182,11 @@
         </nav>
         <div class="sidebar-resize-handle" aria-hidden="true" title="Drag to resize"></div>
     </aside>
+
+    <!-- Desktop sidebar collapse/expand toggle -->
+    <button type="button" class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" aria-label="Collapse sidebar" title="Collapse sidebar">
+        <span class="chevron">‹</span>
+    </button>
 
     <!-- Main Content -->
     <main class="main-content">

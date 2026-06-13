@@ -375,6 +375,26 @@
             document.querySelector('.sidebar-overlay').classList.toggle('visible');
         }
 
+        // Desktop sidebar collapse/expand. The flag lives on <html> so the
+        // no-flash bootstrap can restore it before first paint. State persists
+        // in localStorage under docs_sidebar_collapsed.
+        function syncSidebarToggleLabel() {
+            const btn = document.querySelector('.sidebar-toggle-btn');
+            if (!btn) return;
+            const collapsed = document.documentElement.classList.contains('sidebar-collapsed');
+            const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+            btn.setAttribute('aria-label', label);
+            btn.setAttribute('title', label);
+        }
+        function toggleSidebarCollapse() {
+            const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+            syncSidebarToggleLabel();
+            try { localStorage.setItem('docs_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+        }
+        // The bootstrap may have restored a collapsed state before this markup
+        // existed; align the button's label/title with the actual state.
+        syncSidebarToggleLabel();
+
         // Open inline tester
         function openTester(sectionIdx, endpointIdx) {
             const testerId = 'tester-endpoint-' + sectionIdx + '-' + endpointIdx;

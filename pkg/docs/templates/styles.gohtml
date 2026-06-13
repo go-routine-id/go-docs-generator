@@ -311,6 +311,79 @@
             user-select: none !important;
         }
 
+        /* During a resize drag, --sidebar-width changes every frame. Kill the
+           collapse transitions on the elements keyed off it so they track the
+           drag in real-time instead of lagging 0.3s behind. */
+        body.sidebar-resizing .main-content,
+        body.sidebar-resizing .sidebar-toggle-btn {
+            transition: none !important;
+        }
+
+        /* Desktop collapse/expand toggle. An edge tab anchored just OUTSIDE the
+           sidebar's right border — kept clear of the nav list (so it never
+           overlaps or steals clicks from a nav item) and of the resize handle.
+           Clicking slides the sidebar off-screen and reflows the main content
+           to full width. The collapsed flag lives on <html> so the no-flash
+           bootstrap can set it before first paint (no jump on reload).
+           Hidden on mobile, where the hamburger drives the overlay sidebar. */
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 50%;
+            left: var(--sidebar-width);
+            transform: translateY(-50%);
+            width: 26px;
+            height: 52px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            z-index: 280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            line-height: 1;
+            box-shadow: var(--shadow-sm);
+            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--primary);
+        }
+
+        .sidebar-toggle-btn .chevron {
+            display: block;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .main-content {
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-collapsed .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+
+        .sidebar-collapsed .sidebar-toggle-btn {
+            left: 0;
+        }
+
+        .sidebar-collapsed .sidebar-toggle-btn .chevron {
+            transform: rotate(180deg);
+        }
+
         .sidebar-header {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border);
@@ -1660,6 +1733,10 @@
             }
 
             .sidebar-resize-handle {
+                display: none;
+            }
+
+            .sidebar-toggle-btn {
                 display: none;
             }
 

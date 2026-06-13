@@ -19,6 +19,9 @@
                 var saved = localStorage.getItem('docs_theme');
                 var theme = (saved === 'dark' || saved === 'light') ? saved : 'dark';
                 document.documentElement.setAttribute('data-theme', theme);
+                if (localStorage.getItem('docs_sidebar_collapsed') === '1') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
             } catch (e) {
                  
             }
@@ -325,6 +328,71 @@
         body.sidebar-resizing * {
             cursor: ew-resize !important;
             user-select: none !important;
+        }
+
+         
+        body.sidebar-resizing .main-content,
+        body.sidebar-resizing .sidebar-toggle-btn {
+            transition: none !important;
+        }
+
+         
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 50%;
+            left: var(--sidebar-width);
+            transform: translateY(-50%);
+            width: 26px;
+            height: 52px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            cursor: pointer;
+            z-index: 280;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            line-height: 1;
+            box-shadow: var(--shadow-sm);
+            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, color 0.15s ease;
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--primary);
+        }
+
+        .sidebar-toggle-btn .chevron {
+            display: block;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .main-content {
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-collapsed .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+
+        .sidebar-collapsed .sidebar-toggle-btn {
+            left: 0;
+        }
+
+        .sidebar-collapsed .sidebar-toggle-btn .chevron {
+            transform: rotate(180deg);
         }
 
         .sidebar-header {
@@ -1794,6 +1862,10 @@
                 display: none;
             }
 
+            .sidebar-toggle-btn {
+                display: none;
+            }
+
             .content-panels {
                 padding: 1rem;
             }
@@ -2073,6 +2145,11 @@
         </nav>
         <div class="sidebar-resize-handle" aria-hidden="true" title="Drag to resize"></div>
     </aside>
+
+    
+    <button type="button" class="sidebar-toggle-btn" onclick="toggleSidebarCollapse()" aria-label="Collapse sidebar" title="Collapse sidebar">
+        <span class="chevron">‹</span>
+    </button>
 
     
     <main class="main-content">
@@ -6729,6 +6806,26 @@
             document.querySelector('.sidebar').classList.toggle('mobile-open');
             document.querySelector('.sidebar-overlay').classList.toggle('visible');
         }
+
+        
+        
+        
+        function syncSidebarToggleLabel() {
+            const btn = document.querySelector('.sidebar-toggle-btn');
+            if (!btn) return;
+            const collapsed = document.documentElement.classList.contains('sidebar-collapsed');
+            const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+            btn.setAttribute('aria-label', label);
+            btn.setAttribute('title', label);
+        }
+        function toggleSidebarCollapse() {
+            const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+            syncSidebarToggleLabel();
+            try { localStorage.setItem('docs_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+        }
+        
+        
+        syncSidebarToggleLabel();
 
         
         function openTester(sectionIdx, endpointIdx) {
