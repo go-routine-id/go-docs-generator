@@ -1,121 +1,179 @@
 {{define "styles"}}
     <style>
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{assetURL "inter-400.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('{{assetURL "inter-500.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url('{{assetURL "inter-600.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('{{assetURL "inter-700.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 800;
+            font-display: swap;
+            src: url('{{assetURL "inter-800.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('{{assetURL "jetbrains-mono-400.woff2"}}') format('woff2');
+        }
+        @font-face {
+            font-family: 'JetBrains Mono';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('{{assetURL "jetbrains-mono-500.woff2"}}') format('woff2');
+        }
+        /* ───── Sleek Technical Minimalist (ikavia Docs) ─────
+           Light Mode = "High-Definition" (Slate-50 canvas).
+           Method colours are shared across themes (translucent fills). */
         :root {
-            /* Google Colors */
-            --google-blue: #1a73e8;
-            --google-blue-dark: #1557b0;
-            --google-blue-light: #e8f0fe;
-            --google-red: #ea4335;
-            --google-yellow: #fbbc05;
-            --google-green: #34a853;
-            --google-gray: #5f6368;
-            --google-gray-light: #dadce0;
+            /* Brand accent — Indigo */
+            --primary: #4F46E5;          /* indigo-600 */
+            --primary-dark: #4338CA;     /* indigo-700 */
+            --primary-light: rgba(79, 70, 229, 0.08);
+            --secondary: #0EA5E9;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
 
-            /* Theme - Google Light */
-            --primary: var(--google-blue);
-            --primary-dark: var(--google-blue-dark);
-            --primary-light: var(--google-blue-light);
-            --secondary: #00acc1;
-            --success: var(--google-green);
-            --warning: var(--google-yellow);
-            --danger: var(--google-red);
-
-            /* Light Theme Backgrounds */
-            --bg: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --bg-tertiary: #f1f3f4;
+            /* Backgrounds (Slate) */
+            --bg: #F8FAFC;               /* slate-50  — main canvas */
+            --bg-secondary: #F1F5F9;     /* slate-100 — inverted surface */
+            --bg-tertiary: #F1F5F9;
 
             /* Card & Container */
-            --card-bg: #ffffff;
-            --card-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
-            --card-shadow-hover: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+            --card-bg: #FFFFFF;
+            --card-shadow: 0 1px 2px 0 rgba(15,23,42,0.06), 0 1px 3px 0 rgba(15,23,42,0.05);
+            --card-shadow-hover: 0 4px 12px -2px rgba(15,23,42,0.10), 0 2px 6px -2px rgba(15,23,42,0.06);
 
-            /* Text Colors */
-            --text: #202124;
-            --text-secondary: #5f6368;
-            --text-muted: #80868b;
+            /* Button / floating elevation (Stripe-soft) */
+            --shadow-sm: 0 1px 2px 0 rgba(15,23,42,0.08), 0 1px 3px 0 rgba(15,23,42,0.06);
+            --shadow-md: 0 4px 10px -2px rgba(15,23,42,0.14), 0 2px 4px -2px rgba(15,23,42,0.08);
+
+            /* Glassmorphism */
+            --glass-bg: rgba(255, 255, 255, 0.72);
+            --glass-border: rgba(15, 23, 42, 0.08);
+            --glass-blur: 12px;
+
+            /* Text (Slate) */
+            --text: #0F172A;             /* slate-900 */
+            --text-secondary: #475569;   /* slate-600 */
+            --text-muted: #64748B;       /* slate-500 */
 
             /* Borders */
-            --border: #dadce0;
-            --border-light: #e8eaed;
+            --border: #E2E8F0;           /* slate-200 */
+            --border-light: #EDF1F6;
 
             /* Sidebar */
-            --sidebar-width: 280px;
-            --sidebar-bg: #ffffff;
-            --sidebar-hover: var(--bg-tertiary);
+            --sidebar-width: 288px;      /* w-72 */
+            --sidebar-bg: #FFFFFF;
+            --sidebar-hover: var(--bg-secondary);
             --sidebar-active: var(--primary-light);
             --sidebar-text: var(--text-secondary);
             --sidebar-text-active: var(--primary);
             --sidebar-border: var(--border);
 
-            /* HTTP method badges — declared as variables so dark mode can swap
-               the pastel chip backgrounds for darker variants without losing
-               contrast. */
-            --method-get-bg: #e8f0fe;     --method-get-fg: #1a73e8;
-            --method-post-bg: #e6f4ea;    --method-post-fg: #137333;
-            --method-patch-bg: #fef3e8;   --method-patch-fg: #b06000;
-            --method-delete-bg: #fce8e8;  --method-delete-fg: #c5221f;
-            --method-put-bg: #fef3e8;     --method-put-fg: #b06000;
+            /* HTTP method badges — shared translucent fills + saturated fg/border */
+            --method-get-bg: rgba(16,185,129,0.10);    --method-get-fg: #10B981;   /* emerald */
+            --method-post-bg: rgba(59,130,246,0.10);   --method-post-fg: #3B82F6;  /* blue */
+            --method-patch-bg: rgba(245,158,11,0.10);  --method-patch-fg: #F59E0B; /* amber */
+            --method-put-bg: rgba(245,158,11,0.10);    --method-put-fg: #F59E0B;   /* amber */
+            --method-delete-bg: rgba(239,68,68,0.10);  --method-delete-fg: #EF4444;/* rose */
 
             /* JSON syntax highlighting */
-            --json-key: #7c3aed;
-            --json-string: #16a34a;
-            --json-number: #2563eb;
-            --json-boolean: #d97706;
-            --json-null: #9ca3af;
+            --json-key: #4F46E5;
+            --json-string: #10B981;
+            --json-number: #3B82F6;
+            --json-boolean: #F59E0B;
+            --json-null: #94A3B8;
 
             /* Status badges */
-            --status-success-bg: #e6f4ea;  --status-success-fg: #137333;
-            --status-error-bg: #fce8e8;    --status-error-fg: #c5221f;
+            --status-success-bg: rgba(16,185,129,0.10);  --status-success-fg: #059669;
+            --status-error-bg: rgba(239,68,68,0.10);     --status-error-fg: #DC2626;
 
             /* Auth/permission chip */
-            --chip-bg: #e8f0fe;
-            --chip-fg: #1967d2;
+            --chip-bg: var(--primary-light);
+            --chip-fg: var(--primary);
         }
 
         /* Dark theme — applied via `<html data-theme="dark">`. A no-flash
            inline script in <head> reads localStorage and sets the attribute
            before this stylesheet evaluates, so initial paint is correct. */
         [data-theme="dark"] {
-            --primary-light: rgba(138, 180, 248, 0.18);
+            /* Dark-First Premium — Slate core */
+            --primary: #6366F1;          /* indigo-500 */
+            --primary-dark: #4F46E5;
+            --primary-light: rgba(99, 102, 241, 0.16);
 
-            --bg: #0f1115;
-            --bg-secondary: #181b21;
-            --bg-tertiary: #1f232b;
+            --bg: #020617;               /* slate-950 — main canvas */
+            --bg-secondary: #1E293B;     /* slate-800 — inverted surface */
+            --bg-tertiary: #1E293B;
 
-            --card-bg: #181b21;
-            --card-shadow: 0 1px 2px 0 rgba(0,0,0,0.5), 0 1px 3px 1px rgba(0,0,0,0.35);
-            --card-shadow-hover: 0 1px 3px 0 rgba(0,0,0,0.6), 0 4px 8px 3px rgba(0,0,0,0.4);
+            --card-bg: #0F172A;          /* slate-900 */
+            --card-shadow: 0 1px 2px 0 rgba(0,0,0,0.5), 0 1px 3px 0 rgba(0,0,0,0.4);
+            --card-shadow-hover: 0 6px 16px -4px rgba(0,0,0,0.6), 0 2px 6px -2px rgba(0,0,0,0.5);
 
-            --text: #e6e8ea;
-            --text-secondary: #b0b6bd;
-            --text-muted: #8a9099;
+            --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.5), 0 1px 3px 0 rgba(0,0,0,0.4);
+            --shadow-md: 0 6px 16px -4px rgba(0,0,0,0.6), 0 2px 6px -2px rgba(0,0,0,0.5);
 
-            --border: #2c313a;
-            --border-light: #242831;
+            --glass-bg: rgba(15, 23, 42, 0.62);
+            --glass-border: rgba(148, 163, 184, 0.14);
 
-            --sidebar-bg: #14171c;
-            --sidebar-hover: #1f232b;
-            --sidebar-active: rgba(138, 180, 248, 0.18);
+            --text: #F8FAFC;             /* slate-50 */
+            --text-secondary: #94A3B8;   /* slate-400 */
+            --text-muted: #64748B;       /* slate-500 */
 
-            /* Re-tuned method chips for dark — translucent backgrounds + brighter fg */
-            --method-get-bg: rgba(138, 180, 248, 0.18);    --method-get-fg: #8ab4f8;
-            --method-post-bg: rgba(129, 201, 149, 0.18);   --method-post-fg: #81c995;
-            --method-patch-bg: rgba(253, 214, 99, 0.18);   --method-patch-fg: #fdd663;
-            --method-delete-bg: rgba(242, 139, 130, 0.18); --method-delete-fg: #f28b82;
-            --method-put-bg: rgba(253, 214, 99, 0.18);     --method-put-fg: #fdd663;
+            --border: #1E293B;           /* slate-800 */
+            --border-light: #172033;
 
-            --json-key: #c896ff;
-            --json-string: #81c995;
-            --json-number: #8ab4f8;
-            --json-boolean: #fdd663;
-            --json-null: #9aa0a6;
+            --sidebar-bg: #0F172A;
+            --sidebar-hover: #1E293B;
+            --sidebar-active: rgba(99, 102, 241, 0.16);
 
-            --status-success-bg: rgba(129, 201, 149, 0.18); --status-success-fg: #81c995;
-            --status-error-bg: rgba(242, 139, 130, 0.18);   --status-error-fg: #f28b82;
+            /* Method chips keep the same translucent fills — they read well on slate */
+            --method-get-bg: rgba(16,185,129,0.14);    --method-get-fg: #34D399;
+            --method-post-bg: rgba(59,130,246,0.14);   --method-post-fg: #60A5FA;
+            --method-patch-bg: rgba(245,158,11,0.14);  --method-patch-fg: #FBBF24;
+            --method-put-bg: rgba(245,158,11,0.14);    --method-put-fg: #FBBF24;
+            --method-delete-bg: rgba(239,68,68,0.14);  --method-delete-fg: #F87171;
 
-            --chip-bg: rgba(138, 180, 248, 0.18);
-            --chip-fg: #8ab4f8;
+            --json-key: #818CF8;
+            --json-string: #34D399;
+            --json-number: #60A5FA;
+            --json-boolean: #FBBF24;
+            --json-null: #64748B;
+
+            --status-success-bg: rgba(16,185,129,0.14); --status-success-fg: #34D399;
+            --status-error-bg: rgba(239,68,68,0.14);    --status-error-fg: #F87171;
+
+            --chip-bg: rgba(99, 102, 241, 0.16);
+            --chip-fg: #A5B4FC;
         }
 
         * {
@@ -125,7 +183,7 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             line-height: 1.6;
@@ -423,7 +481,7 @@
         }
 
         .project-switcher-name {
-            font-family: 'Google Sans Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.8125rem;
         }
 
@@ -519,20 +577,22 @@
 
         .sidebar-search {
             width: 100%;
-            padding: 0.4rem 2.25rem 0.4rem 0.625rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--bg-secondary);
+            padding: 0.45rem 2.25rem 0.45rem 0.7rem;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            background: var(--glass-bg);
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            backdrop-filter: blur(var(--glass-blur));
             color: var(--text);
             font-size: 0.8125rem;
             font-family: inherit;
-            transition: border-color 0.15s ease, background 0.15s ease;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         .sidebar-search:focus {
             outline: none;
             border-color: var(--primary);
-            background: var(--bg);
+            box-shadow: 0 0 0 2px var(--primary-light);
         }
 
         .sidebar-search::-webkit-search-cancel-button {
@@ -551,7 +611,7 @@
             border-radius: 4px;
             color: var(--text-muted);
             pointer-events: none;
-            font-family: 'Google Sans Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .sidebar-search:focus ~ .sidebar-search-shortcut,
@@ -680,11 +740,11 @@
         }
 
         .content-header h1 {
-            font-size: 1.75rem;
-            font-weight: 400;
+            font-size: 1.875rem;
+            font-weight: 800;
             margin-bottom: 0.5rem;
             color: var(--text);
-            letter-spacing: -0.25px;
+            letter-spacing: -0.025em;
         }
 
         .content-header p {
@@ -711,11 +771,11 @@
 
         /* Section Title */
         .section-title {
-            font-size: 1.25rem;
-            font-weight: 500;
+            font-size: 1.5rem;
+            font-weight: 700;
             margin-bottom: 1rem;
             color: var(--text);
-            letter-spacing: -0.25px;
+            letter-spacing: -0.02em;
         }
 
         /* Cards - Google style */
@@ -762,7 +822,7 @@
             border-radius: 8px;
             padding: 1rem;
             overflow-x: auto;
-            font-family: 'Google Sans Mono', 'Fira Code', 'Roboto Mono', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 0.8125rem;
             color: var(--text);
             margin: 1rem 0;
@@ -770,12 +830,13 @@
         }
 
         code {
-            font-family: 'Google Sans Mono', 'Fira Code', 'Roboto Mono', monospace;
-            background: var(--bg-tertiary);
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
             padding: 0.125rem 0.375rem;
             border-radius: 4px;
             font-size: 0.8125rem;
-            color: var(--google-red);
+            color: var(--primary);
         }
 
         pre code {
@@ -976,12 +1037,14 @@
         }
 
         .method {
-            padding: 0.25rem 0.625rem;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.75rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.6875rem;
             text-transform: uppercase;
-            letter-spacing: 0.025em;
+            letter-spacing: 0.06em;
+            border: 1px solid currentColor;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .method.get { background: var(--method-get-bg); color: var(--method-get-fg); }
@@ -991,7 +1054,7 @@
         .method.put { background: var(--method-put-bg); color: var(--method-put-fg); }
 
         .endpoint-path {
-            font-family: 'Google Sans Mono', 'Fira Code', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
             color: var(--text);
             font-weight: 500;
             font-size: 1.125rem;
@@ -1117,22 +1180,24 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.5rem 1.25rem;
+            padding: 0.55rem 1.25rem;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
-            font-weight: 500;
+            border-radius: 8px;
+            font-weight: 600;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+            transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
+            box-shadow: var(--shadow-sm);
         }
 
         .try-it-btn:hover {
             background: var(--primary-dark);
-            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
+            box-shadow: var(--shadow-md);
         }
+
+        .try-it-btn:active { transform: translateY(0.5px); box-shadow: var(--shadow-sm); }
 
         /* Global API Tester */
         .global-tester {
@@ -1195,26 +1260,28 @@
             border-radius: 4px;
             color: var(--text);
             font-size: 0.875rem;
-            font-family: 'Google Sans Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .send-btn {
-            padding: 0.5rem 1.25rem;
+            padding: 0.55rem 1.25rem;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
-            font-weight: 500;
+            border-radius: 8px;
+            font-weight: 600;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+            transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
+            box-shadow: var(--shadow-sm);
         }
 
         .send-btn:hover {
             background: var(--primary-dark);
-            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
+            box-shadow: var(--shadow-md);
         }
+
+        .send-btn:active { transform: translateY(0.5px); box-shadow: var(--shadow-sm); }
 
         .tester-tabs {
             display: flex;
@@ -1270,31 +1337,31 @@
         }
 
         .icon-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 4px;
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
             border: none;
             background: var(--primary);
             color: white;
             font-size: 1.25rem;
             cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+            transition: background 0.15s, box-shadow 0.15s;
+            box-shadow: var(--shadow-sm);
         }
 
         .icon-btn:hover {
             background: var(--primary-dark);
-            box-shadow: 0 2px 4px 0 rgba(26,115,232,0.4);
+            box-shadow: var(--shadow-md);
         }
 
         .icon-btn.danger {
             background: var(--danger);
-            box-shadow: 0 1px 2px 0 rgba(234,67,53,0.3);
+            box-shadow: var(--shadow-sm);
         }
 
         .icon-btn.danger:hover {
-            background: #c5221f;
-            box-shadow: 0 2px 4px 0 rgba(234,67,53,0.4);
+            background: #DC2626;
+            box-shadow: var(--shadow-md);
         }
 
         textarea {
@@ -1305,7 +1372,7 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             color: var(--text);
-            font-family: 'Google Sans Mono', 'Fira Code', monospace;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 0.875rem;
             resize: vertical;
             line-height: 1.5;
@@ -1376,7 +1443,7 @@
         .form-group input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+            box-shadow: 0 0 0 2px rgba(79,70,229,0.25);
         }
 
         .form-group small {
@@ -1424,7 +1491,7 @@
         .auth-option input:checked + label {
             background: var(--primary);
             color: white;
-            box-shadow: 0 1px 2px 0 rgba(26,115,232,0.3);
+            box-shadow: 0 1px 2px 0 rgba(79,70,229,0.3);
         }
 
         /* Credentials Panel */
@@ -1457,13 +1524,13 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 0.875rem;
-            font-family: 'Google Sans Mono', monospace;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .cred-row input:focus {
             outline: none;
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+            box-shadow: 0 0 0 2px rgba(79,70,229,0.25);
         }
 
         .cred-toggle {

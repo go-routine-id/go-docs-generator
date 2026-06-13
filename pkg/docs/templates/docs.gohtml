@@ -12,14 +12,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <script>
         // No-flash theme bootstrap. Runs synchronously before <style> evaluates
-        // so the very first paint already uses the right palette. Order of
-        // precedence: explicit saved choice → system preference → light.
+        // so the very first paint already uses the right palette. Dark-first:
+        // explicit saved choice wins, otherwise default to dark.
         (function() {
             try {
                 var saved = localStorage.getItem('docs_theme');
-                var theme = (saved === 'dark' || saved === 'light')
-                    ? saved
-                    : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                var theme = (saved === 'dark' || saved === 'light') ? saved : 'dark';
                 document.documentElement.setAttribute('data-theme', theme);
             } catch (e) {
                 /* localStorage may be unavailable (private browsing); fall back to light. */
@@ -423,10 +421,14 @@
                                 <textarea class="inline-body" data-section="{{$si}}" data-endpoint="{{$ei}}">{{$ep.ExampleBody}}</textarea>
                             </div>
                             <div class="tab-content" id="tab-headers-{{$si}}-{{$ei}}">
-                                <div class="header-row" style="display:flex; gap:0.75rem; margin-bottom:0.5rem;">
-                                    <input type="text" value="Content-Type" class="header-key" readonly style="flex:1; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
-                                    <input type="text" value="application/json" class="header-value" style="flex:2; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                <div class="headers-list" data-section="{{$si}}" data-endpoint="{{$ei}}">
+                                    <div class="header-row" style="display:flex; gap:0.75rem; margin-bottom:0.5rem; align-items:center;">
+                                        <input type="text" value="Content-Type" placeholder="Header name" class="header-key" style="flex:1; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                        <input type="text" value="application/json" placeholder="Value" class="header-value" style="flex:2; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+                                        <button type="button" class="header-remove" onclick="removeHeaderRow(this)" title="Remove header" style="padding:0.4rem 0.6rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); cursor:pointer; line-height:1;">✕</button>
+                                    </div>
                                 </div>
+                                <button type="button" class="add-header-btn" onclick="addHeaderRow({{$si}}, {{$ei}})" style="padding:0.4rem 0.75rem; background:var(--bg); border:1px dashed var(--border); border-radius:6px; color:var(--text-secondary); cursor:pointer; font-size:0.85rem;">+ Add header</button>
                             </div>
                             <div class="response-section">
                                 <div class="response-header">

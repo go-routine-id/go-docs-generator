@@ -506,6 +506,8 @@ func (h *Handler) ServeVendorAsset(c *gin.Context) {
 		ct = "application/javascript; charset=utf-8"
 	case strings.HasSuffix(name, ".css"):
 		ct = "text/css; charset=utf-8"
+	case strings.HasSuffix(name, ".woff2"):
+		ct = "font/woff2"
 	}
 	// Assets are content-addressable-ish (filename fixed per build) so a
 	// long cache is safe. Bust by shipping a new binary.

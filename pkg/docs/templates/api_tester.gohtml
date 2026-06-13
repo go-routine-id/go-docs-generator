@@ -2,6 +2,9 @@
     <script>
         // Credentials Management - per environment
         const CREDENTIALS_KEY_PREFIX = 'api_credentials_v4_';
+        // Custom request headers — persisted per endpoint (section+endpoint
+        // index) so they survive a refresh, independent of the selected env.
+        const HEADERS_KEY_PREFIX = 'api_req_headers_v1_';
         // `|| []` guards: a spec without `base_urls` or `auth_modes` marshals to
         // `null`, and `null.forEach`/`.find` would crash the page. An empty
         // array is the right default — the tester just renders fewer controls.
@@ -151,6 +154,7 @@
         // Load saved tokens
         document.addEventListener('DOMContentLoaded', function() {
             loadCredentials();
+            setupHeaderPersistence();
 
             // Highlight all static JSON blocks
             document.querySelectorAll('pre.json-highlight code').forEach(el => {
@@ -484,6 +488,121 @@
             if (clicked && clicked.classList) clicked.classList.add('active');
         }
 
+        // Custom request headers. The Headers tab is a list of key/value rows
+        // the user can extend freely (+ Add header) or trim (✕). The first row
+        // defaults to Content-Type so the common JSON case needs no typing.
+        function headersStorageKey(sectionIdx, endpointIdx) {
+            return HEADERS_KEY_PREFIX + sectionIdx + '_' + endpointIdx;
+        }
+
+        // Persist the current rows (order preserved, blanks included) so a
+        // half-typed header survives a refresh. An empty array is a meaningful
+        // state — the user deleted every row — and is restored as such.
+        function persistHeaders(sectionIdx, endpointIdx) {
+            const list = document.querySelector('.headers-list[data-section="' + sectionIdx + '"][data-endpoint="' + endpointIdx + '"]');
+            if (!list) return;
+            const rows = [];
+            list.querySelectorAll('.header-row').forEach(function(row) {
+                const k = row.querySelector('.header-key');
+                const v = row.querySelector('.header-value');
+                rows.push({ key: k ? k.value : '', value: v ? v.value : '' });
+            });
+            try { localStorage.setItem(headersStorageKey(sectionIdx, endpointIdx), JSON.stringify(rows)); } catch (_) {}
+        }
+
+        // Build a header row; persists on every keystroke and on removal.
+        function createHeaderRow(sectionIdx, endpointIdx, keyVal, valVal) {
+            const row = document.createElement('div');
+            row.className = 'header-row';
+            row.style.cssText = 'display:flex; gap:0.75rem; margin-bottom:0.5rem; align-items:center;';
+
+            const key = document.createElement('input');
+            key.type = 'text';
+            key.className = 'header-key';
+            key.placeholder = 'Header name';
+            key.value = keyVal || '';
+            key.style.cssText = 'flex:1; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);';
+
+            const val = document.createElement('input');
+            val.type = 'text';
+            val.className = 'header-value';
+            val.placeholder = 'Value';
+            val.value = valVal || '';
+            val.style.cssText = 'flex:2; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text);';
+
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'header-remove';
+            rm.title = 'Remove header';
+            rm.textContent = '✕';
+            rm.style.cssText = 'padding:0.4rem 0.6rem; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text-secondary); cursor:pointer; line-height:1;';
+            rm.addEventListener('click', function() { removeHeaderRow(rm); });
+
+            const onEdit = function() { persistHeaders(sectionIdx, endpointIdx); };
+            key.addEventListener('input', onEdit);
+            val.addEventListener('input', onEdit);
+
+            row.appendChild(key);
+            row.appendChild(val);
+            row.appendChild(rm);
+            return row;
+        }
+
+        function addHeaderRow(sectionIdx, endpointIdx) {
+            const list = document.querySelector('.headers-list[data-section="' + sectionIdx + '"][data-endpoint="' + endpointIdx + '"]');
+            if (!list) return;
+            const row = createHeaderRow(sectionIdx, endpointIdx, '', '');
+            list.appendChild(row);
+            persistHeaders(sectionIdx, endpointIdx);
+            row.querySelector('.header-key').focus();
+        }
+
+        function removeHeaderRow(btn) {
+            const row = btn.closest('.header-row');
+            if (!row) return;
+            const list = row.closest('.headers-list');
+            row.remove();
+            if (list) persistHeaders(list.dataset.section, list.dataset.endpoint);
+        }
+
+        // On load, restore saved headers for every tester. No saved entry →
+        // keep the server-rendered default row(s) but wire them for persistence.
+        function setupHeaderPersistence() {
+            document.querySelectorAll('.headers-list').forEach(function(list) {
+                const si = list.dataset.section;
+                const ei = list.dataset.endpoint;
+                let stored = null;
+                try { stored = JSON.parse(localStorage.getItem(headersStorageKey(si, ei))); } catch (_) {}
+                if (Array.isArray(stored)) {
+                    list.innerHTML = '';
+                    stored.forEach(function(h) { list.appendChild(createHeaderRow(si, ei, h.key, h.value)); });
+                } else {
+                    list.querySelectorAll('.header-row').forEach(function(row) {
+                        const onEdit = function() { persistHeaders(si, ei); };
+                        const k = row.querySelector('.header-key');
+                        const v = row.querySelector('.header-value');
+                        if (k) k.addEventListener('input', onEdit);
+                        if (v) v.addEventListener('input', onEdit);
+                    });
+                }
+            });
+        }
+
+        // Read every Headers-tab row into a plain object. Rows with a blank name
+        // are skipped; later rows win on duplicate names.
+        function collectCustomHeaders(tester) {
+            const out = {};
+            tester.querySelectorAll('.header-row').forEach(function(row) {
+                const k = row.querySelector('.header-key');
+                if (!k) return;
+                const name = k.value.trim();
+                if (!name) return;
+                const v = row.querySelector('.header-value');
+                out[name] = v ? v.value : '';
+            });
+            return out;
+        }
+
         // Send inline request
         async function sendInlineRequest(sectionIdx, endpointIdx) {
             const tester = document.getElementById('tester-endpoint-' + sectionIdx + '-' + endpointIdx);
@@ -494,8 +613,9 @@
             const statusEl = tester.querySelector('.inline-status');
             const responseEl = tester.querySelector('.inline-response');
 
-            // Build headers from credentials for active base URL
-            const headers = {};
+            // Start from the user's custom headers, then layer the managed auth
+            // header on top so it can't be clobbered by accident.
+            const headers = collectCustomHeaders(tester);
 
             if (authMethod !== 'none') {
                 const modeConfig = authModesConfig.find(m => m.name === authMethod);
@@ -513,7 +633,11 @@
             const options = { method: method, headers: headers };
 
             if (method !== 'GET' && body) {
-                headers['Content-Type'] = 'application/json';
+                // Only default Content-Type when the user hasn't set one.
+                const hasContentType = Object.keys(headers).some(h => h.toLowerCase() === 'content-type');
+                if (!hasContentType) {
+                    headers['Content-Type'] = 'application/json';
+                }
                 options.body = body;
             }
 

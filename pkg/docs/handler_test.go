@@ -246,7 +246,7 @@ func TestRender_DarkMode(t *testing.T) {
 		{`class="sidebar-theme-toggle"`, "toggle button missing from sidebar"},
 		{`'docs_theme'`, "localStorage key must be stable (used by both bootstrap and handler)"},
 		{`[data-theme="dark"]`, "dark theme CSS block missing"},
-		{`prefers-color-scheme: dark`, "no-flash bootstrap should fall back to system preference"},
+		{`? saved : 'dark'`, "no-flash bootstrap should default to dark (dark-first design)"},
 		{`setAttribute('data-theme'`, "bootstrap script must set data-theme before styles evaluate"},
 	}
 	for _, c := range checks {
