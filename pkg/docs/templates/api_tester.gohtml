@@ -210,33 +210,58 @@
             const input = document.querySelector('.sidebar-search');
             if (!input) return;
 
-            const items = Array.from(document.querySelectorAll('.nav-child-item'));
-            const groups = Array.from(document.querySelectorAll('.nav-item.nav-subgroup'));
+            const nav = document.querySelector('.sidebar-nav');
+            const topItems = Array.from(nav.querySelectorAll(':scope > .nav-item'));
+            const subgroups = Array.from(nav.querySelectorAll('.nav-item.nav-subgroup'));
+            const leaves = Array.from(nav.querySelectorAll('.nav-child-item'));
+            const emptyState = nav.querySelector('.sidebar-search-empty');
 
             function searchableText(el) {
                 return (el.getAttribute('data-search-text') || el.textContent || '').toLowerCase();
+            }
+            // Every whitespace-separated token must be present, so "get articles"
+            // matches "GET /api/articles" even though the words aren't adjacent.
+            function matches(el, tokens) {
+                const text = searchableText(el);
+                return tokens.every(t => text.includes(t));
+            }
+            function hasVisibleLeaf(container) {
+                const ch = container.querySelectorAll('.nav-child-item');
+                for (let i = 0; i < ch.length; i++) {
+                    if (ch[i].style.display !== 'none') return true;
+                }
+                return false;
             }
 
             function applyFilter() {
                 const q = input.value.trim().toLowerCase();
                 document.body.classList.toggle('searching', q.length > 0);
+                if (emptyState) emptyState.hidden = true;
                 if (!q) {
-                    items.forEach(el => { el.style.display = ''; });
-                    groups.forEach(el => { el.style.display = ''; });
+                    leaves.forEach(el => { el.style.display = ''; });
+                    subgroups.forEach(el => { el.style.display = ''; });
+                    topItems.forEach(el => { el.style.display = ''; });
                     return;
                 }
-                items.forEach(el => {
-                    el.style.display = searchableText(el).includes(q) ? '' : 'none';
+                const tokens = q.split(/\s+/);
+                leaves.forEach(el => {
+                    el.style.display = matches(el, tokens) ? '' : 'none';
                 });
-                // Hide groups that have zero visible items.
-                groups.forEach(group => {
-                    const children = group.querySelectorAll('.nav-child-item');
-                    let anyVisible = false;
-                    for (let i = 0; i < children.length; i++) {
-                        if (children[i].style.display !== 'none') { anyVisible = true; break; }
-                    }
-                    group.style.display = anyVisible ? '' : 'none';
+                // A subgroup survives only if one of its leaves is still visible.
+                subgroups.forEach(group => {
+                    group.style.display = hasVisibleLeaf(group) ? '' : 'none';
                 });
+                // Top-level items: groups follow their descendant leaves; a
+                // standalone item (no children) matches on its own header text.
+                let anyVisible = false;
+                topItems.forEach(item => {
+                    const visible = item.querySelector('.nav-child-item')
+                        ? hasVisibleLeaf(item)
+                        : matches(item, tokens);
+                    item.style.display = visible ? '' : 'none';
+                    if (visible) anyVisible = true;
+                });
+                if (emptyState) emptyState.hidden = anyVisible;
             }
 
             input.addEventListener('input', applyFilter);
