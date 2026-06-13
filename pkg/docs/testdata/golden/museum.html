@@ -81,6 +81,10 @@
             --primary: #4F46E5;           
             --primary-dark: #4338CA;      
             --primary-light: rgba(79, 70, 229, 0.08);
+            --accent: #7C3AED;            
+            --grad-primary: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+            --grad-primary-hover: linear-gradient(135deg, #4338CA 0%, #6D28D9 100%);
+            --glow: 0 6px 20px -6px rgba(99, 102, 241, 0.45);
             --secondary: #0EA5E9;
             --success: #10B981;
             --warning: #F59E0B;
@@ -152,6 +156,10 @@
             --primary: #6366F1;           
             --primary-dark: #4F46E5;
             --primary-light: rgba(99, 102, 241, 0.16);
+            --accent: #A78BFA;            
+            --grad-primary: linear-gradient(135deg, #6366F1 0%, #A855F7 100%);
+            --grad-primary-hover: linear-gradient(135deg, #818CF8 0%, #C084FC 100%);
+            --glow: 0 8px 26px -8px rgba(129, 140, 248, 0.55);
 
             --bg: #020617;                
             --bg-secondary: #1E293B;      
@@ -536,6 +544,7 @@
             background: var(--sidebar-active);
             color: var(--primary);
             font-weight: 600;
+            box-shadow: inset 3px 0 0 0 var(--primary);
         }
 
         .nav-item-header-content {
@@ -642,7 +651,8 @@
         .nav-child-item.active {
             background: var(--sidebar-active);
             color: var(--primary);
-            font-weight: 500;
+            font-weight: 600;
+            box-shadow: inset 3px 0 0 0 var(--primary);
         }
 
         .nav-group-label {
@@ -709,8 +719,8 @@
 
         .content-panels {
             flex: 1;
-            padding: 2rem;
-            max-width: 960px;
+            padding: 3rem 3.5rem;
+            max-width: 1040px;
         }
 
         .content-panel {
@@ -723,23 +733,36 @@
 
          
         .content-header {
-            margin-bottom: 2rem;
-            padding-bottom: 1.5rem;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.75rem;
             border-bottom: 1px solid var(--border);
         }
 
         .content-header h1 {
-            font-size: 1.875rem;
+            font-size: 2.25rem;
             font-weight: 800;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.6rem;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
             color: var(--text);
-            letter-spacing: -0.025em;
+        }
+
+         
+        .content-header h1::after {
+            content: '';
+            display: block;
+            width: 52px;
+            height: 4px;
+            margin-top: 0.85rem;
+            border-radius: 4px;
+            background: var(--grad-primary);
         }
 
         .content-header p {
             color: var(--text-secondary);
-            font-size: 1rem;
-            line-height: 1.5;
+            font-size: 1.0625rem;
+            line-height: 1.65;
+            max-width: 70ch;
         }
 
          
@@ -762,39 +785,70 @@
         .section-title {
             font-size: 1.5rem;
             font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 1.25rem;
             color: var(--text);
             letter-spacing: -0.02em;
+            position: relative;
+            padding-left: 0.85rem;
+        }
+
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0.15em;
+            bottom: 0.15em;
+            width: 4px;
+            border-radius: 4px;
+            background: var(--grad-primary);
         }
 
          
         .cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(248px, 1fr));
+            gap: 1.25rem;
             margin: 1.5rem 0;
         }
 
         .card {
+            position: relative;
             background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 8px;
+            padding: 1.5rem 1.5rem 1.5rem 1.75rem;
+            border-radius: 12px;
             border: 1px solid var(--border);
-            transition: box-shadow 0.2s, border-color 0.2s;
+            transition: box-shadow 0.2s, border-color 0.2s, transform 0.15s;
             box-shadow: var(--card-shadow);
             cursor: pointer;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--grad-primary);
+            opacity: 0;
+            transition: opacity 0.2s;
         }
 
         .card:hover {
-            border-color: var(--primary);
+            border-color: transparent;
             box-shadow: var(--card-shadow-hover);
+            transform: translateY(-2px);
         }
+
+        .card:hover::before { opacity: 1; }
 
         .card h4 {
             color: var(--text);
             margin-bottom: 0.5rem;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .card p {
@@ -1312,24 +1366,25 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.55rem 1.25rem;
-            background: var(--primary);
+            padding: 0.6rem 1.4rem;
+            background: var(--grad-primary);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-weight: 600;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
-            box-shadow: var(--shadow-sm);
+            transition: background 0.15s, box-shadow 0.15s, transform 0.08s;
+            box-shadow: var(--glow);
         }
 
         .try-it-btn:hover {
-            background: var(--primary-dark);
-            box-shadow: var(--shadow-md);
+            background: var(--grad-primary-hover);
+            box-shadow: var(--glow), var(--shadow-md);
+            transform: translateY(-1px);
         }
 
-        .try-it-btn:active { transform: translateY(0.5px); box-shadow: var(--shadow-sm); }
+        .try-it-btn:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
 
          
         .global-tester {
@@ -1396,24 +1451,25 @@
         }
 
         .send-btn {
-            padding: 0.55rem 1.25rem;
-            background: var(--primary);
+            padding: 0.6rem 1.4rem;
+            background: var(--grad-primary);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-weight: 600;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
-            box-shadow: var(--shadow-sm);
+            transition: background 0.15s, box-shadow 0.15s, transform 0.08s;
+            box-shadow: var(--glow);
         }
 
         .send-btn:hover {
-            background: var(--primary-dark);
-            box-shadow: var(--shadow-md);
+            background: var(--grad-primary-hover);
+            box-shadow: var(--glow), var(--shadow-md);
+            transform: translateY(-1px);
         }
 
-        .send-btn:active { transform: translateY(0.5px); box-shadow: var(--shadow-sm); }
+        .send-btn:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
 
         .tester-tabs {
             display: flex;
