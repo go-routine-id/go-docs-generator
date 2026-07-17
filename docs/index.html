@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docs-generator — interactive API docs from a YAML spec</title>
+<meta name="description" content="Point docs-generator at a YAML or OpenAPI spec and get a single-page documentation site: live API tester, architecture diagrams, flows and screens. Works for monoliths and microservices.">
+<style>
+  :root[data-theme="light"], :root {
+    --ink: #2b2733; --muted: #766f80; --line: #e6dfd3; --accent: #d9840f;
+    --accent-dark: #b46a08; --bg: #fbf7f1; --green: #33a35c; --card: #ffffff;
+    --head: #4a3418; --hero2: #f6ecdd;
+  }
+  :root[data-theme="dark"] {
+    --ink: #ece6dd; --muted: #a99f92; --line: #38312a; --accent: #e8a33d;
+    --accent-dark: #c9861f; --bg: #16130f; --green: #4cc07a; --card: #1d1913;
+    --head: #f0d9b4; --hero2: #201a12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --ink: #ece6dd; --muted: #a99f92; --line: #38312a; --accent: #e8a33d;
+      --accent-dark: #c9861f; --bg: #16130f; --green: #4cc07a; --card: #1d1913;
+      --head: #f0d9b4; --hero2: #201a12;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: Helvetica, Arial, sans-serif; color: var(--ink); background: var(--card); line-height: 1.6; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: .92em; }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { background: linear-gradient(160deg, var(--bg) 60%, var(--hero2)); border-bottom: 1px solid var(--line); padding: 72px 0 56px; text-align: center; }
+  .hero h1 { font-size: 54px; letter-spacing: -1px; color: var(--head); }
+  .hero h1 span { color: var(--accent); }
+  .hero p.tag { font-size: 21px; color: var(--muted); margin: 10px 0 28px; }
+  .cta { display: inline-block; padding: 12px 22px; border-radius: 8px; font-size: 16px; margin: 4px 6px; }
+  .cta.primary { background: var(--accent); color: #fff; }
+  .cta.primary:hover { background: var(--accent-dark); text-decoration: none; }
+  .cta.ghost { border: 1px solid var(--line); color: var(--ink); background: var(--card); }
+  .cta.ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+  .stats { display: flex; gap: 28px; justify-content: center; margin-top: 36px; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 24px; color: var(--head); }
+  .stat { font-size: 13px; color: var(--muted); }
+
+  section { padding: 56px 0; }
+  section.alt { background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  h2 { font-size: 30px; margin-bottom: 8px; color: var(--head); }
+  p.lead { color: var(--muted); margin-bottom: 28px; }
+
+  .flow2 { display: grid; grid-template-columns: minmax(280px, 1fr) auto minmax(240px, 1fr); gap: 20px; align-items: center; }
+  @media (max-width: 820px) { .flow2 { grid-template-columns: 1fr; } .flow2 .arrow { transform: rotate(90deg); } }
+  .arrow { font-size: 30px; color: var(--accent); text-align: center; }
+  pre { background: #241d14; color: #f0e6d6; padding: 16px; border-radius: 10px; font-size: 12.5px; line-height: 1.55; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre .k { color: #e8b06b; } pre .s { color: #a7d98b; } pre .c { color: #8b8172; }
+  .out { list-style: none; display: grid; gap: 10px; }
+  .out li { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; font-size: 14px; }
+  .out li b { color: var(--head); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .card h3 { font-size: 16px; margin-bottom: 6px; color: var(--head); }
+  .card p { font-size: 14px; color: var(--muted); }
+
+  footer { padding: 30px 0 44px; color: var(--muted); font-size: 14px; text-align: center; }
+  #theme { position: fixed; top: 14px; right: 16px; z-index: 20; font-size: 17px; background: var(--card); border: 1px solid var(--line); border-radius: 50%; width: 38px; height: 38px; display: grid; place-items: center; cursor: pointer; text-decoration: none; }
+  #theme:hover { border-color: var(--accent); text-decoration: none; }
+</style>
+<script>
+  (function () { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; })();
+  function toggleTheme() {
+    var cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("theme", next);
+  }
+</script>
+</head>
+<body>
+<a href="#" id="theme" title="Toggle dark mode" onclick="toggleTheme();return false;">🌓</a>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>docs<span>-generator</span></h1>
+    <p class="tag">One YAML spec in — an interactive documentation site out.</p>
+    <a class="cta primary" href="https://github.com/go-routine-id/go-docs-generator">GitHub</a>
+    <a class="cta ghost" href="https://github.com/go-routine-id/go-docs-generator/blob/main/docs/writing-specs.md">Writing specs</a>
+    <a class="cta ghost" href="https://opensource.go-routine.com/">go-routine ecosystem</a>
+    <div class="stats">
+      <div class="stat"><b>YAML / OpenAPI</b>point it at either</div>
+      <div class="stat"><b>live tester</b>send requests in-browser</div>
+      <div class="stat"><b>diagrams + flows</b>architecture & sequences</div>
+      <div class="stat"><b>multi-service</b>one page, many backends</div>
+      <div class="stat"><b>MIT</b>free forever</div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>A spec in, a whole doc site out</h2>
+    <p class="lead">Keep one source of truth in YAML (or reuse your existing OpenAPI 3.x). docs-generator turns it into a single-page site — no build step, hot-reload in dev.</p>
+    <div class="flow2">
+      <div>
+<pre><span class="c"># index.yaml</span>
+<span class="k">title:</span> <span class="s">Account Service</span>
+<span class="k">sections:</span>
+  - <span class="k">name:</span> <span class="s">Auth</span>
+    <span class="k">base_url:</span> <span class="s">https://account.example.com</span>
+    <span class="k">endpoints:</span>
+      - <span class="k">method:</span> <span class="s">POST</span>
+        <span class="k">path:</span> <span class="s">/api/v1/auth/login</span>
+        <span class="k">body:</span> { email: <span class="s">""</span>, password: <span class="s">""</span> }</pre>
+      </div>
+      <div class="arrow">→</div>
+      <div>
+        <ul class="out">
+          <li><b>📖 Reference</b> — every endpoint, grouped by section</li>
+          <li><b>🧪 Live tester</b> — fire requests, creds per environment</li>
+          <li><b>🗺️ Diagrams</b> — architecture nodes &amp; edges, auto-laid-out</li>
+          <li><b>🔀 Flows &amp; screens</b> — sequences and UI walkthroughs</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>Up in one command</h2>
+    <p class="lead">Scaffold a starter spec, then serve — or drop in a <code>swagger.yaml</code> you already have.</p>
+    <div class="grid">
+      <div class="card"><h3>Start fresh</h3>
+<pre>go run ./cmd/server init myspec
+go run ./cmd/server \
+  -spec ./myspec/index.yaml</pre></div>
+      <div class="card"><h3>Use your OpenAPI</h3>
+<pre>go run ./cmd/server \
+  -spec ./swagger.yaml</pre>
+        <p style="margin-top:8px">OpenAPI 3.x is read natively — no conversion.</p></div>
+      <div class="card"><h3>Ship it</h3>
+<pre>./docs-generator \
+  -spec ./spec/index.yaml -port 8080</pre>
+        <p style="margin-top:8px">Single binary, or the published Docker image.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Built for real backends</h2>
+    <div class="grid">
+      <div class="card"><h3>🧪 Interactive tester</h3><p>Send requests straight from the docs; per-environment credentials live in <code>localStorage</code>, never in the spec.</p></div>
+      <div class="card"><h3>🌐 Per-section base URL</h3><p>Describe a whole platform on one page — <code>account-service</code> and <code>storage-service</code> on different hosts, side by side.</p></div>
+      <div class="card"><h3>🗺️ Architecture diagrams</h3><p>ReactFlow nodes &amp; edges with automatic dagre layout when you don't pin positions.</p></div>
+      <div class="card"><h3>📡 Events &amp; async</h3><p>Document Kafka topics, webhooks, and pub/sub channels right next to your HTTP endpoints.</p></div>
+      <div class="card"><h3>🎨 Theming</h3><p>Override title, logo, primary color, and favicon without touching the template.</p></div>
+      <div class="card"><h3>🤖 AI-ready endpoints</h3><p><code>/docs/spec</code> (JSON), <code>/docs/openapi</code>, and <code>/docs/yaml</code> expose the spec for tooling and agents.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    docs-generator is MIT-licensed · part of the <a href="https://opensource.go-routine.com/">go-routine</a> ecosystem · <a href="https://github.com/go-routine-id/go-docs-generator">source on GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
